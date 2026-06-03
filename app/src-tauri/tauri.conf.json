@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "maoloader",
+  "version": "0.1.0",
+  "identifier": "com.steel.maoloader",
+  "build": {
+    "beforeDevCommand": "bun run dev:tauri",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "bun run build:tauri",
+    "frontendDist": "../build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "maoloader",
+        "width": 800,
+        "height": 600
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "resources": {
+      "../bin/core.dll": "core.dll"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

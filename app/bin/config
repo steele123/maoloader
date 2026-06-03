@@ -1,0 +1,18 @@
+[app]
+language = en
+plugins_dir = 
+league_dir = C:\Riot Games\League of Legends
+disabled_plugins = 
+activation_mode = universal
+
+[client]
+use_hotkeys = true
+optimized_client = true
+silent_mode = false
+super_potato = false
+isecure_mode = false
+insecure_mode = false
+use_devtools = true
+use_riotclient = true
+use_proxy = false
+debug_port = 0
