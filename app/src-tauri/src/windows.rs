@@ -14,7 +14,7 @@ use winreg::{
 const IFEO_PATH: &str =
     "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options";
 #[cfg(windows)]
-const IFEO_TARGET_EXES: &[&str] = &["LeagueClientUx.exe", "LeagueClientUxRender.exe"];
+const IFEO_TARGET_EXE: &str = "LeagueClientUx.exe";
 #[cfg(windows)]
 const SYMLINK_TARGET_FILE: &str = "version.dll";
 
@@ -262,20 +262,17 @@ fn warn_webview2_missing() {
 #[cfg(windows)]
 fn ifeo_is_activated() -> bool {
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let path = [IFEO_PATH, IFEO_TARGET_EXE].join("\\");
 
-    IFEO_TARGET_EXES.iter().all(|target_exe| {
-        let path = [IFEO_PATH, target_exe].join("\\");
-
-        hklm.open_subkey_with_flags(path, KEY_READ)
-            .ok()
-            .and_then(|key| key.get_value::<String, _>("Debugger").ok())
-            .filter(|value| value.to_ascii_lowercase().starts_with("rundll32"))
-            .and_then(|value| extract_quoted_path(&value))
-            .is_some_and(|path| {
-                normalize_path(&path)
-                    == normalize_path(&crate::config::core_path().display().to_string())
-            })
-    })
+    hklm.open_subkey_with_flags(path, KEY_READ)
+        .ok()
+        .and_then(|key| key.get_value::<String, _>("Debugger").ok())
+        .filter(|value| value.to_ascii_lowercase().starts_with("rundll32"))
+        .and_then(|value| extract_quoted_path(&value))
+        .is_some_and(|path| {
+            normalize_path(&path)
+                == normalize_path(&crate::config::core_path().display().to_string())
+        })
 }
 
 #[cfg(not(windows))]
@@ -290,26 +287,22 @@ fn ifeo_activate(active: bool) -> ActivationResult {
         .open_subkey_with_flags(IFEO_PATH, KEY_CREATE_SUB_KEY)
         .map_err(|error| (ActivationStage::OpenIfeo, error.kind()))?;
 
-    for target_exe in IFEO_TARGET_EXES {
-        let target = ifeo
-            .create_subkey_with_flags(target_exe, KEY_SET_VALUE)
-            .map_err(|error| (ActivationStage::CreateTarget, error.kind()))?
-            .0;
+    let target = ifeo
+        .create_subkey_with_flags(IFEO_TARGET_EXE, KEY_SET_VALUE)
+        .map_err(|error| (ActivationStage::CreateTarget, error.kind()))?
+        .0;
 
-        if active {
-            target
-                .set_value("Debugger", &ifeo_debugger_value())
-                .map_err(|error| (ActivationStage::SetDebugger, error.kind()))?;
-        } else {
-            match target.delete_value("Debugger") {
-                Ok(()) => {}
-                Err(error) if error.kind() == ErrorKind::NotFound => {}
-                Err(error) => return Err((ActivationStage::DeleteDebugger, error.kind())),
-            }
+    if active {
+        target
+            .set_value("Debugger", &ifeo_debugger_value())
+            .map_err(|error| (ActivationStage::SetDebugger, error.kind()))
+    } else {
+        match target.delete_value("Debugger") {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+            Err(error) => Err((ActivationStage::DeleteDebugger, error.kind())),
         }
     }
-
-    Ok(())
 }
 
 #[cfg(not(windows))]

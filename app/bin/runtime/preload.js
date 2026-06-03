@@ -827,6 +827,10 @@
   }
 
   function closeWelcome(root) {
+    if (root) {
+      root.style.display = "none";
+      root.setAttribute?.("aria-hidden", "true");
+    }
     root?.remove?.();
     if (root?.parentNode?.removeChild) {
       root.parentNode.removeChild(root);
@@ -838,10 +842,15 @@
       return undefined;
     }
 
+    const existing = document.querySelector?.(".maoloader-welcome-root");
+    if (existing) {
+      return existing;
+    }
+
     const root = document.createElement("div");
     root.className = "maoloader-welcome-root";
     root.style.cssText =
-      "position:fixed;inset:0;z-index:2147483645;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);font:14px system-ui,sans-serif;color:#1f2925;";
+      "position:fixed;inset:0;z-index:2147483645;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);font:14px system-ui,sans-serif;color:#1f2925;pointer-events:auto;";
 
     const panel = document.createElement("div");
     panel.className = "maoloader-welcome-panel";
@@ -922,7 +931,38 @@
     button.textContent = "Okay";
     button.style.cssText =
       "border:0;border-radius:6px;background:#d8dedb;color:#182620;padding:6px 12px;text-transform:uppercase;font:600 12px system-ui,sans-serif;cursor:pointer;";
-    button.onclick = () => closeWelcome(root);
+    const dismiss = (event) => {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      event?.stopImmediatePropagation?.();
+      if (checkbox.checked) {
+        window.DataStore?.set("pengu-welcome", false);
+      }
+      closeWelcome(root);
+      return false;
+    };
+    button.onclick = dismiss;
+    for (const type of ["pointerdown", "mousedown", "click"]) {
+      button.addEventListener?.(type, dismiss, true);
+    }
+    root.addEventListener?.(
+      "click",
+      (event) => {
+        if (event.target === root) {
+          dismiss(event);
+        }
+      },
+      true,
+    );
+    window.addEventListener?.(
+      "keydown",
+      (event) => {
+        if (event.key === "Escape") {
+          dismiss(event);
+        }
+      },
+      true,
+    );
 
     footer.appendChild(label);
     footer.appendChild(button);

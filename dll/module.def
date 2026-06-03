@@ -29,6 +29,7 @@ EXPORTS
     VerQueryValueW
     entry
     maoloader_browser_background_patch_count
+    maoloader_create_process_hook_count
     maoloader_browser_hook_symbol_count
     maoloader_browser_main_client_hook_count
     maoloader_browser_native_message_count
@@ -48,6 +49,7 @@ EXPORTS
     maoloader_plugins_scheme_registration_count
     maoloader_process_kind
     maoloader_renderer_hook_symbol_count
+    maoloader_renderer_early_inject_count
     maoloader_renderer_main_context_count
     maoloader_renderer_native_expose_count
     maoloader_renderer_preload_execute_count

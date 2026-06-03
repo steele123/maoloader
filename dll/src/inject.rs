@@ -4,6 +4,9 @@ use std::{io, path::Path};
 use std::{ffi::c_void, os::windows::ffi::OsStrExt};
 
 #[cfg(windows)]
+type Handle = isize;
+
+#[cfg(windows)]
 const MEM_COMMIT: u32 = 0x1000;
 #[cfg(windows)]
 const PAGE_READWRITE: u32 = 0x04;
@@ -11,10 +14,6 @@ const PAGE_READWRITE: u32 = 0x04;
 const MEM_RELEASE: u32 = 0x8000;
 #[cfg(windows)]
 const WAIT_INFINITE: u32 = 0xffff_ffff;
-
-#[cfg(windows)]
-type Handle = isize;
-
 #[cfg(windows)]
 pub fn inject_dll(process: Handle, dll_path: &Path) -> io::Result<()> {
     let encoded = dll_path

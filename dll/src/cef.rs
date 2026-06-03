@@ -94,6 +94,7 @@ impl BrowserNativeMessage {
 #[allow(dead_code)]
 pub fn install_for_browser_process() -> CefHookState {
     install_browser_background_patch();
+    crate::process_hook::install_browser_child_process_hooks();
 
     install_hooks(&[
         ("cef_initialize", hooked_cef_initialize as *const c_void),

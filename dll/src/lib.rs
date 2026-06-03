@@ -12,6 +12,7 @@ mod hook;
 mod inject;
 mod platform;
 mod plugins;
+mod process_hook;
 mod riotclient;
 mod trace;
 mod v8_native;
@@ -201,6 +202,16 @@ pub extern "system" fn maoloader_renderer_preload_execute_count() -> usize {
 #[unsafe(no_mangle)]
 pub extern "system" fn maoloader_renderer_native_expose_count() -> usize {
     cef::renderer_native_expose_count()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn maoloader_renderer_early_inject_count() -> usize {
+    process_hook::renderer_early_inject_count()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn maoloader_create_process_hook_count() -> usize {
+    process_hook::create_process_hook_count()
 }
 
 #[unsafe(no_mangle)]
