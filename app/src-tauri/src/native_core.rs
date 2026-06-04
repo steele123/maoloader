@@ -1,4 +1,5 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::{fs, path::PathBuf};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct NativeCoreStatus {
@@ -34,7 +35,25 @@ pub struct NativeCoreStatus {
     pub browser_background_patches: usize,
     pub devtools_open_attempts: usize,
     pub devtools_open_successes: usize,
+    pub diagnostics_trace_records: usize,
+    pub diagnostics_rotated: bool,
+    pub diagnostics_latest_event: String,
+    pub diagnostics_latest_session: String,
+    pub diagnostics_latest_pid: u32,
+    pub diagnostics_latest_ts: u128,
     pub error: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct LatestDiagnosticRecord {
+    #[serde(default)]
+    ts: u128,
+    #[serde(default)]
+    session: String,
+    #[serde(default)]
+    pid: u32,
+    #[serde(default)]
+    event: String,
 }
 
 type PluginCount = unsafe extern "system" fn() -> usize;
@@ -79,8 +98,16 @@ pub fn status() -> NativeCoreStatus {
         browser_background_patches: 0,
         devtools_open_attempts: 0,
         devtools_open_successes: 0,
+        diagnostics_trace_records: 0,
+        diagnostics_rotated: false,
+        diagnostics_latest_event: String::new(),
+        diagnostics_latest_session: String::new(),
+        diagnostics_latest_pid: 0,
+        diagnostics_latest_ts: 0,
         error: String::new(),
     };
+
+    apply_diagnostics_status(&mut status);
 
     let library = match unsafe { libloading::Library::new(&path) } {
         Ok(library) => library,
@@ -224,6 +251,43 @@ pub fn status() -> NativeCoreStatus {
     }
 
     status
+}
+
+fn apply_diagnostics_status(status: &mut NativeCoreStatus) {
+    let dir = diagnostics_dir();
+    let trace_path = dir.join("core-trace.log");
+    let rotated_path = dir.join("core-trace.1.log");
+    let latest_path = dir.join("latest.json");
+
+    status.diagnostics_trace_records = count_non_empty_lines(&trace_path);
+    status.diagnostics_rotated = rotated_path.is_file();
+
+    let Ok(latest) = fs::read_to_string(latest_path) else {
+        return;
+    };
+    let Ok(record) = serde_json::from_str::<LatestDiagnosticRecord>(&latest) else {
+        return;
+    };
+
+    status.diagnostics_latest_event = record.event;
+    status.diagnostics_latest_session = record.session;
+    status.diagnostics_latest_pid = record.pid;
+    status.diagnostics_latest_ts = record.ts;
+}
+
+fn diagnostics_dir() -> PathBuf {
+    crate::config::base_dir().join("diagnostics")
+}
+
+fn count_non_empty_lines(path: &PathBuf) -> usize {
+    let Ok(content) = fs::read_to_string(path) else {
+        return 0;
+    };
+
+    content
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .count()
 }
 
 unsafe fn call_symbol<'lib, T>(

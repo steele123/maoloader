@@ -6,6 +6,8 @@ $ErrorActionPreference = "Stop"
 
 $resolvedDll = Resolve-Path $DllPath -ErrorAction Stop
 $tracePath = Join-Path (Split-Path -Parent $resolvedDll.Path) "diagnostics\core-trace.log"
+$traceLatestPath = Join-Path (Split-Path -Parent $resolvedDll.Path) "diagnostics\latest.json"
+$traceRotatedPath = Join-Path (Split-Path -Parent $resolvedDll.Path) "diagnostics\core-trace.1.log"
 $powershell = Join-Path $PSHOME "powershell.exe"
 
 Add-Type @"
@@ -43,6 +45,8 @@ $processHandle = [IntPtr]::Zero
 
 try {
     Remove-Item -Force $tracePath -ErrorAction SilentlyContinue
+    Remove-Item -Force $traceLatestPath -ErrorAction SilentlyContinue
+    Remove-Item -Force $traceRotatedPath -ErrorAction SilentlyContinue
 
     $target = Start-Process `
         -FilePath $powershell `
@@ -118,6 +122,7 @@ try {
         TargetPid     = $target.Id
         InjectedDll   = $resolvedDll.Path
         TracePath     = $tracePath
+        TraceLatest   = $traceLatestPath
         TraceRecords  = $traceRecords.Count
         Loaded        = $true
     } | Format-List

@@ -1,0 +1,91 @@
+# maoloader web
+
+Public SvelteKit registry for maoloader plugins and themes.
+
+## Storage model
+
+- Cloudflare D1 binding `PLUGIN_DB` stores listing metadata, submissions, review state, and indexes.
+- Cloudflare R2 binding `PLUGIN_BUCKET` stores package archives, icons, and screenshots.
+- Local development falls back to the bundled seed listing in `src/lib/registry/seed.ts`.
+
+## D1 setup
+
+Create the database, copy the returned database id into `wrangler.jsonc`, then apply migrations:
+
+```sh
+bunx wrangler d1 create maoloader-registry
+bun run db:migrate:local
+bun run db:migrate:remote
+```
+
+Drizzle owns the table schema in `src/lib/db/schema.ts`. Generate new SQL migrations after schema changes:
+
+```sh
+bun run db:generate
+```
+
+## Registry tables
+
+- `registry_listings` contains approved plugin/theme metadata.
+- `registry_submissions` contains pending and reviewed GitHub submissions.
+- R2 package keys are stored on each listing under `assets.package.key`.
+
+## Review and mirror flow
+
+1. Users add `maoloader.json` to a GitHub repository.
+2. Users submit that GitHub repository from `/submit`.
+3. The server reads and validates the manifest. Leave the manifest path empty for root `maoloader.json`, or provide a relative path for nested manifests.
+4. Review the source externally.
+5. Click `Approve and mirror` from `/admin`.
+6. The server fetches the GitHub zipball, uploads it to R2, publishes every listing from the manifest in D1, and marks the submission approved.
+
+## GitHub manifest
+
+Every submitted repository must include a `maoloader.json` manifest. Top-level fields act as defaults for each entry in `plugins`, and every plugin can override them. If the manifest is at the repository root, leave the submit form's manifest path empty. For nested manifests, enter a relative path like `packages/example/maoloader.json`.
+
+```json
+{
+  "title": "Example Maoloader Pack",
+  "version": "0.1.0",
+  "repository": "https://github.com/steele123/maoloader",
+  "description": "Example plugins for maoloader.",
+  "image": "assets/icon.png",
+  "author": {
+    "name": "maoloader",
+    "url": "https://github.com/steele123"
+  },
+  "plugins": [
+    {
+      "slug": "example-plugin",
+      "title": "Example Plugin",
+      "description": "Adds a small toast when the League client loads.",
+      "entry": "plugins/example/index.js",
+      "files": ["plugins/example/index.js", "plugins/example/styles.css"],
+      "tags": ["example", "ui"]
+    },
+    {
+      "kind": "theme",
+      "slug": "example-theme",
+      "title": "Example Theme",
+      "description": "A small visual theme.",
+      "entry": "themes/example/index.css",
+      "image": "themes/example/preview.png",
+      "files": ["themes/example/index.css", "themes/example/preview.png"],
+      "tags": ["theme"]
+    }
+  ]
+}
+```
+
+Required manifest fields are `title`, `version`, `repository`, `description`, `image`, and a non-empty `plugins` array.
+
+## Routes
+
+- `/` browses plugins and themes.
+- `/submit` lets users submit GitHub repositories for review.
+- `/plugins/[slug]` shows a listing detail page.
+- `/api/plugins` returns registry JSON.
+- `/api/plugins/[slug]` returns one listing.
+- `/api/plugins/[slug]/download` streams the R2 package when configured.
+- `POST /api/admin/seed` writes bundled seed listings into D1. Set `ADMIN_TOKEN` and send it as `x-maoloader-admin-token` in production.
+- `/admin` provides the GitHub submission queue, approve-and-mirror controls, and a manual zip upload fallback. Set `ADMIN_TOKEN` in production.

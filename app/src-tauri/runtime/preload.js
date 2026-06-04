@@ -51,7 +51,11 @@
     };
   }
 
-  let windowLoaded = false;
+  if (!window.Pengu) {
+    window.Pengu = pengu;
+  }
+
+  let windowLoaded = typeof document !== "undefined" && document.readyState === "complete";
   if (typeof window.addEventListener === "function") {
     window.addEventListener("load", function () {
       windowLoaded = true;
@@ -865,9 +869,12 @@
     return false;
   }
 
+  const WELCOME_HOST_SELECTOR = "lol-uikit-layer-manager-wrapper";
+
   function closeWelcome(root) {
     if (root) {
       root.style.display = "none";
+      root.style.pointerEvents = "none";
       root.setAttribute?.("aria-hidden", "true");
     }
     root?.remove?.();
@@ -876,7 +883,60 @@
     }
   }
 
-  function renderWelcome() {
+  function welcomeHost() {
+    return document.querySelector?.(WELCOME_HOST_SELECTOR) || document.body;
+  }
+
+  function waitForWelcomeHost() {
+    if (typeof document === "undefined" || !document.body?.appendChild) {
+      return Promise.resolve(undefined);
+    }
+
+    const current = welcomeHost();
+    if (current && current !== document.body) {
+      return Promise.resolve(current);
+    }
+
+    return new Promise((resolve) => {
+      let resolved = false;
+      let observer;
+      let attempts = 0;
+      const finish = (host) => {
+        if (resolved) {
+          return;
+        }
+        resolved = true;
+        observer?.disconnect?.();
+        resolve(host || document.body);
+      };
+      const check = () => {
+        const host = welcomeHost();
+        if (host && host !== document.body) {
+          finish(host);
+          return;
+        }
+        attempts += 1;
+        if (attempts >= 80) {
+          finish(document.body);
+        }
+      };
+
+      if (typeof MutationObserver === "function" && document.documentElement) {
+        observer = new MutationObserver(check);
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+      }
+
+      const interval = setInterval(() => {
+        check();
+        if (resolved) {
+          clearInterval(interval);
+        }
+      }, 50);
+      check();
+    });
+  }
+
+  function renderWelcome(host = welcomeHost()) {
     if (typeof document === "undefined" || !document.body?.appendChild || !document.createElement) {
       return undefined;
     }
@@ -968,21 +1028,52 @@
     button.type = "button";
     button.className = "maoloader-welcome-ok";
     button.textContent = "Okay";
+    button.tabIndex = 0;
     button.style.cssText =
-      "border:0;border-radius:6px;background:#d8dedb;color:#182620;padding:6px 12px;text-transform:uppercase;font:600 12px system-ui,sans-serif;cursor:pointer;";
+      "position:relative;z-index:1;border:0;border-radius:6px;background:#d8dedb;color:#182620;padding:6px 12px;text-transform:uppercase;font:600 12px system-ui,sans-serif;cursor:pointer;pointer-events:auto;";
     const dismiss = (event) => {
       event?.preventDefault?.();
       event?.stopPropagation?.();
       event?.stopImmediatePropagation?.();
-      if (checkbox.checked) {
-        window.DataStore?.set("pengu-welcome", false);
+      try {
+        if (checkbox.checked) {
+          window.DataStore?.set("pengu-welcome", false);
+        }
+      } catch (error) {
+        console.warn("maoloader failed to persist welcome dismissal.", error);
       }
       closeWelcome(root);
       return false;
     };
+    const eventHitsDismissTarget = (event) => {
+      const target = event?.target;
+      if (!target) {
+        return false;
+      }
+      if (target === button || target === root) {
+        return true;
+      }
+      if (target.closest?.(".maoloader-welcome-ok")) {
+        return true;
+      }
+      const path = event.composedPath?.();
+      return Array.isArray(path) && path.includes(button);
+    };
+    const delegatedDismiss = (event) => {
+      if (eventHitsDismissTarget(event)) {
+        return dismiss(event);
+      }
+      return undefined;
+    };
     button.onclick = dismiss;
-    for (const type of ["pointerdown", "mousedown", "click"]) {
+    button.onpointerdown = dismiss;
+    button.onmousedown = dismiss;
+    button.ontouchstart = dismiss;
+    for (const type of ["pointerdown", "mousedown", "touchstart", "click"]) {
       button.addEventListener?.(type, dismiss, true);
+      root.addEventListener?.(type, delegatedDismiss, true);
+      document.addEventListener?.(type, delegatedDismiss, true);
+      window.addEventListener?.(type, delegatedDismiss, true);
     }
     root.addEventListener?.(
       "click",
@@ -1008,13 +1099,14 @@
     panel.appendChild(body);
     panel.appendChild(footer);
     root.appendChild(panel);
-    document.body.appendChild(root);
+    (host?.appendChild ? host : document.body).appendChild(root);
+    button.focus?.();
     return root;
   }
 
   async function initWelcomeSurface() {
     if (window.DataStore?.get("pengu-welcome", true) !== false) {
-      renderWelcome();
+      renderWelcome(await waitForWelcomeHost());
     } else {
       window.Toast?.success?.("maoloader is active");
     }

@@ -43,24 +43,36 @@ pub struct ClientConfig {
 impl Default for LoaderConfig {
     fn default() -> Self {
         Self {
-            app: AppConfig {
-                language: "en".into(),
-                plugins_dir: String::new(),
-                league_dir: String::new(),
-                disabled_plugins: String::new(),
-                activation_mode: "universal".into(),
-            },
-            client: ClientConfig {
-                use_hotkeys: true,
-                optimized_client: true,
-                silent_mode: false,
-                super_potato: false,
-                insecure_mode: false,
-                use_devtools: false,
-                use_riotclient: false,
-                use_proxy: false,
-                debug_port: 0,
-            },
+            app: AppConfig::default(),
+            client: ClientConfig::default(),
+        }
+    }
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            language: "en".into(),
+            plugins_dir: String::new(),
+            league_dir: String::new(),
+            disabled_plugins: String::new(),
+            activation_mode: "universal".into(),
+        }
+    }
+}
+
+impl Default for ClientConfig {
+    fn default() -> Self {
+        Self {
+            use_hotkeys: true,
+            optimized_client: true,
+            silent_mode: false,
+            super_potato: false,
+            insecure_mode: false,
+            use_devtools: false,
+            use_riotclient: false,
+            use_proxy: false,
+            debug_port: 0,
         }
     }
 }
@@ -145,7 +157,7 @@ pub fn read_config() -> io::Result<LoaderConfig> {
     }
 
     let content = fs::read_to_string(path)?;
-    Ok(parse_config(&content))
+    parse_config(&content).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
 }
 
 pub fn write_config(config: &LoaderConfig) -> io::Result<()> {
@@ -153,134 +165,155 @@ pub fn write_config(config: &LoaderConfig) -> io::Result<()> {
     fs::write(config_path(), serialize_config(config))
 }
 
-fn parse_config(content: &str) -> LoaderConfig {
-    let mut config = LoaderConfig::default();
-    let mut section = String::new();
-
-    for line in content.lines() {
-        let line = line.trim();
-
-        if line.is_empty() || line.starts_with('#') || line.starts_with(';') {
-            continue;
-        }
-
-        if let Some(name) = line
-            .strip_prefix('[')
-            .and_then(|line| line.strip_suffix(']'))
-        {
-            section = name.trim().to_ascii_lowercase();
-            continue;
-        }
-
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
-
-        let key = key.trim();
-        let value = value.trim();
-
-        match (section.as_str(), key) {
-            ("app", "language") => config.app.language = value.into(),
-            ("app", "plugins_dir") => config.app.plugins_dir = value.into(),
-            ("app", "league_dir") => config.app.league_dir = value.into(),
-            ("app", "disabled_plugins") => config.app.disabled_plugins = value.into(),
-            ("app", "activation_mode") => config.app.activation_mode = value.into(),
-            ("client", "use_hotkeys") => {
-                config.client.use_hotkeys = parse_bool(value).unwrap_or(config.client.use_hotkeys)
-            }
-            ("client", "optimized_client") => {
-                config.client.optimized_client =
-                    parse_bool(value).unwrap_or(config.client.optimized_client)
-            }
-            ("client", "silent_mode") => {
-                config.client.silent_mode = parse_bool(value).unwrap_or(config.client.silent_mode)
-            }
-            ("client", "super_potato") => {
-                config.client.super_potato = parse_bool(value).unwrap_or(config.client.super_potato)
-            }
-            ("client", "insecure_mode" | "isecure_mode") => {
-                config.client.insecure_mode =
-                    parse_bool(value).unwrap_or(config.client.insecure_mode)
-            }
-            ("client", "use_devtools") => {
-                config.client.use_devtools = parse_bool(value).unwrap_or(config.client.use_devtools)
-            }
-            ("client", "use_riotclient") => {
-                config.client.use_riotclient =
-                    parse_bool(value).unwrap_or(config.client.use_riotclient)
-            }
-            ("client", "use_proxy") => {
-                config.client.use_proxy = parse_bool(value).unwrap_or(config.client.use_proxy)
-            }
-            ("client", "debug_port") => {
-                config.client.debug_port =
-                    parse_debug_port(value).unwrap_or(config.client.debug_port)
-            }
-            _ => {}
-        }
-    }
-
-    config
+fn parse_config(content: &str) -> Result<LoaderConfig, toml::de::Error> {
+    toml::from_str::<TomlLoaderConfig>(content).map(TomlLoaderConfig::into_loader_config)
 }
 
 fn serialize_config(config: &LoaderConfig) -> String {
-    format!(
-        "\
-[app]
-language = {language}
-plugins_dir = {plugins_dir}
-league_dir = {league_dir}
-disabled_plugins = {disabled_plugins}
-activation_mode = {activation_mode}
-
-[client]
-use_hotkeys = {use_hotkeys}
-optimized_client = {optimized_client}
-silent_mode = {silent_mode}
-super_potato = {super_potato}
-isecure_mode = {insecure_mode}
-insecure_mode = {insecure_mode}
-use_devtools = {use_devtools}
-use_riotclient = {use_riotclient}
-use_proxy = {use_proxy}
-debug_port = {debug_port}
-",
-        language = config.app.language,
-        plugins_dir = config.app.plugins_dir,
-        league_dir = config.app.league_dir,
-        disabled_plugins = config.app.disabled_plugins,
-        activation_mode = config.app.activation_mode,
-        use_hotkeys = config.client.use_hotkeys,
-        optimized_client = config.client.optimized_client,
-        silent_mode = config.client.silent_mode,
-        super_potato = config.client.super_potato,
-        insecure_mode = config.client.insecure_mode,
-        use_devtools = config.client.use_devtools,
-        use_riotclient = config.client.use_riotclient,
-        use_proxy = config.client.use_proxy,
-        debug_port = config.client.debug_port,
-    )
-}
-
-fn parse_bool(value: &str) -> Option<bool> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "1" | "true" => Some(true),
-        "0" | "false" => Some(false),
-        _ => None,
-    }
-}
-
-fn parse_debug_port(value: &str) -> Option<u16> {
-    let port = value.trim().parse::<u16>().ok()?;
-    if port < u16::MAX {
-        Some(port)
-    } else {
-        None
-    }
+    toml::to_string_pretty(&SerializableLoaderConfig::from(config))
+        .expect("loader config should serialize as TOML")
 }
 
 fn path_string(path: PathBuf) -> String {
     path.display().to_string()
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct TomlLoaderConfig {
+    #[serde(default)]
+    app: TomlAppConfig,
+    #[serde(default)]
+    client: TomlClientConfig,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct TomlAppConfig {
+    language: Option<String>,
+    plugins_dir: Option<String>,
+    league_dir: Option<String>,
+    disabled_plugins: Option<String>,
+    activation_mode: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct TomlClientConfig {
+    use_hotkeys: Option<bool>,
+    optimized_client: Option<bool>,
+    silent_mode: Option<bool>,
+    super_potato: Option<bool>,
+    isecure_mode: Option<bool>,
+    insecure_mode: Option<bool>,
+    use_devtools: Option<bool>,
+    use_riotclient: Option<bool>,
+    use_proxy: Option<bool>,
+    debug_port: Option<u16>,
+}
+
+impl TomlLoaderConfig {
+    fn into_loader_config(self) -> LoaderConfig {
+        let mut config = LoaderConfig::default();
+
+        if let Some(value) = self.app.language {
+            config.app.language = value;
+        }
+        if let Some(value) = self.app.plugins_dir {
+            config.app.plugins_dir = value;
+        }
+        if let Some(value) = self.app.league_dir {
+            config.app.league_dir = value;
+        }
+        if let Some(value) = self.app.disabled_plugins {
+            config.app.disabled_plugins = value;
+        }
+        if let Some(value) = self.app.activation_mode {
+            config.app.activation_mode = value;
+        }
+
+        if let Some(value) = self.client.use_hotkeys {
+            config.client.use_hotkeys = value;
+        }
+        if let Some(value) = self.client.optimized_client {
+            config.client.optimized_client = value;
+        }
+        if let Some(value) = self.client.silent_mode {
+            config.client.silent_mode = value;
+        }
+        if let Some(value) = self.client.super_potato {
+            config.client.super_potato = value;
+        }
+        if let Some(value) = self.client.isecure_mode.or(self.client.insecure_mode) {
+            config.client.insecure_mode = value;
+        }
+        if let Some(value) = self.client.use_devtools {
+            config.client.use_devtools = value;
+        }
+        if let Some(value) = self.client.use_riotclient {
+            config.client.use_riotclient = value;
+        }
+        if let Some(value) = self.client.use_proxy {
+            config.client.use_proxy = value;
+        }
+        if let Some(value) = self.client.debug_port.filter(|port| *port < u16::MAX) {
+            config.client.debug_port = value;
+        }
+
+        config
+    }
+}
+
+#[derive(Serialize)]
+struct SerializableLoaderConfig<'a> {
+    app: SerializableAppConfig<'a>,
+    client: SerializableClientConfig,
+}
+
+#[derive(Serialize)]
+struct SerializableAppConfig<'a> {
+    language: &'a str,
+    plugins_dir: &'a str,
+    league_dir: &'a str,
+    disabled_plugins: &'a str,
+    activation_mode: &'a str,
+}
+
+#[derive(Serialize)]
+struct SerializableClientConfig {
+    use_hotkeys: bool,
+    optimized_client: bool,
+    silent_mode: bool,
+    super_potato: bool,
+    isecure_mode: bool,
+    insecure_mode: bool,
+    use_devtools: bool,
+    use_riotclient: bool,
+    use_proxy: bool,
+    debug_port: u16,
+}
+
+impl<'a> From<&'a LoaderConfig> for SerializableLoaderConfig<'a> {
+    fn from(config: &'a LoaderConfig) -> Self {
+        Self {
+            app: SerializableAppConfig {
+                language: &config.app.language,
+                plugins_dir: &config.app.plugins_dir,
+                league_dir: &config.app.league_dir,
+                disabled_plugins: &config.app.disabled_plugins,
+                activation_mode: &config.app.activation_mode,
+            },
+            client: SerializableClientConfig {
+                use_hotkeys: config.client.use_hotkeys,
+                optimized_client: config.client.optimized_client,
+                silent_mode: config.client.silent_mode,
+                super_potato: config.client.super_potato,
+                isecure_mode: config.client.insecure_mode,
+                insecure_mode: config.client.insecure_mode,
+                use_devtools: config.client.use_devtools,
+                use_riotclient: config.client.use_riotclient,
+                use_proxy: config.client.use_proxy,
+                debug_port: config.client.debug_port,
+            },
+        }
+    }
 }
 
 #[cfg(test)]
@@ -288,25 +321,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn invalid_bool_values_keep_default_config_values() {
-        let config = parse_config(
+    fn invalid_bool_values_are_invalid_toml() {
+        assert!(parse_config(
             "\
 [client]
 use_hotkeys = maybe
-optimized_client = 0
-silent_mode = true
-super_potato = yes
-isecure_mode = true
-debug_port = 9222
 ",
-        );
+        )
+        .is_err());
+    }
 
-        assert!(config.client.use_hotkeys);
-        assert!(!config.client.optimized_client);
-        assert!(config.client.silent_mode);
-        assert!(!config.client.super_potato);
-        assert!(config.client.insecure_mode);
-        assert_eq!(config.client.debug_port, 9222);
+    #[test]
+    fn numeric_bool_values_are_invalid_toml() {
+        assert!(parse_config(
+            "\
+[client]
+optimized_client = 0
+",
+        )
+        .is_err());
     }
 
     #[test]
@@ -316,7 +349,8 @@ debug_port = 9222
 [client]
 debug_port = 65535
 ",
-        );
+        )
+        .expect("valid TOML");
 
         assert_eq!(config.client.debug_port, 0);
     }
@@ -337,5 +371,39 @@ debug_port = 65535
 
         assert!(serialized.contains("isecure_mode = true"));
         assert!(serialized.contains("insecure_mode = true"));
+    }
+
+    #[test]
+    fn serialized_config_is_valid_toml() {
+        let mut config = LoaderConfig::default();
+        config.app.league_dir = r"C:\Riot Games\League of Legends".into();
+
+        let serialized = serialize_config(&config);
+        assert!(serialized.contains("language = \"en\""));
+
+        let parsed = parse_config(&serialized).expect("serialized config should parse");
+        assert_eq!(parsed.app.league_dir, config.app.league_dir);
+    }
+
+    #[test]
+    fn toml_parser_accepts_quoted_paths() {
+        let config = parse_config(
+            r#"
+[app]
+language = "en"
+plugins_dir = "C:\\maoloader\\plugins"
+league_dir = "C:\\Riot Games\\League of Legends"
+
+[client]
+isecure_mode = true
+debug_port = 2999
+"#,
+        )
+        .expect("valid TOML config");
+
+        assert_eq!(config.app.plugins_dir, r"C:\maoloader\plugins");
+        assert_eq!(config.app.league_dir, r"C:\Riot Games\League of Legends");
+        assert!(config.client.insecure_mode);
+        assert_eq!(config.client.debug_port, 2999);
     }
 }

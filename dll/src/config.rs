@@ -5,6 +5,8 @@ use std::{
     sync::OnceLock,
 };
 
+use serde::Deserialize;
+
 #[cfg(windows)]
 static MODULE_HANDLE: OnceLock<isize> = OnceLock::new();
 
@@ -124,30 +126,80 @@ fn parse_bool(value: &str) -> Option<bool> {
 }
 
 fn read_config_map() -> HashMap<String, String> {
-    let mut map = HashMap::new();
     let Ok(content) = fs::read_to_string(config_path()) else {
-        return map;
+        return HashMap::new();
     };
 
-    for line in content.lines() {
-        let line = line.trim();
+    read_toml_config_map(&content)
+}
 
-        if line.is_empty()
-            || line.starts_with('#')
-            || line.starts_with(';')
-            || line.starts_with('[')
-        {
-            continue;
+fn read_toml_config_map(content: &str) -> HashMap<String, String> {
+    toml::from_str::<TomlLoaderConfig>(content)
+        .map(TomlLoaderConfig::into_map)
+        .unwrap_or_default()
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct TomlLoaderConfig {
+    #[serde(default)]
+    app: TomlAppConfig,
+    #[serde(default)]
+    client: TomlClientConfig,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct TomlAppConfig {
+    plugins_dir: Option<String>,
+    disabled_plugins: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct TomlClientConfig {
+    use_hotkeys: Option<bool>,
+    optimized_client: Option<bool>,
+    silent_mode: Option<bool>,
+    super_potato: Option<bool>,
+    isecure_mode: Option<bool>,
+    insecure_mode: Option<bool>,
+    use_devtools: Option<bool>,
+    use_riotclient: Option<bool>,
+    use_proxy: Option<bool>,
+    debug_port: Option<u16>,
+}
+
+impl TomlLoaderConfig {
+    fn into_map(self) -> HashMap<String, String> {
+        let mut map = HashMap::new();
+
+        if let Some(value) = self.app.plugins_dir {
+            map.insert("plugins_dir".into(), value);
+        }
+        if let Some(value) = self.app.disabled_plugins {
+            map.insert("disabled_plugins".into(), value);
         }
 
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
+        insert_bool(&mut map, "use_hotkeys", self.client.use_hotkeys);
+        insert_bool(&mut map, "optimized_client", self.client.optimized_client);
+        insert_bool(&mut map, "silent_mode", self.client.silent_mode);
+        insert_bool(&mut map, "super_potato", self.client.super_potato);
+        insert_bool(&mut map, "isecure_mode", self.client.isecure_mode);
+        insert_bool(&mut map, "insecure_mode", self.client.insecure_mode);
+        insert_bool(&mut map, "use_devtools", self.client.use_devtools);
+        insert_bool(&mut map, "use_riotclient", self.client.use_riotclient);
+        insert_bool(&mut map, "use_proxy", self.client.use_proxy);
 
-        map.insert(key.trim().to_string(), value.trim().to_string());
+        if let Some(value) = self.client.debug_port {
+            map.insert("debug_port".into(), value.to_string());
+        }
+
+        map
     }
+}
 
-    map
+fn insert_bool(map: &mut HashMap<String, String>, key: &str, value: Option<bool>) {
+    if let Some(value) = value {
+        map.insert(key.into(), value.to_string());
+    }
 }
 
 #[cfg(windows)]
@@ -228,5 +280,46 @@ mod tests {
             configured_plugins_dir(Some(&custom.display().to_string())),
             custom
         );
+    }
+
+    #[test]
+    fn toml_config_map_unquotes_strings_and_reads_sections() {
+        let config = read_toml_config_map(
+            r#"
+[app]
+plugins_dir = "C:\\maoloader\\plugins"
+disabled_plugins = "one,two"
+
+[client]
+isecure_mode = true
+debug_port = 2999
+"#,
+        );
+
+        assert_eq!(
+            config.get("plugins_dir").map(String::as_str),
+            Some(r"C:\maoloader\plugins")
+        );
+        assert_eq!(
+            config.get("disabled_plugins").map(String::as_str),
+            Some("one,two")
+        );
+        assert_eq!(config.get("isecure_mode").map(String::as_str), Some("true"));
+        assert_eq!(config.get("debug_port").map(String::as_str), Some("2999"));
+    }
+
+    #[test]
+    fn invalid_toml_config_map_uses_empty_config() {
+        let config = read_toml_config_map(
+            r#"
+[app]
+plugins_dir = C:\maoloader\plugins
+
+[client]
+isecure_mode = true
+"#,
+        );
+
+        assert!(config.is_empty());
     }
 }

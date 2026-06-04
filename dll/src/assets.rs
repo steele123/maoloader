@@ -76,6 +76,34 @@ pub fn resolve_plugins_url(url: &str, script_request: bool) -> io::Result<Option
     resolve_plugins_url_with_root(&crate::config::plugins_dir(), url, script_request)
 }
 
+pub fn should_wrap_plugins_url(url: &str, accept_header: Option<&str>) -> bool {
+    let Some(rest) = url.strip_prefix("https://plugins") else {
+        return false;
+    };
+
+    let (path_part, query) = rest.split_once('?').unwrap_or((rest, ""));
+    if matches!(query, "raw" | "url") {
+        return true;
+    }
+
+    let Some(relative) = normalize_url_path(path_part) else {
+        return false;
+    };
+
+    let extension = Path::new(&relative)
+        .extension()
+        .map(|extension| extension.to_string_lossy().to_ascii_lowercase());
+    let Some(extension) = extension else {
+        return false;
+    };
+
+    if !matches!(extension.as_str(), "css" | "json") && !is_known_asset(&extension) {
+        return false;
+    }
+
+    accept_requests_module_script(accept_header)
+}
+
 fn resolve_plugins_url_with_root(
     root: &Path,
     url: &str,
@@ -181,6 +209,24 @@ fn module_wrapper(path: &Path, query: &str) -> Option<&'static str> {
         extension if is_known_asset(extension) => Some(SCRIPT_IMPORT_URL),
         _ => None,
     }
+}
+
+fn accept_requests_module_script(accept_header: Option<&str>) -> bool {
+    let Some(accept_header) = accept_header else {
+        return false;
+    };
+    let accept_header = accept_header.to_ascii_lowercase();
+
+    if accept_header.contains("text/css")
+        || accept_header.contains("image/")
+        || accept_header.contains("font/")
+        || accept_header.contains("audio/")
+        || accept_header.contains("video/")
+    {
+        return false;
+    }
+
+    accept_header.contains("javascript") || accept_header.contains("ecmascript")
 }
 
 fn normalize_url_path(path: &str) -> Option<String> {
@@ -321,6 +367,34 @@ mod tests {
     }
 
     #[test]
+    fn plugin_url_wrapping_uses_request_accept_header() {
+        assert!(should_wrap_plugins_url(
+            "https://plugins/theme.css",
+            Some("text/javascript, application/javascript, */*;q=0.1")
+        ));
+        assert!(should_wrap_plugins_url(
+            "https://plugins/image.png",
+            Some("application/javascript")
+        ));
+        assert!(should_wrap_plugins_url(
+            "https://plugins/theme.css?url",
+            Some("text/css,*/*;q=0.1")
+        ));
+        assert!(!should_wrap_plugins_url(
+            "https://plugins/theme.css",
+            Some("text/css,*/*;q=0.1")
+        ));
+        assert!(!should_wrap_plugins_url(
+            "https://plugins/image.png",
+            Some("image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
+        ));
+        assert!(!should_wrap_plugins_url(
+            "https://plugins/data.json",
+            Some("*/*")
+        ));
+    }
+
+    #[test]
     fn etags_match_upstream_utf16_fnv_shape() {
         assert_eq!(etag_for_url("https://plugins/image.png"), "\"34b9988d\"");
         assert_eq!(
@@ -359,12 +433,18 @@ mod tests {
         let css_wrapper = resolve_plugins_url_with_root(&root, "https://plugins/theme.css", true)
             .unwrap()
             .unwrap();
+        let css_asset = resolve_plugins_url_with_root(&root, "https://plugins/theme.css", false)
+            .unwrap()
+            .unwrap();
         let image = resolve_plugins_url_with_root(&root, "https://plugins/image.png", false)
             .unwrap()
             .unwrap();
 
         assert!(css_wrapper.no_cache);
         assert_eq!(css_wrapper.mime, "text/javascript");
+        assert!(!css_asset.no_cache);
+        assert_eq!(css_asset.mime, "text/css");
+        assert_eq!(css_asset.body, b"body{}");
         assert!(!image.no_cache);
         assert_eq!(image.etag, etag_for_url("https://plugins/image.png"));
 

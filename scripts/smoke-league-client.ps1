@@ -14,6 +14,8 @@ $appBin = Join-Path $repo "app\bin"
 $configPath = Join-Path $appBin "config"
 $corePath = Join-Path $appBin "core.dll"
 $tracePath = Join-Path $appBin "diagnostics\core-trace.log"
+$traceLatestPath = Join-Path $appBin "diagnostics\latest.json"
+$traceRotatedPath = Join-Path $appBin "diagnostics\core-trace.1.log"
 $debugApp = Join-Path $repo "app\src-tauri\target\debug\maoloader.exe"
 $leagueManifest = "C:\ProgramData\Riot Games\RiotClientInstalls.json"
 
@@ -50,14 +52,15 @@ function Write-SmokeConfig {
     param([string]$ResolvedLeagueDir)
 
     New-Item -ItemType Directory -Force -Path $appBin | Out-Null
+    $tomlLeagueDir = ConvertTo-TomlString $ResolvedLeagueDir
 
     @"
 [app]
-language = en
-plugins_dir =
-league_dir = $ResolvedLeagueDir
-disabled_plugins =
-activation_mode = targeted
+language = "en"
+plugins_dir = ""
+league_dir = $tomlLeagueDir
+disabled_plugins = ""
+activation_mode = "targeted"
 
 [client]
 use_hotkeys = true
@@ -71,6 +74,13 @@ use_riotclient = false
 use_proxy = false
 debug_port = 2999
 "@ | Set-Content -Encoding UTF8 -Path $configPath
+}
+
+function ConvertTo-TomlString {
+    param([string]$Value)
+
+    $escaped = $Value.Replace("\", "\\").Replace('"', '\"')
+    return '"' + $escaped + '"'
 }
 
 function Invoke-ActivationCommand {
@@ -154,6 +164,8 @@ try {
     & (Join-Path $PSScriptRoot "build-core.ps1")
     & (Join-Path $PSScriptRoot "check-core-exports.ps1") -DllPath $corePath | Out-Host
     Remove-Item -Force $tracePath -ErrorAction SilentlyContinue
+    Remove-Item -Force $traceLatestPath -ErrorAction SilentlyContinue
+    Remove-Item -Force $traceRotatedPath -ErrorAction SilentlyContinue
 
     if (Test-Path -LiteralPath $linkPath) {
         $item = Get-Item -LiteralPath $linkPath -Force
@@ -169,6 +181,7 @@ try {
         CorePath        = (Resolve-Path $corePath).Path
         ConfigPath      = (Resolve-Path $configPath).Path
         TracePath       = $tracePath
+        TraceLatest     = $traceLatestPath
         ActivationMode  = "targeted"
         LinkPath        = $linkPath
         Activated       = $false

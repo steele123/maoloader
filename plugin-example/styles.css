@@ -1,0 +1,54 @@
+#maoloader-plugin-example-root {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2147483000;
+  color: #172027;
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  pointer-events: none;
+}
+
+.maoloader-plugin-example-card {
+  display: grid;
+  gap: 8px;
+  width: 250px;
+  padding: 14px;
+  border: 1px solid rgba(21, 83, 68, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.22);
+  pointer-events: auto;
+}
+
+.maoloader-plugin-example-card p {
+  margin: 0;
+  color: #28715d;
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.maoloader-plugin-example-card strong {
+  font-size: 15px;
+}
+
+.maoloader-plugin-example-card span {
+  color: #65717b;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.maoloader-plugin-example-card button {
+  width: fit-content;
+  border: 0;
+  border-radius: 6px;
+  background: #155344;
+  color: #ffffff;
+  cursor: pointer;
+  font: 800 12px Inter, "Segoe UI", system-ui, sans-serif;
+  padding: 7px 10px;
+}
+
+.maoloader-plugin-example-card button:hover {
+  background: #28715d;
+}

@@ -2711,11 +2711,14 @@ unsafe extern "system" fn create_plugins_resource_handler(
     let _ = (factory, browser, frame, scheme_name);
     crate::cef::record_plugins_scheme_create();
 
-    let Some(url) = (unsafe { request_url(request.cast::<CefRequestPrefix>()) }) else {
+    let request = request.cast::<CefRequestPrefix>();
+    let Some(url) = (unsafe { request_url(request) }) else {
         return std::ptr::null_mut();
     };
+    let accept = unsafe { request_header_by_name(request, "Accept") };
+    let script_request = crate::assets::should_wrap_plugins_url(&url, accept.as_deref());
 
-    if let Some(asset) = crate::assets::resolve_plugins_url(&url, true)
+    if let Some(asset) = crate::assets::resolve_plugins_url(&url, script_request)
         .ok()
         .flatten()
     {

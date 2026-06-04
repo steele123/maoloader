@@ -9,8 +9,10 @@ function createPreloadWindow({
   isMac = false,
   plugins = [],
   penguVersion = "",
+  readyState = "loading",
   readonlyPlugins = false,
   superPotato = false,
+  welcomeHost = false,
   leagueVersion,
   WebSocket,
 } = {}) {
@@ -20,6 +22,22 @@ function createPreloadWindow({
   const bodyChildren = [];
   const windowEvents = [];
   const windowListeners = [];
+  let layerHost;
+  function appendElement(parent, child) {
+    parent.children ??= [];
+    parent.children.push(child);
+    child.parentNode = parent;
+    return child;
+  }
+  function removeElement(parent, child) {
+    parent.children = (parent.children || []).filter((entry) => entry !== child);
+    if (parent === document.body) {
+      const index = bodyChildren.indexOf(child);
+      if (index >= 0) {
+        bodyChildren.splice(index, 1);
+      }
+    }
+  }
   const window = {
     Pengu: {
       version: penguVersion,
@@ -63,11 +81,19 @@ function createPreloadWindow({
     });
   }
   const document = {
-    readyState: "loading",
+    readyState,
     body: {
+      children: bodyChildren,
       appendChild(element) {
         bodyChildren.push(element);
+        element.parentNode = this;
         return element;
+      },
+      removeChild(child) {
+        removeElement(this, child);
+        child.removed = true;
+        child.parentNode = undefined;
+        return child;
       },
     },
     addEventListener(type, listener, options) {
@@ -86,11 +112,25 @@ function createPreloadWindow({
           this.focused = true;
         },
         appendChild(child) {
-          this.children.push(child);
-          return child;
+          return appendElement(this, child);
         },
         remove() {
           this.removed = true;
+          this.parentNode?.removeChild?.(this);
+        },
+        setAttribute(name, value) {
+          this.attributes ??= {};
+          this.attributes[name] = value;
+        },
+        addEventListener(type, listener, options) {
+          this.listeners ??= [];
+          this.listeners.push({ type, listener, options });
+        },
+        removeChild(child) {
+          removeElement(this, child);
+          child.removed = true;
+          child.parentNode = undefined;
+          return child;
         },
       };
       if (name === "with-shadow") {
@@ -104,20 +144,43 @@ function createPreloadWindow({
       }
       return element;
     },
+    querySelector(selector) {
+      if (selector === "lol-uikit-layer-manager-wrapper") {
+        return layerHost;
+      }
+      if (selector === ".maoloader-welcome-root") {
+        return bodyChildren.find((element) => element.className === "maoloader-welcome-root");
+      }
+      return undefined;
+    },
     dispatchEvent(event) {
       dispatchedEvents.push(event);
       return true;
     },
   };
+  document.documentElement = {
+    children: [],
+  };
+  if (welcomeHost) {
+    layerHost = document.createElement("lol-uikit-layer-manager-wrapper");
+    layerHost.className = "lol-uikit-layer-manager-wrapper";
+    document.body.appendChild(layerHost);
+  }
 
   const source = readFileSync(new URL("./preload.js", import.meta.url), "utf8");
   vm.runInNewContext(source, {
+    clearInterval,
     console,
     document,
     fetch: (...args) => {
       calls.push(["fetch", ...args]);
       return fetchImpl ? fetchImpl(...args) : Promise.resolve();
     },
+    MutationObserver: class {
+      observe() {}
+      disconnect() {}
+    },
+    setInterval,
     setTimeout,
     TextEncoder,
     URLSearchParams,
@@ -342,6 +405,20 @@ describe("preload native API globals", () => {
       "window-domcontentloaded",
     ]);
     expect(documentListeners.map(({ type }) => type)).toEqual(["DOMContentLoaded"]);
+  });
+
+  test("replays load listeners when preload starts after document completion", async () => {
+    const { window } = createPreloadWindow({
+      datastore: '{"pengu-welcome":false}',
+      readyState: "complete",
+    });
+    const events = [];
+
+    window.addEventListener("load", () => events.push("window-load"));
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    expect(events).toEqual(["window-load"]);
   });
 
   test("enables super-potato mode on load when configured", () => {
@@ -630,14 +707,21 @@ describe("preload native API globals", () => {
               body: "New release",
             }),
         }),
+      welcomeHost: true,
     });
 
     const domReady = documentListeners.find(({ type }) => type === "DOMContentLoaded");
     await domReady.listener();
 
-    const welcome = bodyChildren.find((element) => element.className === "maoloader-welcome-root");
+    const layerHost = bodyChildren.find(
+      (element) => element.className === "lol-uikit-layer-manager-wrapper",
+    );
+    const welcome = layerHost.children.find(
+      (element) => element.className === "maoloader-welcome-root",
+    );
     const toastRoot = bodyChildren.find((element) => element.className === "maoloader-toast-root");
 
+    expect(layerHost).toBeDefined();
     expect(welcome).toBeDefined();
     expect(toastRoot.children.at(-1).textContent).toBe("Update available - v9.9.9");
 
@@ -651,6 +735,40 @@ describe("preload native API globals", () => {
     button.onclick();
 
     expect(calls).toContainEqual(["SaveDataStore", JSON.stringify({ "pengu-welcome": false })]);
+    expect(welcome.removed).toBe(true);
+  });
+
+  test("dismisses welcome surface from delegated okay events", async () => {
+    const { bodyChildren, documentListeners } = createPreloadWindow({ welcomeHost: true });
+
+    const domReady = documentListeners.find(({ type }) => type === "DOMContentLoaded");
+    await domReady.listener();
+
+    const layerHost = bodyChildren.find(
+      (element) => element.className === "lol-uikit-layer-manager-wrapper",
+    );
+    const welcome = layerHost.children.find(
+      (element) => element.className === "maoloader-welcome-root",
+    );
+    const panel = welcome.children[0];
+    const footer = panel.children[1];
+    const button = footer.children[1];
+    const delegatedPointerDown = documentListeners.find(({ type }) => type === "pointerdown");
+
+    delegatedPointerDown.listener({
+      target: button,
+      preventDefault() {
+        this.prevented = true;
+      },
+      stopPropagation() {
+        this.stopped = true;
+      },
+      stopImmediatePropagation() {
+        this.immediateStopped = true;
+      },
+    });
+
+    expect(welcome.style.pointerEvents).toBe("none");
     expect(welcome.removed).toBe(true);
   });
 });

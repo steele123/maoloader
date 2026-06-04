@@ -1,0 +1,20 @@
+{
+  "schema": "https://maoloader.dev/schemas/plugin.v1.json",
+  "kind": "plugin",
+  "slug": "maoloader-example",
+  "name": "maoloader Example",
+  "version": "0.1.0",
+  "entry": "index.js",
+  "description": "Reference plugin showing CSS imports, DataStore, Toast, CommandBar, and optional LCU socket hooks.",
+  "author": {
+    "name": "maoloader",
+    "url": "https://maoloader.dev"
+  },
+  "repository": "https://github.com/steele123/maoloader",
+  "homepage": "https://maoloader.dev/plugins/maoloader-example",
+  "tags": ["example", "plugin", "theme", "datastore", "commandbar"],
+  "compatibility": {
+    "maoloader": ">=0.1.0"
+  },
+  "files": ["index.js", "styles.css", "README.md", "maoloader.plugin.json"]
+}
