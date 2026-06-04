@@ -53,6 +53,26 @@ function createPreloadWindow({
         calls.push(["OpenPluginsFolder", path]);
         return path === undefined || path === "existing";
       },
+      PluginFS: (...args) => {
+        calls.push(["PluginFS", ...args]);
+        const operation = args[0];
+        if (operation === "read") {
+          return JSON.stringify({ ok: true, value: "file contents" });
+        }
+        if (operation === "write" || operation === "mkdir") {
+          return JSON.stringify({ ok: true, value: true });
+        }
+        if (operation === "stat") {
+          return JSON.stringify({ ok: true, value: { fileName: "index.js", length: 12, isDir: false } });
+        }
+        if (operation === "ls") {
+          return JSON.stringify({ ok: true, value: ["index.js", "styles.css"] });
+        }
+        if (operation === "rm") {
+          return JSON.stringify({ ok: true, value: 2 });
+        }
+        return JSON.stringify({ ok: false, value: null });
+      },
       ReloadClient: () => calls.push(["ReloadClient"]),
       SetWindowTheme: (dark) => calls.push(["SetWindowTheme", dark]),
       SetWindowVibrancy: (...args) => calls.push(["SetWindowVibrancy", ...args]),
@@ -82,6 +102,12 @@ function createPreloadWindow({
   }
   const document = {
     readyState,
+    head: {
+      children: [],
+      appendChild(element) {
+        return appendElement(this, element);
+      },
+    },
     body: {
       children: bodyChildren,
       appendChild(element) {
@@ -160,6 +186,9 @@ function createPreloadWindow({
   };
   document.documentElement = {
     children: [],
+    appendChild(element) {
+      return appendElement(this, element);
+    },
   };
   if (welcomeHost) {
     layerHost = document.createElement("lol-uikit-layer-manager-wrapper");
@@ -212,6 +241,10 @@ function pluginHash(value) {
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
+async function flushPluginLoad() {
+  await new Promise((resolve) => setTimeout(resolve, 5));
+}
+
 describe("preload native API globals", () => {
   test("sanitizes optional plugin folder paths before calling native", () => {
     const { calls, window } = createPreloadWindow();
@@ -243,6 +276,31 @@ describe("preload native API globals", () => {
     ]);
     expect(restartResult).toBeUndefined();
     expect("__native" in window).toBe(false);
+  });
+
+  test("exposes Pengu-compatible PluginFS promises rooted to the caller plugin", async () => {
+    const { calls, window } = createPreloadWindow();
+    window.getScriptPath = () => "https://plugins/PenguFamily/src/core/SaveManager.js";
+
+    expect(await window.PluginFS.read("./index.js")).toBe("file contents");
+    expect(await window.PluginFS.write("data/save.json", "{}", true)).toBe(true);
+    expect(await window.PluginFS.mkdir("data/nested")).toBe(true);
+    expect(await window.PluginFS.stat("index.js")).toEqual({
+      fileName: "index.js",
+      length: 12,
+      isDir: false,
+    });
+    expect(await window.PluginFS.ls(".")).toEqual(["index.js", "styles.css"]);
+    expect(await window.PluginFS.rm("data", true)).toBe(2);
+
+    expect(calls.filter(([name]) => name === "PluginFS")).toEqual([
+      ["PluginFS", "read", "PenguFamily", "./index.js", "", false],
+      ["PluginFS", "write", "PenguFamily", "data/save.json", "{}", true],
+      ["PluginFS", "mkdir", "PenguFamily", "data/nested", "", false],
+      ["PluginFS", "stat", "PenguFamily", "index.js", "", false],
+      ["PluginFS", "ls", "PenguFamily", ".", "", false],
+      ["PluginFS", "rm", "PenguFamily", "data", "", true],
+    ]);
   });
 
   test("maps Windows Effect calls to native backdrop and theme messages", () => {
@@ -453,6 +511,62 @@ describe("preload native API globals", () => {
     ]);
   });
 
+  test("loads css plugin entries as stylesheets and ignores non-loadable entries", async () => {
+    const { document, window } = createPreloadWindow({
+      plugins: ["PenguFamily/styles.css", "PenguFamily/README.md"],
+    });
+
+    await flushPluginLoad();
+
+    expect(window.Pengu.plugins).toEqual(["PenguFamily/styles.css"]);
+    expect(document.head.children).toHaveLength(1);
+    expect(document.head.children[0].name).toBe("link");
+    expect(document.head.children[0].rel).toBe("stylesheet");
+    expect(document.head.children[0].href).toBe("https://plugins/PenguFamily/styles.css");
+    expect(document.head.children[0].attributes["data-maoloader-plugin"]).toBe("PenguFamily/styles.css");
+  });
+
+  test("loads CommonJS style plugin exports without requiring browser exports globals", async () => {
+    const { window, windowListeners } = createPreloadWindow({
+      plugins: ["Acrylical/InjectAcrylic.js"],
+      fetchImpl: () =>
+        Promise.resolve({
+          ok: true,
+          text: () =>
+            Promise.resolve(`
+exports.init = ({ meta }) => {
+  window.__maoloaderTestMeta = meta.name;
+};
+exports.load = () => {
+  window.__maoloaderTestLoaded = true;
+};
+`),
+        }),
+    });
+
+    await flushPluginLoad();
+
+    expect(window.__maoloaderTestMeta).toBe("Acrylical");
+    const pluginLoadListener = windowListeners.filter(({ type }) => type === "load").at(-1);
+    pluginLoadListener.listener();
+    expect(window.__maoloaderTestLoaded).toBe(true);
+  });
+
+  test("runs classic script plugins when they are not ESM or CommonJS", async () => {
+    const { window } = createPreloadWindow({
+      plugins: ["classic/index.js"],
+      fetchImpl: () =>
+        Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve("window.__maoloaderClassicRan = Pengu.version;"),
+        }),
+    });
+
+    await flushPluginLoad();
+
+    expect(window.__maoloaderClassicRan).toBe("0.1.0");
+  });
+
   test("exposes CommandBar action registration and events", () => {
     const { window, windowEvents } = createPreloadWindow();
     const initialCount = window.__maoloaderCommandBarActions.length;
@@ -631,7 +745,7 @@ describe("preload native API globals", () => {
     expect(topLevel.socket).toBe(window.rcpSocket);
     expect(window.socket).toBe(window.rcpSocket);
     expect(folder.meta).toEqual({ name: "folder" });
-    expect(scoped.meta).toEqual({ name: "@scope" });
+    expect(scoped.meta).toEqual({ name: "@scope/plugin" });
   });
 
   test("filters readonly Pengu plugin entries in place", () => {
@@ -663,6 +777,8 @@ describe("preload native API globals", () => {
 
     const success = window.Toast.success("Saved");
     const error = window.Toast.error("Failed");
+    const info = window.Toast.info("Heads up");
+    const warning = window.Toast.warning("Careful");
     const result = await window.Toast.promise(Promise.resolve("ok"), {
       loading: "Loading",
       success: "Loaded",
@@ -672,9 +788,11 @@ describe("preload native API globals", () => {
     expect(result).toBe("ok");
     expect(bodyChildren).toHaveLength(1);
     expect(bodyChildren[0].className).toBe("maoloader-toast-root");
-    expect(bodyChildren[0].children).toHaveLength(3);
+    expect(bodyChildren[0].children).toHaveLength(5);
     expect(success.textContent).toBe("Saved");
     expect(error.className).toBe("maoloader-toast maoloader-toast-error");
+    expect(info.className).toBe("maoloader-toast maoloader-toast-info");
+    expect(warning.className).toBe("maoloader-toast maoloader-toast-warning");
     expect(bodyChildren[0].children.at(-1).textContent).toBe("Loaded");
     expect(bodyChildren[0].children.at(-1).className).toBe(
       "maoloader-toast maoloader-toast-success",

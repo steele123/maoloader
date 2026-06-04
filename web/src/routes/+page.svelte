@@ -40,7 +40,11 @@
 			into the desktop app.
 		</p>
 		<div class="hero-actions">
-			<Button href="/submit">
+			<Button href="/download">
+				<DownloadIcon />
+				Download app
+			</Button>
+			<Button href="/submit" variant="outline">
 				<SparklesIcon />
 				Submit plugin
 			</Button>

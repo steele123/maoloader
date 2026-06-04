@@ -1,22 +1,14 @@
 import { fail } from "@sveltejs/kit";
-import {
-	isGitHubRepository,
-	listingFromParsedForm,
-	parseListingForm,
-	stringField
-} from "$lib/registry/forms";
+import { isGitHubRepository, stringField } from "$lib/registry/forms";
 import {
 	approveAndMirrorSubmission,
-	createSubmission,
-	publishListing
+	createSubmission
 } from "$lib/registry/admin";
 import { loadListingsFromManifest } from "$lib/registry/manifest";
 import { getSubmission, listSubmissions } from "$lib/registry/store";
-import type { RegistryAsset, RegistryListing, RegistrySubmission } from "$lib/registry/types";
+import type { RegistrySubmission } from "$lib/registry/types";
+import { directUploadProject, validateAdminToken } from "$lib/registry/upload";
 import type { Actions, PageServerLoad } from "./$types";
-
-const MAX_PACKAGE_BYTES = 25 * 1024 * 1024;
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export const load: PageServerLoad = async ({ platform }) => {
 	return {
@@ -125,134 +117,16 @@ export const actions: Actions = {
 		}
 
 		const form = await request.formData();
-		const token = stringField(form, "token");
-		if (env.ADMIN_TOKEN && token !== env.ADMIN_TOKEN) {
+		try {
+			validateAdminToken(env, form);
+		} catch (error) {
 			return fail(401, { message: "Invalid admin token." });
 		}
 
-		const parsed = parseListingForm(form);
-		if ("error" in parsed) {
-			return fail(400, { message: parsed.error });
-		}
-
-		const packageFile = fileField(form, "package");
-		if (!packageFile) {
-			return fail(400, { message: "Upload a plugin/theme zip package." });
-		}
-		if (!packageFile.name.toLowerCase().endsWith(".zip")) {
-			return fail(400, { message: "Package must be a .zip file." });
-		}
-		if (packageFile.size > MAX_PACKAGE_BYTES) {
-			return fail(400, { message: "Package must be 25 MB or smaller." });
-		}
-
-		const now = new Date().toISOString();
-		const baseKey = `${parsed.kind}s/${parsed.slug}/${parsed.version}`;
-		const packageKey = `${baseKey}/${parsed.slug}-${parsed.version}.zip`;
-		const packageAsset = await putFile(env.PLUGIN_BUCKET, packageKey, packageFile, "application/zip");
-
-		let iconAsset: RegistryAsset | undefined;
-		let screenshotAsset: RegistryAsset | undefined;
 		try {
-			iconAsset = await uploadOptionalImage(env.PLUGIN_BUCKET, form, "icon", `${baseKey}/icon`);
-			screenshotAsset = await uploadOptionalImage(
-				env.PLUGIN_BUCKET,
-				form,
-				"screenshot",
-				`${baseKey}/screenshot-1`
-			);
+			return directUploadProject(env, form);
 		} catch (error) {
 			return fail(400, { message: String(error instanceof Error ? error.message : error) });
 		}
-
-		const listing: RegistryListing = {
-			...listingFromParsedForm(parsed, now),
-			assets: {
-				package: {
-					...packageAsset,
-					url: `/api/plugins/${parsed.slug}/download`
-				},
-				icon: iconAsset,
-				screenshots: screenshotAsset ? [screenshotAsset] : []
-			}
-		};
-
-		if (parsed.publish) {
-			await publishListing(env, listing);
-			return {
-				message: `Published ${listing.name}.`,
-				slug: listing.slug,
-				published: true
-			};
-		}
-
-		const submission: RegistrySubmission = {
-			id: crypto.randomUUID(),
-			status: "pending",
-			created_at: now,
-			updated_at: now,
-			listing,
-			notes: parsed.notes || undefined
-		};
-		await createSubmission(env, submission);
-
-		return {
-			message: `Queued ${listing.name} for review.`,
-			slug: listing.slug,
-			submissionId: submission.id,
-			published: false
-		};
 	}
 };
-
-function fileField(form: FormData, name: string) {
-	const value = form.get(name);
-	return value instanceof File && value.size > 0 ? value : undefined;
-}
-
-async function putFile(
-	bucket: R2Bucket,
-	key: string,
-	file: File,
-	contentType: string
-): Promise<RegistryAsset> {
-	const body = await file.arrayBuffer();
-	await bucket.put(key, body, {
-		httpMetadata: {
-			contentType
-		}
-	});
-	return {
-		key,
-		size: file.size
-	};
-}
-
-async function uploadOptionalImage(bucket: R2Bucket, form: FormData, name: string, keyBase: string) {
-	const file = fileField(form, name);
-	if (!file) {
-		return undefined;
-	}
-	if (!file.type.startsWith("image/")) {
-		throw new Error(`${name} must be an image file.`);
-	}
-	if (file.size > MAX_IMAGE_BYTES) {
-		throw new Error(`${name} must be 5 MB or smaller.`);
-	}
-
-	const extension = imageExtension(file);
-	return putFile(bucket, `${keyBase}.${extension}`, file, file.type);
-}
-
-function imageExtension(file: File) {
-	if (file.type === "image/jpeg") {
-		return "jpg";
-	}
-	if (file.type === "image/webp") {
-		return "webp";
-	}
-	if (file.type === "image/gif") {
-		return "gif";
-	}
-	return "png";
-}

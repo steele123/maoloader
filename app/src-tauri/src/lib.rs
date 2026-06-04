@@ -210,6 +210,7 @@ pub fn run() {
     windows::handle_activation_entrypoint();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             sync_bundled_core(app)?;

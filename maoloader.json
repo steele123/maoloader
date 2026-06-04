@@ -1,0 +1,25 @@
+{
+  "repository": "https://github.com/steele123/maoloader",
+  "author": {
+    "name": "steel",
+    "url": "https://github.com/steele123"
+  },
+  "plugins": [
+    {
+      "slug": "maoloader-example",
+      "title": "maoloader Example",
+      "version": "0.1.0",
+      "description": "A tiny example plugin that shows how to add UI, load CSS, and clean itself up.",
+      "image": "plugin-example/assets/icon.svg",
+      "entry": "plugin-example/index.js",
+      "files": [
+        "plugin-example/index.js",
+        "plugin-example/styles.css",
+        "plugin-example/README.md",
+        "plugin-example/assets/icon.svg"
+      ],
+      "tags": ["example", "starter", "ui"],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugin-example"
+    }
+  ]
+}

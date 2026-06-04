@@ -30,9 +30,58 @@
 
   for (let index = plugins.length - 1; index >= 0; index--) {
     const entry = plugins[index];
-    if (isDisabled(entry) || /^@default\//i.test(entry)) {
+    if (isDisabled(entry) || /^@default\//i.test(entry) || !isLoadablePluginEntry(entry)) {
       plugins.splice(index, 1);
     }
+  }
+
+  function pluginUrl(entry) {
+    return `https://plugins/${entry}`;
+  }
+
+  function pluginRootFromPath(path) {
+    const normalized = String(path || "")
+      .replace(/^https:\/\/plugins\//i, "")
+      .replace(/^[\\/]+/, "")
+      .replace(/\\/g, "/")
+      .split(/[?#]/)[0];
+    const parts = normalized.split("/").filter(Boolean);
+
+    if (parts.length === 0 || (parts.length === 1 && isScriptPluginEntry(parts[0]))) {
+      return undefined;
+    }
+
+    if (parts[0]?.startsWith("@") && parts.length >= 2) {
+      return `${parts[0]}/${parts[1]}`;
+    }
+
+    return parts[0];
+  }
+
+  function pluginExtension(entry) {
+    return String(entry).split("?")[0].split("#")[0].split(".").pop()?.toLowerCase() || "";
+  }
+
+  function isScriptPluginEntry(entry) {
+    return /(?:^|\/)[^/]+\.(?:js|mjs|cjs)$/i.test(String(entry));
+  }
+
+  function isStylePluginEntry(entry) {
+    return /(?:^|\/)[^/]+\.css$/i.test(String(entry));
+  }
+
+  function isLoadablePluginEntry(entry) {
+    return typeof entry === "string" && (isScriptPluginEntry(entry) || isStylePluginEntry(entry));
+  }
+
+  function looksLikeCommonJs(source) {
+    return /\bmodule\.exports\b|\bexports\.[\w$]+\s*=|\bexports\s*\[|Object\.defineProperty\s*\(\s*exports\b/.test(
+      source,
+    );
+  }
+
+  function looksLikeModule(source) {
+    return /^\s*import\s+|^\s*export\s+/m.test(source);
   }
 
   if (!Object.hasOwn) {
@@ -188,6 +237,50 @@
       const removed = data().delete(String(key));
       commit();
       return removed;
+    },
+  };
+
+  function pluginFsCallerRoot() {
+    return pluginRootFromPath(window.getScriptPath?.());
+  }
+
+  function pluginFsNative(operation, path, content, flag) {
+    if (typeof native.PluginFS !== "function") {
+      return undefined;
+    }
+
+    const root = pluginFsCallerRoot();
+    if (!root) {
+      return undefined;
+    }
+
+    try {
+      const result = JSON.parse(native.PluginFS(operation, root, String(path || ""), content ?? "", Boolean(flag)));
+      return result?.ok ? result.value : undefined;
+    } catch (error) {
+      console.warn("[PluginFS] Native operation failed.", error);
+      return undefined;
+    }
+  }
+
+  window.PluginFS = {
+    read(path) {
+      return Promise.resolve(pluginFsNative("read", path));
+    },
+    write(path, content, enableAppendMode = false) {
+      return Promise.resolve(pluginFsNative("write", path, String(content ?? ""), enableAppendMode) === true);
+    },
+    mkdir(path) {
+      return Promise.resolve(pluginFsNative("mkdir", path) === true);
+    },
+    stat(path) {
+      return Promise.resolve(pluginFsNative("stat", path));
+    },
+    ls(path) {
+      return Promise.resolve(pluginFsNative("ls", path));
+    },
+    rm(path, recursively = false) {
+      return Promise.resolve(Number(pluginFsNative("rm", path, "", recursively) || 0));
     },
   };
 
@@ -804,6 +897,18 @@
   }
 
   window.Toast = {
+    show(message, options) {
+      return showToast("info", message, options);
+    },
+    info(message, options) {
+      return showToast("info", message, options);
+    },
+    warn(message, options) {
+      return showToast("warning", message, options);
+    },
+    warning(message, options) {
+      return showToast("warning", message, options);
+    },
     success(message, options) {
       return showToast("success", message, options);
     },
@@ -1375,9 +1480,9 @@
 
   function pluginInitContext(entry) {
     const initContext = { rcp, socket: rcpSocket };
-    const pluginNameEnd = entry.indexOf("/");
-    if (pluginNameEnd > 0) {
-      initContext.meta = { name: entry.substring(0, pluginNameEnd) };
+    const root = pluginRootFromPath(entry);
+    if (root) {
+      initContext.meta = { name: root };
     }
     return initContext;
   }
@@ -1389,16 +1494,117 @@
     writable: false,
   });
 
+  async function fetchPluginSource(entry) {
+    const response = await fetch(pluginUrl(entry));
+    if (response && "ok" in response && !response.ok) {
+      throw new Error(`Plugin source request failed with ${response.status || "unknown status"}`);
+    }
+    if (!response || typeof response.text !== "function") {
+      throw new Error("Plugin source response did not include text()");
+    }
+    return response.text();
+  }
+
+  function runClassicPlugin(source, entry) {
+    const url = pluginUrl(entry);
+    Function(
+      "window",
+      "document",
+      "globalThis",
+      "Pengu",
+      "rcp",
+      "socket",
+      `${source}\n//# sourceURL=${url}`,
+    )(window, document, window, pengu, rcp, rcpSocket);
+    return {};
+  }
+
+  function runCommonJsPlugin(source, entry) {
+    const module = { exports: {} };
+    const exports = module.exports;
+    const require = function (specifier) {
+      throw new Error(`Plugin "${entry}" tried to require "${specifier}", but require() is not available.`);
+    };
+    const url = pluginUrl(entry);
+
+    Function(
+      "module",
+      "exports",
+      "require",
+      "window",
+      "document",
+      "globalThis",
+      "Pengu",
+      "rcp",
+      "socket",
+      `${source}\n//# sourceURL=${url}`,
+    )(module, exports, require, window, document, window, pengu, rcp, rcpSocket);
+
+    if (typeof module.exports === "function") {
+      return { default: module.exports };
+    }
+
+    return module.exports && typeof module.exports === "object" ? module.exports : {};
+  }
+
+  async function loadScriptPlugin(entry) {
+    const extension = pluginExtension(entry);
+
+    if (extension === "mjs") {
+      return import(pluginUrl(entry));
+    }
+
+    try {
+      const source = await fetchPluginSource(entry);
+      if (extension === "cjs" || looksLikeCommonJs(source)) {
+        return runCommonJsPlugin(source, entry);
+      }
+      if (!looksLikeModule(source)) {
+        return runClassicPlugin(source, entry);
+      }
+    } catch (error) {
+      if (extension === "cjs") {
+        throw error;
+      }
+    }
+
+    return import(pluginUrl(entry));
+  }
+
+  function loadStylePlugin(entry) {
+    if (typeof document === "undefined" || typeof document.createElement !== "function") {
+      return;
+    }
+
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = pluginUrl(entry);
+    link.setAttribute?.("data-maoloader-plugin", entry);
+    (document.head || document.documentElement || document.body)?.appendChild?.(link);
+  }
+
+  function bindPluginLifecycle(plugin, entry) {
+    if (typeof plugin.init === "function") {
+      return Promise.resolve(plugin.init(pluginInitContext(entry))).then(() => plugin);
+    }
+
+    return Promise.resolve(plugin);
+  }
+
   async function loadPlugin(entry) {
     let stage = "load";
 
     try {
-      const plugin = await import(`https://plugins/${entry}`);
-
-      if (typeof plugin.init === "function") {
-        stage = "initialize";
-        await plugin.init(pluginInitContext(entry));
+      if (isStylePluginEntry(entry)) {
+        loadStylePlugin(entry);
+        console.info("%c maoloader ", "background: #16231f; color: #9be2b2", `Loaded stylesheet "${entry}".`);
+        return;
       }
+
+      let plugin = await loadScriptPlugin(entry);
+
+      stage = "initialize";
+      plugin = await bindPluginLifecycle(plugin, entry);
 
       if (typeof plugin.load === "function") {
         window.addEventListener("load", plugin.load);

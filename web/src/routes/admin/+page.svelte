@@ -110,13 +110,13 @@
 	</section>
 </div>
 
-<details class="manual-upload">
-	<summary>Manual zip upload fallback</summary>
+<details class="manual-upload" open>
+	<summary>Direct project upload - no GitHub repo or maoloader.json required</summary>
 	<form class="admin-form" method="POST" action="?/upload" enctype="multipart/form-data">
 		<section>
 			<div class="section-title">
 				<UploadCloudIcon />
-				<h2>Direct R2 package upload</h2>
+				<h2>Upload zip and metadata</h2>
 			</div>
 			<div class="form-grid">
 				<Label>
@@ -136,7 +136,11 @@
 				</Label>
 				<Label>
 					<span>Repository</span>
-					<Input name="repository" type="url" placeholder="https://github.com/..." />
+					<Input name="repository" type="url" placeholder="Optional" />
+				</Label>
+				<Label>
+					<span>Homepage</span>
+					<Input name="homepage" type="url" placeholder="Optional project page" />
 				</Label>
 				<Label>
 					<span>Slug</span>
@@ -163,6 +167,10 @@
 					<Input name="author" required />
 				</Label>
 				<Label>
+					<span>Author URL</span>
+					<Input name="authorUrl" type="url" placeholder="Optional" />
+				</Label>
+				<Label>
 					<span>Tags</span>
 					<Input name="tags" placeholder="theme, ui, example" />
 				</Label>
@@ -173,6 +181,18 @@
 				<Label class="wide">
 					<span>Files</span>
 					<Input name="files" placeholder="index.js, styles.css, README.md" />
+				</Label>
+				<Label>
+					<span>Icon image</span>
+					<Input name="icon" type="file" accept="image/*" />
+				</Label>
+				<Label>
+					<span>Screenshot</span>
+					<Input name="screenshot" type="file" accept="image/*" />
+				</Label>
+				<Label class="wide">
+					<span>Review notes</span>
+					<Textarea name="notes" rows={2} />
 				</Label>
 			</div>
 		</section>

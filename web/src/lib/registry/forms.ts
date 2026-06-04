@@ -54,15 +54,15 @@ export function parseListingForm(form: FormData): ParsedListingForm | { error: s
 		tags: splitList(stringField(form, "tags")),
 		compatibility: stringField(form, "compatibility") || ">=0.1.0",
 		files: files.length ? files : [entry],
-		featured: form.get("featured") === "on",
-		publish: form.get("publish") === "on",
+		featured: booleanField(form, "featured"),
+		publish: booleanField(form, "publish"),
 		notes: stringField(form, "notes")
 	};
 }
 
 export function listingFromParsedForm(parsed: ParsedListingForm, now: string): RegistryListing {
 	return {
-		schema: "https://maoloader.dev/schemas/plugin.v1.json",
+		schema: "https://maoloader.com/schemas/plugin.v1.json",
 		kind: parsed.kind,
 		slug: parsed.slug,
 		name: parsed.name,
@@ -112,6 +112,11 @@ function splitList(value: string) {
 		.split(",")
 		.map((entry) => entry.trim())
 		.filter(Boolean);
+}
+
+function booleanField(form: FormData, name: string) {
+	const value = form.get(name);
+	return typeof value === "string" && ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }
 
 function slugify(value: string) {

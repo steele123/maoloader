@@ -8,7 +8,7 @@ use std::{
 };
 
 const DEV_PLUGIN_REGISTRY_URL: &str = "http://localhost:5173/api/plugins";
-const PROD_PLUGIN_REGISTRY_URL: &str = "https://maoloader.dev/api/plugins";
+const PROD_PLUGIN_REGISTRY_URL: &str = "https://maoloader.com/api/plugins";
 const INSTALL_MANIFEST_NAME: &str = ".maoloader-store.json";
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -238,7 +238,7 @@ fn registry_origin() -> String {
             if cfg!(debug_assertions) {
                 "http://localhost:5173".into()
             } else {
-                "https://maoloader.dev".into()
+                "https://maoloader.com".into()
             }
         })
 }

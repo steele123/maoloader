@@ -19,7 +19,7 @@
 		{
 			"binding": "PLUGIN_DB",
 			"database_name": "maoloader-registry",
-			"database_id": "replace-with-d1-database-id",
+			"database_id": "0fd40d88-a429-4e2a-8b2c-65eac0010238",
 			"migrations_dir": "migrations"
 		},
 		{

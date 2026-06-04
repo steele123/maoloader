@@ -211,6 +211,9 @@ main {
 .hero-copy,
 .hero-visual,
 .hero-stats,
+.download-hero,
+.download-card,
+.download-grid article,
 .page-hero,
 .registry-section,
 .registry-summary,
@@ -294,6 +297,83 @@ h1 {
 	flex-wrap: wrap;
 	gap: 8px;
 	margin-top: 26px;
+}
+
+.download-hero {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 320px;
+	gap: 18px;
+	align-items: stretch;
+	margin-bottom: 16px;
+	padding: clamp(28px, 5vw, 52px);
+	background:
+		linear-gradient(135deg, rgba(39, 95, 143, 0.12), transparent 42%),
+		linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(238, 244, 248, 0.78));
+	box-shadow: var(--shadow-soft);
+}
+
+.download-hero h1 {
+	font-size: clamp(2.35rem, 6vw, 4.35rem);
+}
+
+.download-hero p:not(.eyebrow) {
+	max-width: 650px;
+	color: var(--muted-text);
+	font-size: 1.04rem;
+	line-height: 1.62;
+}
+
+.download-card {
+	display: grid;
+	align-content: center;
+	justify-items: start;
+	gap: 10px;
+	padding: 18px;
+	background: rgba(255, 255, 255, 0.72);
+}
+
+.download-card strong {
+	font-size: 1.65rem;
+}
+
+.download-card span {
+	color: var(--muted-text);
+	font-weight: 800;
+	overflow-wrap: anywhere;
+}
+
+.download-mark {
+	display: grid;
+	width: 100%;
+	min-height: 170px;
+	place-items: center;
+	border: 1px solid rgba(47, 95, 143, 0.12);
+	border-radius: 8px;
+	background:
+		linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(238, 244, 248, 0.74)),
+		repeating-linear-gradient(135deg, rgba(39, 95, 143, 0.07) 0 1px, transparent 1px 14px);
+}
+
+.download-mark img {
+	width: min(180px, 76%);
+	max-height: 120px;
+	object-fit: contain;
+}
+
+.download-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.download-grid article {
+	padding: 16px;
+}
+
+.download-grid p {
+	margin-bottom: 0;
+	color: var(--muted-text);
+	line-height: 1.55;
 }
 
 .page-hero {
@@ -1314,6 +1394,8 @@ dd {
 	}
 
 	.hero,
+	.download-hero,
+	.download-grid,
 	.page-hero,
 	.detail-hero,
 	.detail-grid,

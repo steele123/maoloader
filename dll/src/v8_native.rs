@@ -1,10 +1,12 @@
 use std::{
     ffi::c_void,
+    fs, io,
     path::{Component, Path, PathBuf},
     sync::atomic::{AtomicUsize, Ordering},
 };
 
 use crate::cef_types::{self, CefBaseRefCounted, CefString, CefV8Handler, CefV8Value};
+use serde_json::json;
 
 const V8_PROPERTY_ATTRIBUTE_READONLY: i32 = 1;
 
@@ -40,6 +42,7 @@ pub unsafe fn expose(context: *mut c_void) -> bool {
         "ReloadClient",
         "SetWindowTheme",
         "SetWindowVibrancy",
+        "PluginFS",
     ] {
         let function = cef_types::v8_create_function(name, handler);
         unsafe {
@@ -182,6 +185,11 @@ unsafe extern "system" fn handler_execute(
             }
             1
         }
+        "PluginFS" => {
+            let result = unsafe { plugin_fs_call(arguments_count, arguments) };
+            unsafe { set_retval(retval, cef_types::v8_create_string(&result)) };
+            1
+        }
         _ => 0,
     }
 }
@@ -254,6 +262,177 @@ fn safe_plugins_subpath(subpath: &str) -> Option<PathBuf> {
     }
 
     (!safe.as_os_str().is_empty()).then_some(safe)
+}
+
+unsafe fn plugin_fs_call(arguments_count: usize, arguments: *const *mut CefV8Value) -> String {
+    let operation = unsafe { argument_string(arguments_count, arguments, 0) };
+    let root = unsafe { argument_string(arguments_count, arguments, 1) };
+    let path = unsafe { argument_string(arguments_count, arguments, 2) }.unwrap_or_default();
+    let content = unsafe { argument_string(arguments_count, arguments, 3) };
+    let flag = unsafe { argument_bool(arguments_count, arguments, 4) }.unwrap_or(false);
+
+    let result = match (operation.as_deref(), root.as_deref()) {
+        (Some(operation), Some(root)) => plugin_fs_execute(operation, root, &path, content, flag),
+        _ => Err(PluginFsError::invalid()),
+    };
+
+    match result {
+        Ok(value) => json!({ "ok": true, "value": value }).to_string(),
+        Err(error) => {
+            json!({ "ok": false, "value": serde_json::Value::Null, "error": error.reason })
+                .to_string()
+        }
+    }
+}
+
+unsafe fn argument_string(
+    arguments_count: usize,
+    arguments: *const *mut CefV8Value,
+    index: usize,
+) -> Option<String> {
+    if index >= arguments_count || arguments.is_null() {
+        return None;
+    }
+
+    unsafe { cef_types::v8_string_value(*arguments.add(index)) }
+}
+
+unsafe fn argument_bool(
+    arguments_count: usize,
+    arguments: *const *mut CefV8Value,
+    index: usize,
+) -> Option<bool> {
+    if index >= arguments_count || arguments.is_null() {
+        return None;
+    }
+
+    unsafe { cef_types::v8_bool_value(*arguments.add(index)) }
+}
+
+#[derive(Debug)]
+struct PluginFsError {
+    reason: &'static str,
+}
+
+impl PluginFsError {
+    fn invalid() -> Self {
+        Self { reason: "invalid" }
+    }
+
+    fn io(_: io::Error) -> Self {
+        Self { reason: "io" }
+    }
+}
+
+fn plugin_fs_execute(
+    operation: &str,
+    root: &str,
+    path: &str,
+    content: Option<String>,
+    flag: bool,
+) -> Result<serde_json::Value, PluginFsError> {
+    let plugin_root = safe_plugins_subpath(root).ok_or_else(PluginFsError::invalid)?;
+    let target = plugin_fs_target(crate::config::plugins_dir().join(plugin_root), path)
+        .ok_or_else(PluginFsError::invalid)?;
+
+    match operation {
+        "read" => fs::read_to_string(target)
+            .map(serde_json::Value::String)
+            .map_err(PluginFsError::io),
+        "write" => {
+            let Some(content) = content else {
+                return Err(PluginFsError::invalid());
+            };
+            let Some(parent) = target.parent().filter(|parent| parent.is_dir()) else {
+                return Ok(json!(false));
+            };
+            let _ = parent;
+            let mut options = fs::OpenOptions::new();
+            options.create(true).write(true);
+            if flag {
+                options.append(true);
+            } else {
+                options.truncate(true);
+            }
+            options
+                .open(target)
+                .and_then(|mut file| {
+                    use std::io::Write;
+                    file.write_all(content.as_bytes())
+                })
+                .map(|_| json!(true))
+                .map_err(PluginFsError::io)
+        }
+        "mkdir" => {
+            if target.exists() {
+                return Ok(json!(false));
+            }
+            fs::create_dir_all(target)
+                .map(|_| json!(true))
+                .map_err(PluginFsError::io)
+        }
+        "stat" => {
+            let metadata = fs::metadata(&target).map_err(PluginFsError::io)?;
+            Ok(json!({
+                "fileName": target.file_name().and_then(|name| name.to_str()).unwrap_or_default(),
+                "length": if metadata.is_dir() { 0 } else { metadata.len() },
+                "isDir": metadata.is_dir(),
+            }))
+        }
+        "ls" => {
+            let entries = fs::read_dir(target)
+                .map_err(PluginFsError::io)?
+                .filter_map(Result::ok)
+                .filter_map(|entry| entry.file_name().into_string().ok())
+                .collect::<Vec<_>>();
+            Ok(json!(entries))
+        }
+        "rm" => plugin_fs_remove(&target, flag).map(|count| json!(count)),
+        _ => Err(PluginFsError::invalid()),
+    }
+}
+
+fn plugin_fs_target(root: PathBuf, path: &str) -> Option<PathBuf> {
+    let normalized = path.trim().trim_start_matches(['/', '\\']);
+    if normalized.is_empty() {
+        return Some(root);
+    }
+
+    let relative = safe_plugins_subpath(normalized)?;
+    Some(root.join(relative))
+}
+
+fn plugin_fs_remove(path: &Path, recursively: bool) -> Result<usize, PluginFsError> {
+    if path.is_file() {
+        fs::remove_file(path).map_err(PluginFsError::io)?;
+        return Ok(1);
+    }
+
+    if !path.is_dir() {
+        return Ok(0);
+    }
+
+    if recursively {
+        let count = count_entries(path)?;
+        fs::remove_dir_all(path).map_err(PluginFsError::io)?;
+        return Ok(count);
+    }
+
+    fs::remove_dir(path).map(|_| 1).map_err(PluginFsError::io)
+}
+
+fn count_entries(path: &Path) -> Result<usize, PluginFsError> {
+    let mut count = 1;
+    for entry in fs::read_dir(path).map_err(PluginFsError::io)? {
+        let entry = entry.map_err(PluginFsError::io)?;
+        let path = entry.path();
+        if path.is_dir() {
+            count += count_entries(&path)?;
+        } else {
+            count += 1;
+        }
+    }
+    Ok(count)
 }
 
 fn send_browser_message(name: &str) -> bool {
@@ -355,5 +534,43 @@ mod tests {
         assert!(!absolute_found);
 
         std::fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn plugin_fs_targets_stay_inside_plugin_root() {
+        let root = PathBuf::from("Plugin");
+
+        assert_eq!(
+            plugin_fs_target(root.clone(), "./data/save.json").unwrap(),
+            root.join("data").join("save.json")
+        );
+        assert!(plugin_fs_target(root.clone(), "../outside").is_none());
+        assert!(plugin_fs_target(root, "nested/../outside").is_none());
+    }
+
+    #[test]
+    fn plugin_fs_executes_basic_file_operations() {
+        let plugins_dir =
+            std::env::temp_dir().join(format!("maoloader-plugin-fs-test-{}", std::process::id()));
+        let plugin_root = plugins_dir.join("Plugin");
+        let _ = fs::remove_dir_all(&plugins_dir);
+        fs::create_dir_all(&plugin_root).unwrap();
+
+        let target = plugin_fs_target(plugin_root.clone(), "data").unwrap();
+        assert!(!target.exists());
+
+        fs::create_dir_all(plugin_root.join("data")).unwrap();
+        fs::write(plugin_root.join("data").join("file.txt"), "hello").unwrap();
+
+        assert_eq!(
+            fs::read_to_string(plugin_root.join("data").join("file.txt")).unwrap(),
+            "hello"
+        );
+
+        let removed = plugin_fs_remove(&plugin_root.join("data"), true).unwrap();
+        assert_eq!(removed, 2);
+        assert!(!plugin_root.join("data").exists());
+
+        fs::remove_dir_all(plugins_dir).unwrap();
     }
 }

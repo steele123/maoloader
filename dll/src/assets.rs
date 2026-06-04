@@ -4,16 +4,14 @@ use std::{
 };
 
 const SCRIPT_IMPORT_CSS: &str = r#"
-(async function () {
-  if (document.readyState !== 'complete')
-    await new Promise(res => document.addEventListener('DOMContentLoaded', res));
-
-  const url = import.meta.url.replace(/\?.*$/, '');
+const url = import.meta.url.replace(/\?.*$/, '');
+if (typeof document !== 'undefined') {
   const link = document.createElement('link');
   link.setAttribute('rel', 'stylesheet');
   link.setAttribute('href', url);
-  document.body.appendChild(link);
-})();
+  (document.head || document.documentElement || document.body).appendChild(link);
+}
+export default url;
 "#;
 
 const SCRIPT_IMPORT_JSON: &str = r#"
@@ -348,6 +346,16 @@ mod tests {
             module_wrapper(Path::new("a.css"), "")
                 .unwrap()
                 .contains("stylesheet")
+        );
+        assert!(
+            module_wrapper(Path::new("a.css"), "")
+                .unwrap()
+                .contains("export default url")
+        );
+        assert!(
+            !module_wrapper(Path::new("a.css"), "")
+                .unwrap()
+                .contains("DOMContentLoaded")
         );
         assert!(
             module_wrapper(Path::new("a.json"), "")

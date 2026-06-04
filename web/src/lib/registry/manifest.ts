@@ -123,7 +123,7 @@ function listingFromManifestPlugin(
 
 	const authorName = author.name || "Unknown";
 	return {
-		schema: "https://maoloader.dev/schemas/plugin.v1.json",
+		schema: "https://maoloader.com/schemas/plugin.v1.json",
 		kind,
 		slug,
 		name: title,
