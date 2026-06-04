@@ -1,5 +1,9 @@
 <script lang="ts">
 	import GitBranchIcon from "@lucide/svelte/icons/git-branch";
+	import { Button } from "$lib/components/ui/button";
+	import { Input } from "$lib/components/ui/input";
+	import { Label } from "$lib/components/ui/label";
+	import { Textarea } from "$lib/components/ui/textarea";
 	import type { ActionData, PageData } from "./$types";
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -55,27 +59,27 @@
 			<h2>Repository</h2>
 		</div>
 		<div class="form-grid">
-			<label>
+			<Label>
 				<span>GitHub repository</span>
-				<input name="repository" type="url" placeholder="https://github.com/owner/repo" required />
-			</label>
-			<label>
+				<Input name="repository" type="url" placeholder="https://github.com/owner/repo" required />
+			</Label>
+			<Label>
 				<span>Branch, tag, or SHA</span>
-				<input name="githubRef" placeholder="main, v1.0.0, or leave empty for default branch" />
-			</label>
-			<label class="wide">
+				<Input name="githubRef" placeholder="main, v1.0.0, or leave empty for default branch" />
+			</Label>
+			<Label class="wide">
 				<span>Manifest path</span>
-				<input name="manifestPath" placeholder="packages/example/maoloader.json" />
+				<Input name="manifestPath" placeholder="packages/example/maoloader.json" />
 				<small>Leave empty when the manifest is at the repository root.</small>
-			</label>
-			<label class="wide">
+			</Label>
+			<Label class="wide">
 				<span>Review notes</span>
-				<textarea name="notes" rows="2" placeholder="Anything reviewers should know"></textarea>
-			</label>
+				<Textarea name="notes" rows={2} placeholder="Anything reviewers should know" />
+			</Label>
 		</div>
 
 		<div class="form-actions">
-			<button type="submit">Submit for review</button>
+			<Button type="submit">Submit for review</Button>
 		</div>
 	</form>
 

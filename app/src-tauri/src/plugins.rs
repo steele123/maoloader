@@ -61,37 +61,6 @@ pub fn set_plugin_enabled(toggle: PluginToggle) -> io::Result<Vec<PluginEntry>> 
     list_plugins()
 }
 
-pub fn create_sample_plugin() -> io::Result<Vec<PluginEntry>> {
-    let loader_config = config::read_config().unwrap_or_default();
-    let plugins_dir = configured_plugins_dir(&loader_config);
-    fs::create_dir_all(&plugins_dir)?;
-
-    let sample_dir = plugins_dir.join("maoloader-example");
-    fs::create_dir_all(&sample_dir)?;
-    write_if_missing(
-        &sample_dir.join("index.js"),
-        include_str!("../../../examples/plugins/maoloader-example/index.js"),
-    )?;
-    write_if_missing(
-        &sample_dir.join("styles.css"),
-        include_str!("../../../examples/plugins/maoloader-example/styles.css"),
-    )?;
-    write_if_missing(
-        &sample_dir.join("maoloader.plugin.json"),
-        include_str!("../../../examples/plugins/maoloader-example/maoloader.plugin.json"),
-    )?;
-    write_if_missing(
-        &sample_dir.join("maoloader.json"),
-        include_str!("../../../examples/plugins/maoloader-example/maoloader.json"),
-    )?;
-    write_if_missing(
-        &sample_dir.join("README.md"),
-        include_str!("../../../examples/plugins/maoloader-example/README.md"),
-    )?;
-
-    list_plugins()
-}
-
 pub fn effective_plugins_dir() -> PathBuf {
     let loader_config = config::read_config().unwrap_or_default();
     configured_plugins_dir(&loader_config)
@@ -130,14 +99,6 @@ fn collect_plugin_entries(
                 push_plugin(root, entry, disabled, plugins);
             }
         }
-    }
-
-    Ok(())
-}
-
-fn write_if_missing(path: &Path, content: &str) -> io::Result<()> {
-    if !path.exists() {
-        fs::write(path, content)?;
     }
 
     Ok(())

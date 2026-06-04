@@ -49,9 +49,14 @@ export type PluginEntry = {
 export type StorePlugin = {
 	name: string;
 	slug: string;
+	version: string;
+	kind: string;
 	description: string;
 	image: string;
 	repo: string;
+	detail_url: string;
+	download_url: string;
+	homepage: string;
 	author: string;
 	tags: string[];
 	theme: boolean;
@@ -283,13 +288,6 @@ export class AppState {
 		}
 	}
 
-	async createSamplePlugin() {
-		const { invoke } = await import("@tauri-apps/api/core");
-		this.plugins = await invoke<PluginEntry[]>("create_sample_plugin");
-		this.runtime = await invoke<RuntimeStatus>("runtime_status");
-		this.nativeCore = await invoke<NativeCoreStatus>("native_core_status");
-	}
-
 	async setPluginEnabled(plugin: PluginEntry, enabled: boolean) {
 		const { invoke } = await import("@tauri-apps/api/core");
 		this.plugins = await invoke<PluginEntry[]>("set_plugin_enabled", {
@@ -323,6 +321,8 @@ export class AppState {
 					name: plugin.name,
 					slug: plugin.slug,
 					repo: plugin.repo,
+					detail_url: plugin.detail_url,
+					download_url: plugin.download_url,
 				},
 			});
 			this.plugins = await invoke<PluginEntry[]>("list_plugins");
@@ -333,7 +333,7 @@ export class AppState {
 					? {
 							...entry,
 							installed: true,
-							installed_repo: result.manifest_path ? plugin.repo : "",
+							installed_repo: result.manifest_path ? plugin.detail_url || plugin.download_url || plugin.repo : "",
 							installed_at: Math.floor(Date.now() / 1000),
 							installed_entries: this.plugins
 								.filter((local) => local.entry.startsWith(`${plugin.slug}/`))
@@ -361,6 +361,8 @@ export class AppState {
 					name: plugin.name,
 					slug: plugin.slug,
 					repo: plugin.repo,
+					detail_url: plugin.detail_url,
+					download_url: plugin.download_url,
 				},
 			});
 			this.plugins = await invoke<PluginEntry[]>("list_plugins");

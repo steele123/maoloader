@@ -1,6 +1,5 @@
 use crate::plugins;
 use serde::{Deserialize, Serialize};
-use serde_yaml::Value;
 use std::{
     collections::BTreeMap,
     fs,
@@ -8,17 +7,22 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-const PLUGIN_REGISTRY_URL: &str =
-    "https://raw.githubusercontent.com/PenguLoader/plugin-store/main/registry/plugins.yml";
+const DEV_PLUGIN_REGISTRY_URL: &str = "http://localhost:5173/api/plugins";
+const PROD_PLUGIN_REGISTRY_URL: &str = "https://maoloader.dev/api/plugins";
 const INSTALL_MANIFEST_NAME: &str = ".maoloader-store.json";
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct StorePlugin {
     pub name: String,
     pub slug: String,
+    pub version: String,
+    pub kind: String,
     pub description: String,
     pub image: String,
     pub repo: String,
+    pub detail_url: String,
+    pub download_url: String,
+    pub homepage: String,
     pub author: String,
     pub tags: Vec<String>,
     pub theme: bool,
@@ -36,6 +40,10 @@ pub struct StorePluginInstall {
     pub name: String,
     pub slug: String,
     pub repo: String,
+    #[serde(default)]
+    pub detail_url: String,
+    #[serde(default)]
+    pub download_url: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -58,6 +66,8 @@ struct StoreInstallManifest {
     name: String,
     slug: String,
     repo: String,
+    detail_url: String,
+    download_url: String,
     installed_at: u64,
 }
 
@@ -71,12 +81,12 @@ struct GithubRepo {
 
 pub fn fetch_plugins() -> Result<Vec<StorePlugin>, Box<dyn std::error::Error>> {
     let client = github_client()?;
-    let registry = client
-        .get(PLUGIN_REGISTRY_URL)
+    let response = client
+        .get(registry_index_url())
         .send()?
         .error_for_status()?
         .text()?;
-    let mut plugins = parse_plugin_registry(&registry)?;
+    let mut plugins = parse_plugin_registry(&response)?;
     annotate_installed_plugins(&mut plugins);
     Ok(plugins)
 }
@@ -84,22 +94,44 @@ pub fn fetch_plugins() -> Result<Vec<StorePlugin>, Box<dyn std::error::Error>> {
 pub fn install_plugin(
     plugin: StorePluginInstall,
 ) -> Result<StoreInstallResult, Box<dyn std::error::Error>> {
-    let repo = parse_github_repo(&plugin.repo)?;
     let plugins_dir = plugins::ensure_plugins_dir()?;
-    let slug = install_slug(&plugin.slug, &plugin.name).unwrap_or_else(|| repo.name.clone());
+    let slug = install_slug(&plugin.slug, &plugin.name).unwrap_or_else(|| {
+        parse_github_repo(&plugin.repo)
+            .map(|repo| repo.name)
+            .unwrap_or_else(|_| "plugin".into())
+    });
     let destination = plugins_dir.join(&slug);
     ensure_child_path(&plugins_dir, &destination)?;
 
     let client = github_client()?;
-    let branch = match repo.branch.clone() {
-        Some(branch) => branch,
-        None => fetch_default_branch(&client, &repo)?,
-    };
-    let archive_url = format!(
-        "https://codeload.github.com/{}/{}/zip/refs/heads/{}",
-        repo.owner, repo.name, branch
-    );
-    let response = client.get(archive_url).send()?.error_for_status()?;
+    let detail = fetch_registry_detail(&client, &plugin)?;
+    let mut archive_url = detail
+        .download_url
+        .as_deref()
+        .filter(|url| !url.is_empty())
+        .or_else(|| (!plugin.download_url.trim().is_empty()).then_some(plugin.download_url.trim()))
+        .map(str::to_owned);
+
+    let repo = detail
+        .repository
+        .as_deref()
+        .filter(|repo| !repo.is_empty())
+        .or_else(|| (!plugin.repo.trim().is_empty()).then_some(plugin.repo.trim()))
+        .and_then(|repo| parse_github_repo(repo).ok());
+
+    if archive_url.is_none() {
+        if let Some(repo) = &repo {
+            archive_url = Some(github_archive_url(&client, repo)?);
+        }
+    }
+
+    let archive_url = archive_url.unwrap_or_default();
+    if archive_url.is_empty() {
+        return Err(
+            "Plugin listing does not include a download URL or installable GitHub repo".into(),
+        );
+    }
+    let response = client.get(archive_url.clone()).send()?.error_for_status()?;
     let archive = response.bytes()?;
 
     let temp_destination = plugins_dir.join(format!(
@@ -110,12 +142,20 @@ pub fn install_plugin(
     remove_existing(&temp_destination)?;
     fs::create_dir_all(&temp_destination)?;
 
-    match extract_zip(&archive, &temp_destination, repo.subdir.as_deref()) {
+    let file_selection = detail.file_selection();
+    match extract_zip(
+        &archive,
+        &temp_destination,
+        repo.as_ref().and_then(|repo| repo.subdir.as_deref()),
+        file_selection.as_ref(),
+    ) {
         Ok(()) => {
             let manifest = StoreInstallManifest {
                 name: plugin.name.clone(),
                 slug: slug.clone(),
-                repo: plugin.repo.clone(),
+                repo: detail.repository.unwrap_or_else(|| plugin.repo.clone()),
+                detail_url: plugin.detail_url.clone(),
+                download_url: archive_url,
                 installed_at: unix_timestamp(),
             };
             write_install_manifest(&temp_destination, &manifest)?;
@@ -180,44 +220,234 @@ fn github_client() -> Result<reqwest::blocking::Client, Box<dyn std::error::Erro
         .build()?)
 }
 
-fn parse_plugin_registry(content: &str) -> Result<Vec<StorePlugin>, Box<dyn std::error::Error>> {
-    let value: Value = serde_yaml::from_str(content)?;
-    let Some(plugins) = value.get("plugins").and_then(Value::as_sequence) else {
-        return Ok(Vec::new());
-    };
-
-    let plugins = plugins
-        .iter()
-        .filter_map(parse_registry_plugin)
-        .filter(|plugin| !plugin.name.is_empty() && !plugin.repo.is_empty())
-        .collect();
-    Ok(plugins)
+fn registry_index_url() -> String {
+    std::env::var("MAOLOADER_REGISTRY_URL").unwrap_or_else(|_| {
+        if cfg!(debug_assertions) {
+            DEV_PLUGIN_REGISTRY_URL.into()
+        } else {
+            PROD_PLUGIN_REGISTRY_URL.into()
+        }
+    })
 }
 
-fn parse_registry_plugin(value: &Value) -> Option<StorePlugin> {
-    let name = yaml_string(value.get("name"));
-    let repo = normalize_store_repo(&yaml_string(value.get("repo")));
-    if name.is_empty() || repo.is_empty() {
+fn registry_origin() -> String {
+    registry_index_url()
+        .split_once("/api/")
+        .map(|(origin, _)| origin.trim_end_matches('/').to_string())
+        .unwrap_or_else(|| {
+            if cfg!(debug_assertions) {
+                "http://localhost:5173".into()
+            } else {
+                "https://maoloader.dev".into()
+            }
+        })
+}
+
+fn absolute_registry_url(base: &str, value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if trimmed.starts_with("https://") || trimmed.starts_with("http://") {
+        return trimmed.to_string();
+    }
+    format!(
+        "{}/{}",
+        base.trim_end_matches('/'),
+        trimmed.trim_start_matches('/')
+    )
+}
+
+#[derive(Debug, Deserialize)]
+struct RegistryResponse {
+    items: Vec<RegistrySummaryItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RegistrySummaryItem {
+    kind: String,
+    slug: String,
+    name: String,
+    version: String,
+    description: String,
+    author: RegistryAuthor,
+    tags: Vec<String>,
+    assets: RegistryAssets,
+}
+
+#[derive(Debug, Deserialize)]
+struct RegistryAuthor {
+    name: String,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct RegistryAssets {
+    package: Option<RegistryAsset>,
+    icon: Option<RegistryAsset>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RegistryAsset {
+    url: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct RegistryDetail {
+    entry: String,
+    files: Vec<String>,
+    repository: Option<String>,
+    download_url: Option<String>,
+}
+
+impl RegistryDetail {
+    fn file_selection(&self) -> Option<FileSelection> {
+        FileSelection::new(&self.entry, &self.files)
+    }
+}
+
+#[derive(Debug)]
+struct FileSelection {
+    strip_prefix: Option<PathBuf>,
+    files: Vec<PathBuf>,
+}
+
+impl FileSelection {
+    fn new(entry: &str, files: &[String]) -> Option<Self> {
+        let mut selected = files
+            .iter()
+            .chain(std::iter::once(&entry.to_string()))
+            .filter_map(|file| normalize_store_file_path(file).ok())
+            .collect::<Vec<_>>();
+        selected.sort();
+        selected.dedup();
+        if selected.is_empty() {
+            return None;
+        }
+
+        let strip_prefix = normalize_store_file_path(entry)
+            .ok()
+            .and_then(|path| path.parent().map(Path::to_path_buf))
+            .filter(|path| !path.as_os_str().is_empty());
+
+        Some(Self {
+            strip_prefix,
+            files: selected,
+        })
+    }
+
+    fn install_relative_path(&self, archive_path: &Path) -> Option<PathBuf> {
+        let normalized = normalize_store_file_path(&archive_path.display().to_string()).ok()?;
+        if !self.files.iter().any(|file| file == &normalized) {
+            return None;
+        }
+
+        if let Some(strip_prefix) = &self.strip_prefix {
+            match normalized.strip_prefix(strip_prefix) {
+                Ok(path) if !path.as_os_str().is_empty() => return Some(path.to_path_buf()),
+                _ => return None,
+            }
+        }
+
+        Some(normalized)
+    }
+}
+
+fn normalize_store_file_path(path: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let normalized = PathBuf::from(path.replace('\\', "/").trim_matches('/').to_string());
+    if is_safe_relative_path(&normalized) {
+        Ok(normalized)
+    } else {
+        Err("Registry file path is not safe".into())
+    }
+}
+
+fn registry_item_to_store_plugin(item: RegistrySummaryItem, base: &str) -> Option<StorePlugin> {
+    if item.slug.trim().is_empty() || item.name.trim().is_empty() {
         return None;
     }
 
+    let detail_url = absolute_registry_url(base, &format!("/api/plugins/{}", item.slug));
+    let download_url = item
+        .assets
+        .package
+        .as_ref()
+        .and_then(|asset| asset.url.as_deref())
+        .map(|url| absolute_registry_url(base, url))
+        .unwrap_or_else(|| {
+            absolute_registry_url(base, &format!("/api/plugins/{}/download", item.slug))
+        });
+    let image = item
+        .assets
+        .icon
+        .as_ref()
+        .and_then(|asset| asset.url.as_deref())
+        .map(|url| absolute_registry_url(base, url))
+        .unwrap_or_default();
+
     Some(StorePlugin {
-        slug: yaml_string(value.get("slug")),
-        description: yaml_string(value.get("description")),
-        image: yaml_string(value.get("image")),
-        author: yaml_author(value.get("author")),
-        tags: yaml_string_list(value.get("tags")),
-        theme: yaml_bool(value.get("theme")),
-        auto_update: yaml_bool(value.get("auto_update")),
-        discord: yaml_string(value.get("discord")),
-        readme: yaml_string(value.get("readme")),
+        theme: item.kind == "theme",
+        auto_update: false,
+        discord: String::new(),
+        readme: detail_url.clone(),
         installed: false,
         installed_entries: Vec::new(),
         installed_repo: String::new(),
         installed_at: 0,
-        name,
-        repo,
+        repo: String::new(),
+        homepage: String::new(),
+        kind: item.kind,
+        slug: item.slug,
+        name: item.name,
+        version: item.version,
+        description: item.description,
+        image,
+        detail_url,
+        download_url,
+        author: item.author.name,
+        tags: item.tags,
     })
+}
+
+fn fetch_registry_detail(
+    client: &reqwest::blocking::Client,
+    plugin: &StorePluginInstall,
+) -> Result<RegistryDetail, Box<dyn std::error::Error>> {
+    if plugin.detail_url.trim().is_empty() {
+        return Ok(RegistryDetail {
+            repository: (!plugin.repo.trim().is_empty()).then(|| plugin.repo.clone()),
+            download_url: (!plugin.download_url.trim().is_empty())
+                .then(|| plugin.download_url.clone()),
+            ..RegistryDetail::default()
+        });
+    }
+
+    let mut detail: RegistryDetail = client
+        .get(plugin.detail_url.trim())
+        .send()?
+        .error_for_status()?
+        .json()?;
+    if detail
+        .download_url
+        .as_deref()
+        .unwrap_or_default()
+        .starts_with('/')
+    {
+        detail.download_url = Some(absolute_registry_url(
+            &registry_origin(),
+            detail.download_url.as_deref().unwrap_or_default(),
+        ));
+    }
+    Ok(detail)
+}
+
+fn parse_plugin_registry(content: &str) -> Result<Vec<StorePlugin>, Box<dyn std::error::Error>> {
+    let registry: RegistryResponse = serde_json::from_str(content)?;
+    let base = registry_origin();
+    Ok(registry
+        .items
+        .into_iter()
+        .filter_map(|item| registry_item_to_store_plugin(item, &base))
+        .collect())
 }
 
 fn annotate_installed_plugins(plugins: &mut [StorePlugin]) {
@@ -284,72 +514,6 @@ fn unix_timestamp() -> u64 {
         .unwrap_or(0)
 }
 
-fn yaml_string(value: Option<&Value>) -> String {
-    match value {
-        Some(Value::String(value)) => value.trim().to_string(),
-        Some(Value::Number(value)) => value.to_string(),
-        Some(Value::Bool(value)) => value.to_string(),
-        _ => String::new(),
-    }
-}
-
-fn yaml_bool(value: Option<&Value>) -> bool {
-    matches!(value, Some(Value::Bool(true)))
-}
-
-fn yaml_string_list(value: Option<&Value>) -> Vec<String> {
-    match value {
-        Some(Value::Sequence(values)) => values
-            .iter()
-            .map(|value| yaml_string(Some(value)))
-            .filter(|value| !value.is_empty())
-            .collect(),
-        Some(value) => {
-            let value = yaml_string(Some(value));
-            if value.is_empty() {
-                Vec::new()
-            } else {
-                vec![value]
-            }
-        }
-        None => Vec::new(),
-    }
-}
-
-fn yaml_author(value: Option<&Value>) -> String {
-    match value {
-        Some(Value::Mapping(map)) => map
-            .get(Value::String("name".into()))
-            .map(|value| yaml_string(Some(value)))
-            .filter(|value| !value.is_empty())
-            .or_else(|| {
-                map.get(Value::String("github".into()))
-                    .map(|value| yaml_string(Some(value)))
-                    .filter(|value| !value.is_empty())
-            })
-            .unwrap_or_default(),
-        Some(value) => yaml_string(Some(value)),
-        None => String::new(),
-    }
-}
-
-fn normalize_store_repo(value: &str) -> String {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return String::new();
-    }
-    if trimmed.starts_with("https://github.com/") || trimmed.starts_with("http://github.com/") {
-        return trimmed.trim_end_matches('/').to_string();
-    }
-    if trimmed.starts_with("https://") || trimmed.starts_with("http://") {
-        return String::new();
-    }
-    format!(
-        "https://github.com/{}",
-        trimmed.trim_matches('/').trim_end_matches('/')
-    )
-}
-
 fn fetch_default_branch(
     client: &reqwest::blocking::Client,
     repo: &GithubRepo,
@@ -364,10 +528,25 @@ fn fetch_default_branch(
         .ok_or_else(|| "GitHub repo response did not include default_branch".into())
 }
 
+fn github_archive_url(
+    client: &reqwest::blocking::Client,
+    repo: &GithubRepo,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let branch = match repo.branch.clone() {
+        Some(branch) => branch,
+        None => fetch_default_branch(client, repo)?,
+    };
+    Ok(format!(
+        "https://codeload.github.com/{}/{}/zip/refs/heads/{}",
+        repo.owner, repo.name, branch
+    ))
+}
+
 fn extract_zip(
     archive: &[u8],
     destination: &Path,
     subdir: Option<&str>,
+    selection: Option<&FileSelection>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut zip = zip::ZipArchive::new(Cursor::new(archive))?;
     let wanted_subdir = subdir.map(normalize_repo_subdir).transpose()?;
@@ -389,6 +568,14 @@ fn extract_zip(
             match relative.strip_prefix(wanted) {
                 Ok(path) if !path.as_os_str().is_empty() => path.to_path_buf(),
                 _ => continue,
+            }
+        } else {
+            relative
+        };
+        let relative = if let Some(selection) = selection {
+            match selection.install_relative_path(&relative) {
+                Some(path) => path,
+                None => continue,
             }
         } else {
             relative
@@ -592,44 +779,68 @@ mod tests {
     }
 
     #[test]
-    fn parses_registry_yaml_with_nested_author_and_repo_normalization() {
+    fn parses_maoloader_registry_json() {
         let plugins = parse_plugin_registry(
             r#"
-name: Pengu Plugin Store registry
-plugins:
-  - name: Listening status
-    slug: listening-status
-    description: Sync your status.
-    image: data:image/svg+xml,%3Csvg%3E
-    repo: https://github.com/iIlusion/league-loader-plugins/tree/main/ListeningStatus
-    readme: readme.md
-    author:
-      name: Lx
-      github: iIlusion
-    tags: [utility, spotify]
-  - name: Bench Killer
-    slug: bench-killer
-    repo: BakaFT/BenchKiller/
-    author:
-      github: BakaFT
-    auto_update: true
-    tags: [utility]
+{
+  "generated_at": "2026-06-04T00:00:00.000Z",
+  "count": 2,
+  "items": [
+    {
+      "kind": "plugin",
+      "slug": "client-tools",
+      "name": "Client Tools",
+      "version": "0.1.0",
+      "description": "Small client utilities.",
+      "author": { "name": "Lx" },
+      "tags": ["utility", "spotify"],
+      "compatibility": { "maoloader": ">=0.1.0" },
+      "updated_at": "2026-06-04T00:00:00.000Z",
+      "assets": {
+        "package": { "url": "/api/plugins/client-tools/download" },
+        "icon": { "url": "/icons/client-tools.png" }
+      }
+    },
+    {
+      "kind": "theme",
+      "slug": "quiet-theme",
+      "name": "Quiet Theme",
+      "version": "0.2.0",
+      "description": "A quieter theme.",
+      "author": { "name": "Mao" },
+      "tags": ["theme"],
+      "compatibility": { "maoloader": ">=0.1.0" },
+      "updated_at": "2026-06-04T00:00:00.000Z",
+      "assets": {}
+    }
+  ]
+}
 "#,
         )
         .unwrap();
 
         assert_eq!(plugins.len(), 2);
         assert_eq!(plugins[0].author, "Lx");
+        assert_eq!(plugins[0].version, "0.1.0");
+        assert_eq!(plugins[0].kind, "plugin");
         assert!(!plugins[0].installed);
         assert!(plugins[0].installed_entries.is_empty());
         assert_eq!(plugins[0].tags, ["utility", "spotify"]);
         assert_eq!(
-            plugins[0].repo,
-            "https://github.com/iIlusion/league-loader-plugins/tree/main/ListeningStatus"
+            plugins[0].detail_url,
+            "http://localhost:5173/api/plugins/client-tools"
         );
-        assert_eq!(plugins[1].author, "BakaFT");
-        assert!(plugins[1].auto_update);
-        assert_eq!(plugins[1].repo, "https://github.com/BakaFT/BenchKiller");
+        assert_eq!(
+            plugins[0].download_url,
+            "http://localhost:5173/api/plugins/client-tools/download"
+        );
+        assert_eq!(
+            plugins[0].image,
+            "http://localhost:5173/icons/client-tools.png"
+        );
+        assert_eq!(plugins[1].author, "Mao");
+        assert_eq!(plugins[1].kind, "theme");
+        assert!(plugins[1].theme);
     }
 
     #[test]
@@ -647,9 +858,14 @@ plugins:
             StorePlugin {
                 name: "Sample Plugin".into(),
                 slug: "sample-plugin".into(),
+                version: "0.1.0".into(),
+                kind: "plugin".into(),
                 description: String::new(),
                 image: String::new(),
                 repo: "https://github.com/example/sample".into(),
+                detail_url: "http://localhost:5173/api/plugins/sample-plugin".into(),
+                download_url: "http://localhost:5173/api/plugins/sample-plugin/download".into(),
+                homepage: String::new(),
                 author: String::new(),
                 tags: Vec::new(),
                 theme: false,
@@ -664,9 +880,14 @@ plugins:
             StorePlugin {
                 name: "Missing Plugin".into(),
                 slug: "missing-plugin".into(),
+                version: "0.1.0".into(),
+                kind: "plugin".into(),
                 description: String::new(),
                 image: String::new(),
                 repo: "https://github.com/example/missing".into(),
+                detail_url: "http://localhost:5173/api/plugins/missing-plugin".into(),
+                download_url: "http://localhost:5173/api/plugins/missing-plugin/download".into(),
+                homepage: String::new(),
                 author: String::new(),
                 tags: Vec::new(),
                 theme: false,
@@ -718,6 +939,8 @@ plugins:
             name: "Sample".into(),
             slug: "sample".into(),
             repo: "https://github.com/example/sample".into(),
+            detail_url: "http://localhost:5173/api/plugins/sample".into(),
+            download_url: "http://localhost:5173/api/plugins/sample/download".into(),
             installed_at: 1234,
         };
 
@@ -727,6 +950,14 @@ plugins:
         assert_eq!(restored.name, "Sample");
         assert_eq!(restored.slug, "sample");
         assert_eq!(restored.repo, "https://github.com/example/sample");
+        assert_eq!(
+            restored.detail_url,
+            "http://localhost:5173/api/plugins/sample"
+        );
+        assert_eq!(
+            restored.download_url,
+            "http://localhost:5173/api/plugins/sample/download"
+        );
         assert_eq!(restored.installed_at, 1234);
 
         fs::remove_dir_all(root).unwrap();
@@ -753,6 +984,8 @@ plugins:
                 name: "Sample".into(),
                 slug: "other".into(),
                 repo: "https://github.com/example/sample".into(),
+                detail_url: String::new(),
+                download_url: String::new(),
                 installed_at: 1,
             },
         )
@@ -765,6 +998,8 @@ plugins:
                 name: "Sample".into(),
                 slug: "sample".into(),
                 repo: "https://github.com/example/sample".into(),
+                detail_url: String::new(),
+                download_url: String::new(),
                 installed_at: 1,
             },
         )
@@ -782,12 +1017,10 @@ plugins:
         let plugins = fetch_plugins().unwrap();
 
         assert!(!plugins.is_empty());
+        assert!(plugins.iter().all(|plugin| !plugin.detail_url.is_empty()));
         assert!(plugins
             .iter()
-            .all(|plugin| plugin.repo.starts_with("https://github.com/")));
-        assert!(plugins
-            .iter()
-            .any(|plugin| plugin.slug == "balance-buff-viewer"));
+            .all(|plugin| plugin.download_url.starts_with("https://")));
     }
 
     #[test]
@@ -816,11 +1049,37 @@ plugins:
         ));
         fs::create_dir_all(&destination).unwrap();
 
-        extract_zip(archive.get_ref(), &destination, Some("Plugin")).unwrap();
+        extract_zip(archive.get_ref(), &destination, Some("Plugin"), None).unwrap();
 
         assert!(destination.join("index.js").exists());
         assert!(!destination.join("Other").exists());
 
         fs::remove_dir_all(destination).unwrap();
+    }
+
+    #[test]
+    fn selected_registry_files_install_relative_to_entry_folder() {
+        let selection = FileSelection::new(
+            "plugins/cool-plugin/index.js",
+            &[
+                "plugins/cool-plugin/index.js".into(),
+                "plugins/cool-plugin/styles.css".into(),
+                "plugins/other/index.js".into(),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(
+            selection.install_relative_path(Path::new("plugins/cool-plugin/index.js")),
+            Some(PathBuf::from("index.js"))
+        );
+        assert_eq!(
+            selection.install_relative_path(Path::new("plugins/cool-plugin/styles.css")),
+            Some(PathBuf::from("styles.css"))
+        );
+        assert_eq!(
+            selection.install_relative_path(Path::new("plugins/other/index.js")),
+            None
+        );
     }
 }

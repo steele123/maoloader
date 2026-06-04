@@ -1,16 +1,7 @@
 import { getDb } from "$lib/db/client";
 import { registryListings, registrySubmissions } from "$lib/db/schema";
 import { fetchGitHubArchive } from "./github";
-import { seedListings } from "./seed";
 import type { RegistryListing, RegistrySubmission } from "./types";
-
-export async function seedRegistry(env: Env) {
-	const db = requireDb(env);
-	for (const listing of seedListings) {
-		await publishListing(env, listing);
-	}
-	return db;
-}
 
 export async function publishListing(env: Env, listing: RegistryListing) {
 	const db = requireDb(env);

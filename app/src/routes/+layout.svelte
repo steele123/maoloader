@@ -15,7 +15,6 @@
 	const navItems = [
 		{ href: "/", label: "Overview", title: "Loader Control Center" },
 		{ href: "/plugins", label: "Plugins", title: "Plugin Manager" },
-		{ href: "/runtime", label: "Runtime", title: "Runtime Diagnostics" },
 		{ href: "/settings", label: "Settings", title: "Client Settings" },
 	];
 

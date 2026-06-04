@@ -2,6 +2,10 @@
 	import GitBranchIcon from "@lucide/svelte/icons/git-branch";
 	import PackageCheckIcon from "@lucide/svelte/icons/package-check";
 	import UploadCloudIcon from "@lucide/svelte/icons/upload-cloud";
+	import { Button } from "$lib/components/ui/button";
+	import { Input } from "$lib/components/ui/input";
+	import { Label } from "$lib/components/ui/label";
+	import { Textarea } from "$lib/components/ui/textarea";
 	import type { ActionData, PageData } from "./$types";
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -41,31 +45,31 @@
 			<h2>Submit GitHub repo</h2>
 		</div>
 		<div class="form-grid">
-			<label>
+			<Label>
 				<span>Admin token</span>
-				<input name="token" type="password" autocomplete="current-password" />
-			</label>
-			<label>
+				<Input name="token" type="password" autocomplete="current-password" />
+			</Label>
+			<Label>
 				<span>GitHub repository</span>
-				<input name="repository" type="url" placeholder="https://github.com/owner/repo" required />
-			</label>
-			<label>
+				<Input name="repository" type="url" placeholder="https://github.com/owner/repo" required />
+			</Label>
+			<Label>
 				<span>Branch, tag, or SHA</span>
-				<input name="githubRef" placeholder="main, v1.0.0, or leave empty for default branch" />
-			</label>
-			<label class="wide">
+				<Input name="githubRef" placeholder="main, v1.0.0, or leave empty for default branch" />
+			</Label>
+			<Label class="wide">
 				<span>Manifest path</span>
-				<input name="manifestPath" placeholder="packages/example/maoloader.json" />
+				<Input name="manifestPath" placeholder="packages/example/maoloader.json" />
 				<small>Leave empty for root maoloader.json.</small>
-			</label>
-			<label class="wide">
+			</Label>
+			<Label class="wide">
 				<span>Review notes</span>
-				<textarea name="notes" rows="2"></textarea>
-			</label>
+				<Textarea name="notes" rows={2} />
+			</Label>
 		</div>
 
 		<div class="form-actions">
-			<button type="submit">Queue for review</button>
+			<Button type="submit">Queue for review</Button>
 		</div>
 	</form>
 
@@ -90,9 +94,9 @@
 							</small>
 						</div>
 						<form method="POST" action="?/approve">
-							<input name="id" type="hidden" value={submission.id} />
-							<input name="token" type="password" placeholder="Admin token" />
-							<button type="submit">Approve</button>
+							<Input name="id" type="hidden" value={submission.id} />
+							<Input name="token" type="password" placeholder="Admin token" />
+							<Button type="submit" size="sm">Approve</Button>
 						</form>
 					</article>
 				{/each}
@@ -115,75 +119,75 @@
 				<h2>Direct R2 package upload</h2>
 			</div>
 			<div class="form-grid">
-				<label>
+				<Label>
 					<span>Admin token</span>
-					<input name="token" type="password" autocomplete="current-password" />
-				</label>
-				<label>
+					<Input name="token" type="password" autocomplete="current-password" />
+				</Label>
+				<Label>
 					<span>Kind</span>
 					<select name="kind" required>
 						<option value="plugin">Plugin</option>
 						<option value="theme">Theme</option>
 					</select>
-				</label>
-				<label>
+				</Label>
+				<Label>
 					<span>Package zip</span>
-					<input name="package" type="file" accept=".zip,application/zip" required />
-				</label>
-				<label>
+					<Input name="package" type="file" accept=".zip,application/zip" required />
+				</Label>
+				<Label>
 					<span>Repository</span>
-					<input name="repository" type="url" placeholder="https://github.com/..." />
-				</label>
-				<label>
+					<Input name="repository" type="url" placeholder="https://github.com/..." />
+				</Label>
+				<Label>
 					<span>Slug</span>
-					<input name="slug" placeholder="my-plugin" required />
-				</label>
-				<label>
+					<Input name="slug" placeholder="my-plugin" required />
+				</Label>
+				<Label>
 					<span>Name</span>
-					<input name="name" required />
-				</label>
-				<label>
+					<Input name="name" required />
+				</Label>
+				<Label>
 					<span>Version</span>
-					<input name="version" placeholder="0.1.0" required />
-				</label>
-				<label>
+					<Input name="version" placeholder="0.1.0" required />
+				</Label>
+				<Label>
 					<span>Entry file</span>
-					<input name="entry" value="index.js" required />
-				</label>
-				<label class="wide">
+					<Input name="entry" value="index.js" required />
+				</Label>
+				<Label class="wide">
 					<span>Description</span>
-					<textarea name="description" rows="3" required></textarea>
-				</label>
-				<label>
+					<Textarea name="description" rows={3} required />
+				</Label>
+				<Label>
 					<span>Author</span>
-					<input name="author" required />
-				</label>
-				<label>
+					<Input name="author" required />
+				</Label>
+				<Label>
 					<span>Tags</span>
-					<input name="tags" placeholder="theme, ui, example" />
-				</label>
-				<label>
+					<Input name="tags" placeholder="theme, ui, example" />
+				</Label>
+				<Label>
 					<span>Compatibility</span>
-					<input name="compatibility" value=">=0.1.0" />
-				</label>
-				<label class="wide">
+					<Input name="compatibility" value=">=0.1.0" />
+				</Label>
+				<Label class="wide">
 					<span>Files</span>
-					<input name="files" placeholder="index.js, styles.css, README.md" />
-				</label>
+					<Input name="files" placeholder="index.js, styles.css, README.md" />
+				</Label>
 			</div>
 		</section>
 		<section class="admin-options">
-			<label>
-				<input name="featured" type="checkbox" />
+			<Label>
+				<Input class="size-4 w-auto shadow-none" name="featured" type="checkbox" />
 				<span>Featured listing</span>
-			</label>
-			<label>
-				<input name="publish" type="checkbox" />
+			</Label>
+			<Label>
+				<Input class="size-4 w-auto shadow-none" name="publish" type="checkbox" />
 				<span>Publish immediately instead of pending review</span>
-			</label>
+			</Label>
 		</section>
 		<div class="admin-actions">
-			<button type="submit">Upload zip</button>
+			<Button type="submit">Upload zip</Button>
 		</div>
 	</form>
 </details>

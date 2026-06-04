@@ -76,11 +76,6 @@ fn set_plugin_enabled(toggle: PluginToggle) -> Result<Vec<PluginEntry>, String> 
 }
 
 #[tauri::command]
-fn create_sample_plugin() -> Result<Vec<PluginEntry>, String> {
-    plugins::create_sample_plugin().map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 fn open_plugins_folder() -> Result<String, String> {
     let path = plugins::ensure_plugins_dir().map_err(|error| error.to_string())?;
     let path = path.display().to_string();
@@ -229,7 +224,6 @@ pub fn run() {
             write_loader_config,
             list_plugins,
             set_plugin_enabled,
-            create_sample_plugin,
             open_plugins_folder,
             validate_league_dir,
             find_league_dir,

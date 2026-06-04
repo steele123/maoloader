@@ -1,7 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "$lib/db/client";
 import { registryListings, registrySubmissions } from "$lib/db/schema";
-import { seedListings } from "./seed";
 import type {
 	RegistryFilters,
 	RegistryIndex,
@@ -41,7 +40,7 @@ export async function getListing(
 ): Promise<RegistryListing | undefined> {
 	const db = getDb(platform?.env);
 	if (!db) {
-		return seedListings.find((listing) => listing.slug === slug);
+		return undefined;
 	}
 
 	const row = await db
@@ -136,7 +135,7 @@ export async function getSubmission(
 async function allListings(platform?: App.Platform) {
 	const db = getDb(platform?.env);
 	if (!db) {
-		return [...seedListings].sort((left, right) => right.updated_at.localeCompare(left.updated_at));
+		return [];
 	}
 
 	const rows = await db
