@@ -1,5 +1,12 @@
 <script lang="ts">
+  import CpuIcon from "@lucide/svelte/icons/cpu";
+  import FolderOpenIcon from "@lucide/svelte/icons/folder-open";
   import MinusIcon from "@lucide/svelte/icons/minus";
+  import PlugIcon from "@lucide/svelte/icons/plug";
+  import PowerIcon from "@lucide/svelte/icons/power";
+  import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
+  import SettingsIcon from "@lucide/svelte/icons/settings";
+  import ShieldIcon from "@lucide/svelte/icons/shield";
   import XIcon from "@lucide/svelte/icons/x";
   import { onMount } from "svelte";
   import { Badge } from "$lib/components/ui/badge/index.js";
@@ -522,88 +529,125 @@
     </header>
 
     {#if activeTab === "overview"}
-    <section class="hero">
-      <div>
-        <p>Client loader workspace</p>
-        <h2>Built for a lean League client loader workflow.</h2>
-      </div>
-      <Button variant="secondary" onclick={() => reveal(status?.paths.base_dir)}>Open Base</Button>
-    </section>
-
-    {#if status}
-      <section class="paths" aria-label="Loader paths">
-        <button type="button" onclick={() => reveal(status?.paths.config_path)}>
-          <span>Config</span>
-          <strong>{status.paths.config_path}</strong>
-        </button>
-        <button type="button" onclick={openPluginsFolder}>
-          <span>Plugins</span>
-          <strong>{status.paths.plugins_dir}</strong>
-        </button>
-        <button type="button" onclick={() => reveal(status?.paths.core_path)}>
-          <span>Core Module</span>
-          <strong>{status.core_exists ? "Found" : "Missing"}: {status.paths.core_path}</strong>
-        </button>
-      </section>
-    {/if}
-
-    <section class="status-grid" aria-label="Loader modules">
-      {#each modules as module}
-        <article>
-          <div class="module-heading">
-            <h3>{module.name}</h3>
-            <Badge variant="secondary">{module.state}</Badge>
-          </div>
-          <p>{module.detail}</p>
-        </article>
-      {/each}
-    </section>
-
-    <section class="runtime">
-      <div>
-        <h2>Runtime</h2>
+    <section class="home-hero" aria-label="Loader summary">
+      <div class="home-hero-copy">
+        <p class="eyebrow">Loader workspace</p>
+        <h2>Manage injection, plugins, and local runtime files from one quiet control surface.</h2>
         <p>
           {#if status}
-            {status.app_name} is running; injector state is {status.injector}.
+            {status.app_name} is ready; injector state is {status.injector}.
           {:else if statusError}
-            Could not read app status: {statusError}
+            Status unavailable: {statusError}
           {:else}
-            Reading app status...
+            Checking local loader state...
           {/if}
         </p>
       </div>
-      <div class="steps">
-        <Badge variant="outline">Detect</Badge>
-        <Badge variant="outline">Inject</Badge>
-        <Badge variant="outline">Manage</Badge>
+
+      <div class="home-hero-panel">
+        <Badge variant={activation?.activated ? "secondary" : "outline"}>
+          {activation?.activated ? "Active" : "Inactive"}
+        </Badge>
+        <strong>{runtime?.plugin_count ?? plugins.length} plugins</strong>
+        <span>{status?.core_exists ? "core.dll found" : "core.dll missing"}</span>
       </div>
     </section>
 
-    {#if activation}
-      <section class="activation" aria-label="Core activation">
-        <div>
-          <p class="eyebrow">Core activation</p>
-          <h2>{activation.activated ? "Installed" : "Not installed"}</h2>
-          <p>
-            {activation.mode === "targeted"
-              ? "Targeted mode uses a version.dll symlink in the configured League directory."
-              : "Universal mode uses Image File Execution Options for LeagueClientUx.exe."}
-          </p>
-          {#if activation.message}
-            <p class="activation-error">{activation.message}</p>
-          {/if}
-        </div>
+    <section class="home-actions" aria-label="Quick actions">
+      <Button onclick={() => reveal(status?.paths.base_dir)}>
+        <FolderOpenIcon />
+        Open Base
+      </Button>
+      <Button variant="outline" onclick={openPluginsFolder}>
+        <PlugIcon />
+        Plugins
+      </Button>
+      <Button variant="outline" onclick={syncRuntime}>
+        <RefreshCwIcon />
+        Sync Runtime
+      </Button>
+      {#if activation}
+        <Button variant={activation.activated ? "destructive" : "secondary"} disabled={activationBusy} onclick={() => setActivation(!activation?.activated)}>
+          <PowerIcon />
+          {activationBusy ? "Working" : activation.activated ? "Deactivate" : "Activate"}
+        </Button>
+      {/if}
+    </section>
 
-        <div class="activation-actions">
-          <Badge variant="outline">{activation.admin ? "Admin" : "Standard user"}</Badge>
-          <Badge variant="outline">{activation.developer_mode ? "Developer Mode" : "Developer Mode off"}</Badge>
-          <Badge variant={activation.webview2_installed ? "secondary" : "destructive"}>
-            {activation.webview2_installed ? "WebView2 ready" : "WebView2 missing"}
-          </Badge>
-          <Button disabled={activationBusy} onclick={() => setActivation(!activation?.activated)}>
-            {activationBusy ? "Working..." : activation.activated ? "Deactivate" : "Activate"}
-          </Button>
+    <section class="home-grid" aria-label="Current state">
+      <article class="home-card">
+        <div class="home-card-heading">
+          <span><ShieldIcon /></span>
+          <div>
+            <p class="eyebrow">Activation</p>
+            <h3>{activation?.activated ? "Installed" : "Not installed"}</h3>
+          </div>
         </div>
+        <p>
+          {#if activation}
+            {activation.mode === "targeted"
+              ? "Targeted mode links into the configured League directory."
+              : "Universal mode launches the client through the configured loader hook."}
+          {:else}
+            Activation state is still loading.
+          {/if}
+        </p>
+        <div class="card-badges">
+          <Badge variant="outline">{activation?.admin ? "Admin" : "Standard user"}</Badge>
+          <Badge variant={activation?.webview2_installed ? "secondary" : "destructive"}>
+            {activation?.webview2_installed ? "WebView2 ready" : "WebView2 missing"}
+          </Badge>
+        </div>
+        {#if activation?.message}
+          <p class="activation-error">{activation.message}</p>
+        {/if}
+      </article>
+
+      <article class="home-card">
+        <div class="home-card-heading">
+          <span><CpuIcon /></span>
+          <div>
+            <p class="eyebrow">Runtime</p>
+            <h3>{runtime?.preload_exists ? "Preload synced" : "Preload pending"}</h3>
+          </div>
+        </div>
+        <p>{runtime?.preload_path ?? "Runtime assets are loading."}</p>
+        <div class="card-badges">
+          <Badge variant="secondary">{runtime?.plugin_count ?? plugins.length} plugins</Badge>
+          <Badge variant="outline">{status?.core_exists ? "core ready" : "core missing"}</Badge>
+        </div>
+      </article>
+
+      <article class="home-card">
+        <div class="home-card-heading">
+          <span><SettingsIcon /></span>
+          <div>
+            <p class="eyebrow">Configuration</p>
+            <h3>{config?.app.league_dir ? "League path set" : "League path needed"}</h3>
+          </div>
+        </div>
+        <p>{config?.app.league_dir || "Set the League directory before using targeted activation."}</p>
+        <div class="card-badges">
+          <Badge variant="outline">{config?.app.activation_mode ?? "loading"}</Badge>
+          <Badge variant="outline">debug {config?.client.debug_port ?? "n/a"}</Badge>
+        </div>
+      </article>
+    </section>
+
+    {#if status}
+      <section class="path-list" aria-label="Loader paths">
+        <button class="path-card" type="button" onclick={() => reveal(status?.paths.config_path)}>
+          <span>Config</span>
+          <strong>{status.paths.config_path}</strong>
+        </button>
+        <button class="path-card" type="button" onclick={openPluginsFolder}>
+          <span>Plugins</span>
+          <strong>{status.paths.plugins_dir}</strong>
+        </button>
+        <button class="path-card" type="button" onclick={() => reveal(status?.paths.core_path)}>
+          <span>Core module</span>
+          <strong>{status.paths.core_path}</strong>
+        </button>
       </section>
     {/if}
     {/if}
@@ -1064,8 +1108,7 @@ header {
   margin-bottom: 24px;
 }
 
-.eyebrow,
-.hero p {
+.eyebrow {
   margin: 0 0 6px;
   color: #5f7168;
   font-size: 0.78rem;
@@ -1107,32 +1150,6 @@ h1 {
   font-size: 0.8rem;
 }
 
-.hero {
-  display: flex;
-  gap: 24px;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 180px;
-  margin-bottom: 20px;
-  padding: 28px;
-  border-radius: 8px;
-  background:
-    linear-gradient(135deg, rgba(39, 61, 53, 0.94), rgba(34, 65, 72, 0.86)),
-    url("/tauri.svg") right 28px center / 130px no-repeat;
-  color: #ffffff;
-}
-
-.hero h2 {
-  max-width: 620px;
-  margin-bottom: 0;
-  font-size: 2.35rem;
-  line-height: 1.08;
-}
-
-.hero p {
-  color: #b7e2c4;
-}
-
 button {
   min-width: 116px;
   padding: 10px 14px;
@@ -1149,113 +1166,165 @@ button:hover {
   background: #b8efc8;
 }
 
-.status-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 20px;
-}
-
 article,
-.runtime,
 .settings,
 .plugins,
-.activation,
 .runtime-assets,
 .native-core,
-.paths button {
+.home-card,
+.path-card {
   border: 1px solid #d8d0c0;
   border-radius: 8px;
   background: #fffdf7;
-}
-
-.paths {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 20px;
-}
-
-.paths button {
-  min-width: 0;
-  padding: 14px;
-  color: inherit;
-  text-align: left;
-}
-
-.paths button:hover {
-  background: #ffffff;
-}
-
-.paths span,
-.paths strong {
-  display: block;
-}
-
-.paths span {
-  margin-bottom: 6px;
-  color: #66766e;
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.paths strong {
-  overflow: hidden;
-  font-size: 0.86rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 article {
   padding: 18px;
 }
 
-.module-heading {
+.home-hero {
   display: flex;
-  gap: 12px;
-  align-items: center;
+  gap: 20px;
+  align-items: stretch;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  padding: 22px;
+  border: 1px solid rgba(110, 191, 141, 0.38);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ffffff, #edf4ee);
 }
 
-.module-heading h3 {
+.home-hero-copy {
+  display: grid;
+  gap: 6px;
+  max-width: 680px;
+}
+
+.home-hero h2 {
   margin-bottom: 0;
-  font-size: 1rem;
+  font-size: 1.65rem;
+  line-height: 1.15;
 }
 
-article p,
-.runtime p {
+.home-hero p {
   margin-bottom: 0;
   color: #5f7168;
 }
 
-.runtime {
-  display: flex;
-  gap: 20px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px;
-  margin-bottom: 20px;
+.home-hero-panel {
+  display: grid;
+  min-width: 170px;
+  align-content: center;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #d8d0c0;
+  border-radius: 8px;
+  background: rgba(255, 253, 247, 0.86);
 }
 
-.runtime h2 {
-  margin-bottom: 6px;
-  font-size: 1.2rem;
+.home-hero-panel strong {
+  color: #17201c;
+  font-size: 1.4rem;
+  line-height: 1;
 }
 
-.steps {
+.home-hero-panel span {
+  color: #66766e;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.home-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
 }
 
-.activation {
-  display: flex;
-  gap: 20px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px;
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
   margin-bottom: 20px;
+}
+
+.home-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 18px;
+}
+
+.home-card-heading {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.home-card-heading > span {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  background: #edf0e8;
+  color: #235137;
+}
+
+.home-card-heading h3 {
+  margin-bottom: 0;
+  font-size: 1.05rem;
+}
+
+.home-card p {
+  margin-bottom: 0;
+  color: #5f7168;
+  overflow-wrap: anywhere;
+}
+
+.card-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.path-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.path-card {
+  min-width: 0;
+  padding: 12px;
+  color: inherit;
+  text-align: left;
+}
+
+.path-card:hover {
+  background: #ffffff;
+}
+
+.path-card span,
+.path-card strong {
+  display: block;
+}
+
+.path-card span {
+  margin-bottom: 4px;
+  color: #66766e;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.path-card strong {
+  overflow: hidden;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .runtime-assets {
@@ -1317,28 +1386,10 @@ article p,
   flex-wrap: wrap;
 }
 
-.activation h2 {
-  margin-bottom: 6px;
-  font-size: 1.35rem;
-}
-
-.activation p {
-  margin-bottom: 0;
-  color: #5f7168;
-}
-
 .activation-error {
   margin-top: 10px;
   color: #a13422 !important;
   font-weight: 800;
-}
-
-.activation-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
 }
 
 button:disabled {
@@ -1642,9 +1693,7 @@ button:disabled {
     padding: 20px;
   }
 
-  .hero,
-  .runtime,
-  .activation,
+  .home-hero,
   header {
     align-items: stretch;
     flex-direction: column;
@@ -1654,15 +1703,11 @@ button:disabled {
     text-align: left;
   }
 
-  .status-grid,
-  .paths,
+  .home-grid,
+  .path-list,
   .settings-grid,
   .store-grid {
     grid-template-columns: 1fr;
-  }
-
-  .steps {
-    flex-wrap: wrap;
   }
 
   .plugin-list article {
