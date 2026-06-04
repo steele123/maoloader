@@ -41,15 +41,11 @@ bun run db:generate
 
 ## GitHub manifest
 
-Every submitted repository must include a `maoloader.json` manifest. Top-level fields act as defaults for each entry in `plugins`, and every plugin can override them. If the manifest is at the repository root, leave the submit form's manifest path empty. For nested manifests, enter a relative path like `packages/example/maoloader.json`.
+Every submitted repository must include a `maoloader.json` manifest. The root identifies the GitHub repository and author. Each plugin entry owns its own title, version, description, image, entry, files, and tags. If the manifest is at the repository root, leave the submit form's manifest path empty. For nested manifests, enter a relative path like `packages/example/maoloader.json`.
 
 ```json
 {
-  "title": "Example Maoloader Pack",
-  "version": "0.1.0",
   "repository": "https://github.com/steele123/maoloader",
-  "description": "Example plugins for maoloader.",
-  "image": "assets/icon.png",
   "author": {
     "name": "maoloader",
     "url": "https://github.com/steele123"
@@ -58,7 +54,9 @@ Every submitted repository must include a `maoloader.json` manifest. Top-level f
     {
       "slug": "example-plugin",
       "title": "Example Plugin",
+      "version": "0.1.0",
       "description": "Adds a small toast when the League client loads.",
+      "image": "plugins/example/icon.png",
       "entry": "plugins/example/index.js",
       "files": ["plugins/example/index.js", "plugins/example/styles.css"],
       "tags": ["example", "ui"]
@@ -67,9 +65,10 @@ Every submitted repository must include a `maoloader.json` manifest. Top-level f
       "kind": "theme",
       "slug": "example-theme",
       "title": "Example Theme",
+      "version": "0.1.0",
       "description": "A small visual theme.",
-      "entry": "themes/example/index.css",
       "image": "themes/example/preview.png",
+      "entry": "themes/example/index.css",
       "files": ["themes/example/index.css", "themes/example/preview.png"],
       "tags": ["theme"]
     }
@@ -77,7 +76,7 @@ Every submitted repository must include a `maoloader.json` manifest. Top-level f
 }
 ```
 
-Required manifest fields are `title`, `version`, `repository`, `description`, `image`, and a non-empty `plugins` array.
+Required root fields are `repository`, `author`, and a non-empty `plugins` array. Each plugin must include `title`, `version`, `description`, and `image`.
 
 ## Routes
 

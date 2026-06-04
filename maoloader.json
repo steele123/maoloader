@@ -1,9 +1,5 @@
 {
-  "title": "maoloader Plugin Examples",
-  "version": "0.1.0",
   "repository": "https://github.com/steele123/maoloader",
-  "description": "Example plugins for testing maoloader registry submissions.",
-  "image": "app/static/maologo-icon.png",
   "author": {
     "name": "maoloader",
     "url": "https://github.com/steele123"
@@ -12,7 +8,9 @@
     {
       "slug": "plugin-example",
       "title": "Plugin Example",
+      "version": "0.1.0",
       "description": "A small maoloader plugin that mounts a panel and tests Toast and DataStore APIs.",
+      "image": "app/static/maologo-icon.png",
       "entry": "plugin-example/index.js",
       "files": [
         "plugin-example/index.js",

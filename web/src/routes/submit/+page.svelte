@@ -4,15 +4,17 @@
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	const manifestExample = `{
-  "title": "Example Pack",
-  "version": "0.1.0",
   "repository": "https://github.com/owner/repo",
-  "description": "Short summary.",
-  "image": "assets/icon.png",
+  "author": {
+    "name": "maoloader"
+  },
   "plugins": [
     {
       "slug": "example",
       "title": "Example",
+      "version": "0.1.0",
+      "description": "Short summary.",
+      "image": "assets/icon.png",
       "entry": "index.js"
     }
   ]

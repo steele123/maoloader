@@ -31,21 +31,8 @@ type ManifestPlugin = {
 };
 
 type MaoloaderManifest = {
-	title?: unknown;
-	name?: unknown;
-	version?: unknown;
 	repository?: unknown;
-	github?: unknown;
-	description?: unknown;
 	author?: ManifestAuthor;
-	authorUrl?: unknown;
-	homepage?: unknown;
-	tags?: unknown;
-	compatibility?: unknown;
-	files?: unknown;
-	image?: unknown;
-	imagePath?: unknown;
-	image_path?: unknown;
 	plugins?: unknown;
 };
 
@@ -69,19 +56,10 @@ export async function loadListingsFromManifest(
 	const normalizedManifestPath = normalizeManifestPath(manifestPath);
 	const manifestFile = await fetchGitHubFile(parsedRepo.url, normalizedManifestPath, ref);
 	const manifest = parseManifestJson(manifestFile.text);
-	const rootImagePath =
-		stringValue(manifest.image_path) || stringValue(manifest.imagePath) || stringValue(manifest.image);
-	const manifestRepository = stringValue(manifest.repository) || stringValue(manifest.github);
-	if (
-		!stringValue(manifest.title) ||
-		!stringValue(manifest.version) ||
-		!manifestRepository ||
-		!stringValue(manifest.description) ||
-		!rootImagePath
-	) {
-		throw new Error(
-			"maoloader.json must include title, version, repository, description, and image."
-		);
+	validateRootKeys(manifest);
+	const manifestRepository = stringValue(manifest.repository);
+	if (!manifestRepository || !hasAuthor(manifest.author)) {
+		throw new Error("maoloader.json root must include repository and author.");
 	}
 	const manifestRepo = parseGitHubRepository(manifestRepository);
 	if (!manifestRepo || manifestRepo.url !== parsedRepo.url) {
@@ -122,30 +100,25 @@ function listingFromManifestPlugin(
 	}
 	const plugin = entry as ManifestPlugin;
 	const kind = listingKind(plugin.kind ?? plugin.type);
-	const title = stringValue(plugin.title) || stringValue(plugin.name) || stringValue(manifest.title) || stringValue(manifest.name);
+	const title = stringValue(plugin.title) || stringValue(plugin.name);
 	const slug = slugify(stringValue(plugin.slug) || stringValue(plugin.id) || title);
-	const version = stringValue(plugin.version) || stringValue(manifest.version);
-	const description = stringValue(plugin.description) || stringValue(manifest.description);
+	const version = stringValue(plugin.version);
+	const description = stringValue(plugin.description);
 	const entryFile = stringValue(plugin.entry) || "index.js";
 	const imagePath =
 		stringValue(plugin.image_path) ||
 		stringValue(plugin.imagePath) ||
-		stringValue(plugin.image) ||
-		stringValue(manifest.image_path) ||
-		stringValue(manifest.imagePath) ||
-		stringValue(manifest.image);
+		stringValue(plugin.image);
 	const author = authorFromManifest(plugin.author ?? manifest.author);
 	const files = listValue(plugin.files).length
 		? listValue(plugin.files)
-		: listValue(manifest.files).length
-			? listValue(manifest.files)
-			: [entryFile];
+		: [entryFile];
 
 	if (!slug) {
 		throw new Error(`Plugin entry ${index + 1} is missing a slug or title.`);
 	}
-	if (!title || !version || !description) {
-		throw new Error(`Plugin "${slug}" must include title, version, and description.`);
+	if (!title || !version || !description || !imagePath) {
+		throw new Error(`Plugin "${slug}" must include title, version, description, and image.`);
 	}
 
 	const authorName = author.name || "Unknown";
@@ -159,13 +132,13 @@ function listingFromManifestPlugin(
 		description,
 		author: {
 			name: authorName,
-			url: stringValue(plugin.authorUrl) || author.url || stringValue(manifest.authorUrl) || undefined
+			url: stringValue(plugin.authorUrl) || author.url || undefined
 		},
 		repository,
-		homepage: stringValue(plugin.homepage) || stringValue(manifest.homepage) || undefined,
-		tags: listValue(plugin.tags).length ? listValue(plugin.tags) : listValue(manifest.tags),
+		homepage: stringValue(plugin.homepage) || undefined,
+		tags: listValue(plugin.tags),
 		compatibility: {
-			maoloader: stringValue(plugin.compatibility) || stringValue(manifest.compatibility) || ">=0.1.0"
+			maoloader: stringValue(plugin.compatibility) || ">=0.1.0"
 		},
 		files,
 		image_path: imagePath || undefined,
@@ -197,6 +170,16 @@ function parseManifestJson(text: string): MaoloaderManifest {
 	}
 }
 
+function validateRootKeys(manifest: MaoloaderManifest) {
+	const allowed = new Set(["repository", "author", "plugins"]);
+	const extraKeys = Object.keys(manifest).filter((key) => !allowed.has(key));
+	if (extraKeys.length) {
+		throw new Error(
+			`maoloader.json root only supports repository, author, and plugins. Move ${extraKeys.join(", ")} into plugin entries.`
+		);
+	}
+}
+
 function listingKind(value: unknown): ListingKind {
 	const kind = stringValue(value);
 	if (kind === "theme") {
@@ -222,6 +205,16 @@ function authorFromManifest(value: ManifestAuthor | undefined) {
 		name: "",
 		url: undefined
 	};
+}
+
+function hasAuthor(value: ManifestAuthor | undefined) {
+	if (typeof value === "string") {
+		return Boolean(value.trim());
+	}
+	if (isObject(value)) {
+		return Boolean(stringValue(value.name));
+	}
+	return false;
 }
 
 function listValue(value: unknown) {
