@@ -21,8 +21,6 @@ use windows::ActivationStatus;
 struct AppStatus {
     app_name: &'static str,
     version: &'static str,
-    frontend: &'static str,
-    shell: &'static str,
     injector: &'static str,
     core_exists: bool,
     paths: LoaderPaths,
@@ -33,8 +31,6 @@ fn app_status() -> AppStatus {
     AppStatus {
         app_name: "maoloader",
         version: env!("CARGO_PKG_VERSION"),
-        frontend: "SvelteKit",
-        shell: "Tauri",
         injector: "scaffolded",
         core_exists: config::core_exists(),
         paths: config::loader_paths(),

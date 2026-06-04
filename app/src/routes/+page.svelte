@@ -1,11 +1,13 @@
 <script lang="ts">
+  import MinusIcon from "@lucide/svelte/icons/minus";
+  import XIcon from "@lucide/svelte/icons/x";
   import { onMount } from "svelte";
+  import { Badge } from "$lib/components/ui/badge/index.js";
+  import { Button } from "$lib/components/ui/button/index.js";
 
   type AppStatus = {
     app_name: string;
     version: string;
-    frontend: string;
-    shell: string;
     injector: string;
     core_exists: boolean;
     paths: LoaderPaths;
@@ -135,6 +137,22 @@
     message: string;
   };
 
+  type TabId = "overview" | "plugins" | "runtime" | "settings";
+
+  const tabs: { id: TabId; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "plugins", label: "Plugins" },
+    { id: "runtime", label: "Runtime" },
+    { id: "settings", label: "Settings" },
+  ];
+
+  const tabTitles: Record<TabId, string> = {
+    overview: "Loader Control Center",
+    plugins: "Plugin Manager",
+    runtime: "Runtime Diagnostics",
+    settings: "Client Settings",
+  };
+
   const modules = [
     {
       name: "Client Detection",
@@ -144,12 +162,12 @@
     {
       name: "Plugin Runtime",
       state: "Ready",
-      detail: "Svelte UI is prepared for plugin management and runtime controls.",
+      detail: "Plugin management and runtime controls are ready.",
     },
     {
       name: "DLL Bridge",
       state: "Scaffolded",
-      detail: "Rust DLL crate is present and ready for the PenguLoader fork logic.",
+      detail: "Native loader bridge is present and ready for client hooks.",
     },
   ];
 
@@ -167,6 +185,7 @@
   let storeState = $state("");
   let activationBusy = $state(false);
   let runtimeMessage = $state("");
+  let activeTab = $state<TabId>("overview");
 
   onMount(async () => {
     const { invoke } = await import("@tauri-apps/api/core");
@@ -405,11 +424,57 @@
     }
   }
 
+  async function minimizeWindow() {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().minimize();
+  }
+
+  async function closeWindow() {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().close();
+  }
+
+  async function startDragging(event: PointerEvent) {
+    if (event.button !== 0) return;
+
+    const target = event.target as HTMLElement | null;
+    if (target?.closest(".window-controls")) return;
+
+    try {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      await getCurrentWindow().startDragging();
+    } catch {
+      // The browser preview does not provide the Tauri window API.
+    }
+  }
+
 </script>
 
 <svelte:head>
   <title>maoloader</title>
 </svelte:head>
+
+<div class="app-frame">
+  <div
+    class="titlebar"
+    role="toolbar"
+    aria-label="Window controls"
+    tabindex="-1"
+    data-tauri-drag-region
+    onpointerdown={startDragging}
+  >
+    <div class="titlebar-brand" data-tauri-drag-region>
+      <span data-tauri-drag-region>maoloader</span>
+    </div>
+    <div class="window-controls">
+      <Button variant="ghost" size="icon-sm" class="window-button" aria-label="Minimize window" onclick={minimizeWindow}>
+        <MinusIcon />
+      </Button>
+      <Button variant="ghost" size="icon-sm" class="window-button close" aria-label="Close window" onclick={closeWindow}>
+        <XIcon />
+      </Button>
+    </div>
+  </div>
 
 <main class="app-shell">
   <aside class="sidebar" aria-label="Primary">
@@ -417,28 +482,35 @@
       <div class="mark">M</div>
       <div>
         <strong>maoloader</strong>
-        <span>PenguLoader fork</span>
+        <span>League client loader</span>
       </div>
     </div>
 
     <nav>
-      <a class="active" href="/">Overview</a>
-      <a href="/">Plugins</a>
-      <a href="/">Runtime</a>
-      <a href="/">Settings</a>
+      {#each tabs as tab}
+        <Button
+          variant="ghost"
+          size="sm"
+          class={activeTab === tab.id ? "nav-button active" : "nav-button"}
+          aria-current={activeTab === tab.id ? "page" : undefined}
+          onclick={() => (activeTab = tab.id)}
+        >
+          {tab.label}
+        </Button>
+      {/each}
     </nav>
   </aside>
 
   <section class="workspace">
     <header>
       <div>
-        <p class="eyebrow">Tauri desktop shell</p>
-        <h1>Loader Control Center</h1>
+        <p class="eyebrow">Control center</p>
+        <h1>{tabTitles[activeTab]}</h1>
       </div>
       <div class="version">
         {#if status}
           <span>{status.version}</span>
-          <strong>{status.shell}</strong>
+          <strong>{status.injector}</strong>
         {:else if statusError}
           <span>status unavailable</span>
           <strong>offline</strong>
@@ -449,12 +521,13 @@
       </div>
     </header>
 
+    {#if activeTab === "overview"}
     <section class="hero">
       <div>
-        <p>Rust DLL + Svelte UI</p>
+        <p>Client loader workspace</p>
         <h2>Built for a lean League client loader workflow.</h2>
       </div>
-      <button type="button" onclick={() => reveal(status?.paths.base_dir)}>Open Base</button>
+      <Button variant="secondary" onclick={() => reveal(status?.paths.base_dir)}>Open Base</Button>
     </section>
 
     {#if status}
@@ -479,7 +552,7 @@
         <article>
           <div class="module-heading">
             <h3>{module.name}</h3>
-            <span>{module.state}</span>
+            <Badge variant="secondary">{module.state}</Badge>
           </div>
           <p>{module.detail}</p>
         </article>
@@ -491,18 +564,18 @@
         <h2>Runtime</h2>
         <p>
           {#if status}
-            {status.app_name} is running with {status.frontend}; injector state is {status.injector}.
+            {status.app_name} is running; injector state is {status.injector}.
           {:else if statusError}
-            Could not read Tauri status: {statusError}
+            Could not read app status: {statusError}
           {:else}
-            Reading Tauri status...
+            Reading app status...
           {/if}
         </p>
       </div>
       <div class="steps">
-        <span>Detect</span>
-        <span>Inject</span>
-        <span>Manage</span>
+        <Badge variant="outline">Detect</Badge>
+        <Badge variant="outline">Inject</Badge>
+        <Badge variant="outline">Manage</Badge>
       </div>
     </section>
 
@@ -522,16 +595,20 @@
         </div>
 
         <div class="activation-actions">
-          <span>{activation.admin ? "Admin" : "Standard user"}</span>
-          <span>{activation.developer_mode ? "Developer Mode" : "Developer Mode off"}</span>
-          <span>{activation.webview2_installed ? "WebView2 ready" : "WebView2 missing"}</span>
-          <button type="button" disabled={activationBusy} onclick={() => setActivation(!activation?.activated)}>
+          <Badge variant="outline">{activation.admin ? "Admin" : "Standard user"}</Badge>
+          <Badge variant="outline">{activation.developer_mode ? "Developer Mode" : "Developer Mode off"}</Badge>
+          <Badge variant={activation.webview2_installed ? "secondary" : "destructive"}>
+            {activation.webview2_installed ? "WebView2 ready" : "WebView2 missing"}
+          </Badge>
+          <Button disabled={activationBusy} onclick={() => setActivation(!activation?.activated)}>
             {activationBusy ? "Working..." : activation.activated ? "Deactivate" : "Activate"}
-          </button>
+          </Button>
         </div>
       </section>
     {/if}
+    {/if}
 
+    {#if activeTab === "runtime"}
     {#if runtime}
       <section class="runtime-assets" aria-label="Runtime assets">
         <div>
@@ -540,8 +617,8 @@
           <p>{runtime.preload_path}</p>
         </div>
         <div class="runtime-actions">
-          <span>{runtime.plugin_count} plugins</span>
-          <button type="button" onclick={syncRuntime}>Sync Runtime</button>
+          <Badge variant="secondary">{runtime.plugin_count} plugins</Badge>
+          <Button onclick={syncRuntime}>Sync Runtime</Button>
         </div>
         {#if runtimeMessage}
           <p class="save-state">{runtimeMessage}</p>
@@ -594,7 +671,9 @@
         </div>
       </section>
     {/if}
+    {/if}
 
+    {#if activeTab === "plugins"}
     <section class="plugins" aria-label="Local plugins">
       <div class="settings-heading">
         <div>
@@ -643,7 +722,7 @@
       <div class="settings-heading">
         <div>
           <h2>Plugin Store</h2>
-          <p>Registry preview from the PenguLoader plugin-store project.</p>
+          <p>Registry preview for compatible plugins.</p>
         </div>
         <div class="section-actions">
           <button type="button" onclick={loadPluginStore}>Refresh</button>
@@ -724,13 +803,15 @@
         <p class="empty-state">Plugin Store is coming soon. Refresh to preview the public registry.</p>
       {/if}
     </section>
+    {/if}
 
+    {#if activeTab === "settings"}
     {#if config}
       <section class="settings" aria-label="Client settings">
         <div class="settings-heading">
           <div>
             <h2>Client Settings</h2>
-            <p>These map to PenguLoader-style config keys and persist to the local config file.</p>
+            <p>These persist to the local loader config file.</p>
           </div>
           <button type="button" onclick={saveConfig}>Save</button>
         </div>
@@ -813,8 +894,10 @@
         {/if}
       </section>
     {/if}
+    {/if}
   </section>
 </main>
+</div>
 
 <style>
 :root {
@@ -839,12 +922,71 @@
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #f4f1e8;
+  background: transparent;
+}
+
+:global(html) {
+  background: transparent;
+}
+
+.app-frame {
+  min-height: 100vh;
+  overflow: hidden;
+  border: 1px solid rgba(15, 25, 22, 0.18);
+  border-radius: 10px;
+  background: rgba(244, 241, 232, 0.96);
+  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.24);
+}
+
+.titlebar {
+  display: flex;
+  height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 14px;
+  background: rgba(22, 35, 31, 0.82);
+  color: #f7f3ea;
+  user-select: none;
+}
+
+.titlebar-brand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.window-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.window-controls :global([data-slot="button"]) {
+  display: grid;
+  width: 34px;
+  height: 26px;
+  min-width: 0;
+  padding: 0;
+  place-items: center;
+  border-radius: 6px;
+  background: transparent;
+  color: #dbe6df;
+}
+
+.window-controls :global([data-slot="button"]:hover) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.window-controls :global([data-slot="button"].close:hover) {
+  background: #b43228;
+  color: #ffffff;
 }
 
 .app-shell {
   display: flex;
-  min-height: 100vh;
+  min-height: calc(100vh - 34px);
 }
 
 .sidebar {
@@ -889,16 +1031,21 @@ nav {
   gap: 8px;
 }
 
-nav a {
+nav :global([data-slot="button"]) {
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
   padding: 10px 12px;
   border-radius: 8px;
+  background: transparent;
   color: #c8d4ce;
   font-weight: 500;
+  text-align: left;
   text-decoration: none;
 }
 
-nav a.active,
-nav a:hover {
+nav :global([data-slot="button"].active),
+nav :global([data-slot="button"]:hover) {
   background: #273d35;
   color: #ffffff;
 }
@@ -1077,16 +1224,6 @@ article {
   font-size: 1rem;
 }
 
-.module-heading span {
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: #e8f5ec;
-  color: #235137;
-  font-size: 0.76rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
 article p,
 .runtime p {
   margin-bottom: 0;
@@ -1110,15 +1247,6 @@ article p,
 .steps {
   display: flex;
   gap: 8px;
-}
-
-.steps span {
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #edf0e8;
-  color: #33443d;
-  font-weight: 700;
-  white-space: nowrap;
 }
 
 .activation {
@@ -1189,14 +1317,6 @@ article p,
   flex-wrap: wrap;
 }
 
-.runtime-actions span {
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #edf0e8;
-  color: #33443d;
-  font-weight: 800;
-}
-
 .activation h2 {
   margin-bottom: 6px;
   font-size: 1.35rem;
@@ -1219,16 +1339,6 @@ article p,
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
-}
-
-.activation-actions span {
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #edf0e8;
-  color: #33443d;
-  font-size: 0.84rem;
-  font-weight: 800;
-  white-space: nowrap;
 }
 
 button:disabled {
@@ -1524,7 +1634,7 @@ button:disabled {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  nav a {
+  nav :global([data-slot="button"]) {
     text-align: center;
   }
 

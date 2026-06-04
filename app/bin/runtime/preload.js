@@ -742,6 +742,44 @@
     };
   }
 
+  function toastDuration(message, options) {
+    if (message && typeof message === "object" && !Array.isArray(message)) {
+      return Number(message.duration ?? options?.duration ?? 5000);
+    }
+    return Number(options?.duration ?? 5000);
+  }
+
+  function removeToast(toast) {
+    if (!toast) {
+      return;
+    }
+
+    toast.style.opacity = "0";
+    toast.style.transform = "translateY(4px)";
+    toast.style.pointerEvents = "none";
+    toast.remove?.();
+    if (toast.parentNode?.removeChild) {
+      toast.parentNode.removeChild(toast);
+    }
+    if (toastRoot && toastRoot.children?.length === 0) {
+      toastRoot.remove?.();
+      toastRoot = undefined;
+    }
+  }
+
+  function scheduleToastRemoval(toast, duration) {
+    if (!toast || !Number.isFinite(duration) || duration <= 0) {
+      return;
+    }
+
+    if (toast.__maoloaderTimer) {
+      if (typeof clearTimeout === "function") {
+        clearTimeout(toast.__maoloaderTimer);
+      }
+    }
+    toast.__maoloaderTimer = setTimeout(() => removeToast(toast), duration);
+  }
+
   function showToast(kind, message, options) {
     const normalized = normalizeToastInput(message, options);
     const root = ensureToastRoot();
@@ -754,11 +792,10 @@
     toast.className = `maoloader-toast maoloader-toast-${kind}`;
     toast.textContent = String(normalized.text);
     toast.style.cssText =
-      "max-width:360px;padding:10px 12px;border-radius:6px;background:#17231f;color:#f2fff7;box-shadow:0 8px 28px rgba(0,0,0,.28);font:13px system-ui,sans-serif;pointer-events:auto;";
+      "max-width:360px;padding:10px 12px;border-radius:6px;background:#17231f;color:#f2fff7;box-shadow:0 8px 28px rgba(0,0,0,.28);font:13px system-ui,sans-serif;pointer-events:auto;transition:opacity .12s ease,transform .12s ease;cursor:pointer;";
+    toast.onclick = () => removeToast(toast);
     root.appendChild(toast);
-    if (Number.isFinite(normalized.duration) && normalized.duration > 0) {
-      setTimeout(() => toast.remove?.(), normalized.duration);
-    }
+    scheduleToastRemoval(toast, normalized.duration);
     return toast;
   }
 
@@ -777,6 +814,7 @@
           if (toast) {
             toast.className = "maoloader-toast maoloader-toast-success";
             toast.textContent = String(text);
+            scheduleToastRemoval(toast, toastDuration(message?.success, message));
           } else if (text) {
             console.log("[maoloader]", text);
           }
@@ -787,6 +825,7 @@
           if (toast) {
             toast.className = "maoloader-toast maoloader-toast-error";
             toast.textContent = String(text);
+            scheduleToastRemoval(toast, toastDuration(message?.error, message));
           } else if (text) {
             console.error("[maoloader]", text);
           }
