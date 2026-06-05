@@ -211,6 +211,12 @@ main {
 .hero-copy,
 .hero-visual,
 .hero-stats,
+.home-landing,
+.home-landing-panel,
+.product-stats,
+.feature-grid article,
+.homepage-band,
+.featured-mini-card,
 .download-hero,
 .download-card,
 .download-grid article,
@@ -297,6 +303,173 @@ h1 {
 	flex-wrap: wrap;
 	gap: 8px;
 	margin-top: 26px;
+}
+
+.home-landing {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 360px;
+	gap: 18px;
+	align-items: stretch;
+	margin-bottom: 16px;
+	padding: clamp(28px, 5vw, 54px);
+	background:
+		linear-gradient(135deg, rgba(39, 95, 143, 0.12), transparent 44%),
+		linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(238, 244, 248, 0.74));
+	box-shadow: var(--shadow-soft);
+}
+
+.home-landing-copy {
+	display: grid;
+	align-content: center;
+	min-width: 0;
+}
+
+.home-landing h1 {
+	margin-bottom: 12px;
+	font-size: clamp(3rem, 8vw, 5.8rem);
+	line-height: 0.94;
+}
+
+.home-landing-copy p:not(.eyebrow) {
+	max-width: 720px;
+	margin-bottom: 0;
+	color: var(--muted-text);
+	font-size: 1.08rem;
+	line-height: 1.65;
+}
+
+.home-landing-panel {
+	display: grid;
+	grid-template-rows: minmax(0, 1fr) auto;
+	gap: 12px;
+	padding: 14px;
+	background:
+		linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(238, 244, 248, 0.88)),
+		var(--panel-muted);
+}
+
+.home-logo-stage {
+	display: grid;
+	min-height: 250px;
+	place-items: center;
+	border: 1px solid rgba(47, 95, 143, 0.12);
+	border-radius: 8px;
+	background:
+		linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(238, 244, 248, 0.72)),
+		repeating-linear-gradient(135deg, rgba(39, 95, 143, 0.07) 0 1px, transparent 1px 14px);
+}
+
+.home-logo-stage img {
+	width: min(230px, 78%);
+	max-height: 160px;
+	object-fit: contain;
+}
+
+.release-strip {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	gap: 10px;
+	align-items: center;
+	min-height: 52px;
+	padding: 10px;
+	border: 1px solid rgba(47, 95, 143, 0.1);
+	border-radius: 8px;
+	background: rgba(255, 255, 255, 0.76);
+}
+
+.release-strip span {
+	color: var(--muted-text);
+	font-size: 0.82rem;
+	font-weight: 800;
+}
+
+.release-strip strong {
+	font-size: 1.2rem;
+}
+
+.product-stats {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 10px;
+	margin-bottom: 18px;
+	background: transparent;
+}
+
+.product-stats div {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	min-height: 58px;
+	padding: 12px 14px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: rgba(255, 255, 255, 0.78);
+	box-shadow: 0 8px 22px rgba(26, 38, 52, 0.05);
+	color: var(--muted-text);
+	font-size: 0.9rem;
+	font-weight: 850;
+}
+
+.product-stats svg {
+	width: 18px;
+	height: 18px;
+	color: var(--accent-soft);
+}
+
+.feature-grid,
+.featured-row {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 12px;
+	margin-bottom: 18px;
+}
+
+.feature-grid article {
+	padding: 16px;
+}
+
+.feature-grid p,
+.homepage-band p,
+.featured-mini-card p {
+	margin-bottom: 0;
+	color: var(--muted-text);
+	line-height: 1.55;
+}
+
+.homepage-band {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 18px;
+	margin-bottom: 12px;
+	padding: 18px;
+	background: rgba(255, 255, 255, 0.82);
+}
+
+.homepage-band h2 {
+	margin-bottom: 6px;
+}
+
+.homepage-band p {
+	max-width: 760px;
+}
+
+.featured-row {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.featured-mini-card {
+	display: grid;
+	grid-template-columns: 54px minmax(0, 1fr);
+	gap: 14px;
+	min-height: 180px;
+	padding: 18px;
+	text-decoration: none;
+}
+
+.featured-mini-card h3 {
+	margin-bottom: 6px;
+	font-size: 1.04rem;
 }
 
 .download-hero {
@@ -1394,6 +1567,10 @@ dd {
 	}
 
 	.hero,
+	.home-landing,
+	.product-stats,
+	.feature-grid,
+	.featured-row,
 	.download-hero,
 	.download-grid,
 	.page-hero,
@@ -1428,6 +1605,17 @@ dd {
 
 	.hero-logo {
 		min-height: 190px;
+	}
+
+	.home-logo-stage {
+		min-height: 190px;
+	}
+
+	.release-strip,
+	.homepage-band {
+		align-items: stretch;
+		grid-template-columns: 1fr;
+		flex-direction: column;
 	}
 
 	.hero-stats span {

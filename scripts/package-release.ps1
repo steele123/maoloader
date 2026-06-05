@@ -12,6 +12,7 @@ $repo = Split-Path -Parent $PSScriptRoot
 $appDir = Join-Path $repo "app"
 $tauriDir = Join-Path $appDir "src-tauri"
 $tauriConfig = Join-Path $tauriDir "tauri.conf.json"
+$cargoManifest = Join-Path $tauriDir "Cargo.toml"
 $releaseConfig = Join-Path $tauriDir "tauri.release.conf.json"
 $distDir = Join-Path $repo ".dist\maoloader"
 
@@ -21,6 +22,17 @@ if (-not $Version) {
 
 if (-not $Version) {
     throw "Could not determine release version from $tauriConfig."
+}
+
+$cargoVersionLine = Select-String -Path $cargoManifest -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
+$cargoVersion = if ($cargoVersionLine -and $cargoVersionLine.Matches.Count -gt 0) {
+    $cargoVersionLine.Matches[0].Groups[1].Value
+} else {
+    ""
+}
+
+if ($cargoVersion -ne $Version) {
+    throw "Version mismatch: tauri.conf.json is $Version but Cargo.toml is $cargoVersion. Update both before packaging."
 }
 
 $releaseConfigText = Get-Content -Raw -Path $releaseConfig

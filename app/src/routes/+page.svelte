@@ -1,5 +1,6 @@
 <script lang="ts">
 	import CpuIcon from "@lucide/svelte/icons/cpu";
+	import DownloadIcon from "@lucide/svelte/icons/download";
 	import FolderOpenIcon from "@lucide/svelte/icons/folder-open";
 	import PlugIcon from "@lucide/svelte/icons/plug";
 	import PowerIcon from "@lucide/svelte/icons/power";
@@ -50,6 +51,10 @@
 	<Button variant="outline" onclick={() => state.syncRuntime()}>
 		<RefreshCwIcon />
 		Sync Runtime
+	</Button>
+	<Button variant="outline" disabled={state.updateBusy} onclick={() => state.checkAndInstallUpdate()}>
+		<DownloadIcon />
+		{state.updateBusy ? "Updating" : "Update"}
 	</Button>
 	{#if state.activation}
 		<Button
@@ -127,6 +132,28 @@
 		<div class="card-badges">
 			<Badge variant="outline">{state.config?.app.activation_mode ?? "loading"}</Badge>
 			<Badge variant="outline">debug {state.config?.client.debug_port ?? "n/a"}</Badge>
+		</div>
+	</article>
+
+	<article class="home-card">
+		<div class="home-card-heading">
+			<span><DownloadIcon /></span>
+			<div>
+				<p class="eyebrow">Updates</p>
+				<h3>{state.updateAvailableVersion ? `v${state.updateAvailableVersion}` : "Manual check"}</h3>
+			</div>
+		</div>
+		<p>{state.updateMessage || "Check the website release endpoint for a signed app update."}</p>
+		{#if state.updateProgress > 0}
+			<div class="update-progress" aria-label="Update progress">
+				<span style={`width: ${state.updateProgress}%`}></span>
+			</div>
+		{/if}
+		<div class="card-badges">
+			<Badge variant="outline">current v{state.status?.version ?? "0.1.0"}</Badge>
+			<Badge variant={state.updateBusy ? "secondary" : "outline"}>
+				{state.updateBusy ? "working" : "ready"}
+			</Badge>
 		</div>
 	</article>
 </section>

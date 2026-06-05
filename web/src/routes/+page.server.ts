@@ -1,23 +1,21 @@
+import { getDownloadRelease } from "$lib/releases";
 import { allTags, searchListings } from "$lib/registry/store";
-import type { ListingKind } from "$lib/registry/types";
 import type { PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async ({ platform, url }) => {
-	const kind = (url.searchParams.get("kind") || "all") as ListingKind | "all";
-	const query = url.searchParams.get("q") || "";
-	const tag = url.searchParams.get("tag") || "";
-	const [items, tags] = await Promise.all([
-		searchListings({ kind, query, tag }, platform),
-		allTags(platform)
+export const load: PageServerLoad = async ({ platform }) => {
+	const [items, tags, release] = await Promise.all([
+		searchListings({}, platform),
+		allTags(platform),
+		getDownloadRelease(platform)
 	]);
 
 	return {
-		items,
-		tags,
-		filters: {
-			kind,
-			query,
-			tag
-		}
+		featured: items.filter((item) => item.featured).slice(0, 3),
+		pluginCount: items.filter((item) => item.kind === "plugin").length,
+		themeCount: items.filter((item) => item.kind === "theme").length,
+		listingCount: items.length,
+		tagCount: tags.length,
+		totalDownloads: items.reduce((total, item) => total + (item.downloads ?? 0), 0),
+		release
 	};
 };

@@ -513,6 +513,22 @@ article {
 	flex-wrap: wrap;
 }
 
+.update-progress {
+	overflow: hidden;
+	height: 8px;
+	border: 1px solid var(--app-border);
+	border-radius: 999px;
+	background: var(--app-panel-muted);
+}
+
+.update-progress span {
+	display: block;
+	height: 100%;
+	border-radius: inherit;
+	background: var(--app-text);
+	transition: width 160ms ease;
+}
+
 .path-list {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));

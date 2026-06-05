@@ -159,6 +159,10 @@ export class AppState {
 	activationBusy = $state(false);
 	activationNotice = $state("");
 	runtimeMessage = $state("");
+	updateBusy = $state(false);
+	updateMessage = $state("");
+	updateProgress = $state(0);
+	updateAvailableVersion = $state("");
 
 	async initialize() {
 		const { invoke } = await import("@tauri-apps/api/core");
@@ -285,6 +289,48 @@ export class AppState {
 			this.runtimeMessage = "Runtime synced";
 		} catch (error) {
 			this.runtimeMessage = String(error);
+		}
+	}
+
+	async checkAndInstallUpdate() {
+		this.updateBusy = true;
+		this.updateProgress = 0;
+		this.updateAvailableVersion = "";
+		this.updateMessage = "Checking for updates...";
+
+		try {
+			const { check } = await import("@tauri-apps/plugin-updater");
+			const update = await check();
+
+			if (!update) {
+				this.updateMessage = "You are on the latest version";
+				return;
+			}
+
+			let downloaded = 0;
+			let total = 0;
+			this.updateAvailableVersion = update.version;
+			this.updateMessage = `Downloading v${update.version}...`;
+
+			await update.downloadAndInstall((event) => {
+				if (event.event === "Started") {
+					total = event.data.contentLength || 0;
+					downloaded = 0;
+					this.updateProgress = 0;
+				} else if (event.event === "Progress") {
+					downloaded += event.data.chunkLength;
+					this.updateProgress = total ? Math.round((downloaded / total) * 100) : 0;
+				} else if (event.event === "Finished") {
+					this.updateProgress = 100;
+					this.updateMessage = `Installed v${update.version}. Restart maoloader to finish.`;
+				}
+			});
+
+			this.updateMessage = `Installed v${update.version}. Restart maoloader to finish.`;
+		} catch (error) {
+			this.updateMessage = String(error);
+		} finally {
+			this.updateBusy = false;
 		}
 	}
 

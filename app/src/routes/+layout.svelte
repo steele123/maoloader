@@ -97,7 +97,7 @@
 				</div>
 				<div>
 					<strong>maoloader</strong>
-					<span>{state.status ? `v${state.status.version}` : "v0.1.0"}</span>
+					<span>{state.status ? `v${state.status.version}` : ""}</span>
 				</div>
 			</div>
 
