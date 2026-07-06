@@ -49,6 +49,7 @@ export type RegistrySummary = Pick<
 	| "version"
 	| "description"
 	| "author"
+	| "repository"
 	| "tags"
 	| "compatibility"
 	| "featured"

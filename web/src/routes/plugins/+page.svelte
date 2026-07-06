@@ -135,6 +135,9 @@
 					</div>
 					<p>{item.description}</p>
 					<div class="tag-row">
+						<Badge variant="secondary">reviewed</Badge>
+						{#if item.assets.package?.key}<Badge variant="outline">mirrored</Badge>{/if}
+						{#if item.repository}<Badge variant="outline">repository</Badge>{/if}
 						{#each item.tags.slice(0, 4) as tag}
 							<Badge variant="outline">{tag}</Badge>
 						{/each}

@@ -257,6 +257,146 @@
     },
   };
 
+  const pluginReports = [];
+  const pluginLogs = [];
+  let activePluginEntry;
+  const PLUGIN_FAILURES_KEY = "maoloader-plugin-failures";
+  const PLUGIN_SAFE_MODE_THRESHOLD = 3;
+
+  function shortError(error) {
+    if (!error) {
+      return "";
+    }
+    if (error instanceof Error) {
+      return error.stack || error.message || String(error);
+    }
+    return String(error);
+  }
+
+  function pluginReport(entry, stage, status, detail = {}) {
+    const report = {
+      entry: normalizePluginEntry(entry),
+      root: pluginRootFromPath(entry) || normalizePluginEntry(entry),
+      stage,
+      status,
+      ts: Date.now(),
+      ...detail,
+    };
+    pluginReports.push(report);
+    if (pluginReports.length > 300) {
+      pluginReports.splice(0, pluginReports.length - 300);
+    }
+    return report;
+  }
+
+  function failureCounts() {
+    const value = window.DataStore?.get?.(PLUGIN_FAILURES_KEY, {});
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  }
+
+  function pluginFailureCount(entry) {
+    const counts = failureCounts();
+    return Number(counts[normalizePluginEntry(entry)] || 0);
+  }
+
+  function setPluginFailureCount(entry, count) {
+    const counts = failureCounts();
+    const key = normalizePluginEntry(entry);
+    if (count > 0) {
+      counts[key] = count;
+    } else {
+      delete counts[key];
+    }
+    window.DataStore?.set?.(PLUGIN_FAILURES_KEY, counts);
+  }
+
+  function recordPluginFailure(entry, error) {
+    const count = pluginFailureCount(entry) + 1;
+    setPluginFailureCount(entry, count);
+    return pluginReport(entry, "safe-mode", "failure-counted", {
+      failures: count,
+      threshold: PLUGIN_SAFE_MODE_THRESHOLD,
+      error: shortError(error),
+    });
+  }
+
+  function resetPluginFailure(entry) {
+    setPluginFailureCount(entry, 0);
+  }
+
+  function withPluginExecution(entry, action) {
+    const previous = activePluginEntry;
+    activePluginEntry = normalizePluginEntry(entry);
+    try {
+      return action();
+    } finally {
+      activePluginEntry = previous;
+    }
+  }
+
+  function wrapPluginCallback(entry, callback) {
+    return function (...args) {
+      return withPluginExecution(entry, () => callback.apply(this, args));
+    };
+  }
+
+  function installConsoleCapture() {
+    if (typeof console !== "object" || !console) {
+      return;
+    }
+
+    for (const level of ["debug", "log", "info", "warn", "error"]) {
+      const original = console[level];
+      if (typeof original !== "function") {
+        continue;
+      }
+
+      console[level] = function (...args) {
+        if (activePluginEntry) {
+          pluginLogs.push({
+            entry: activePluginEntry,
+            root: pluginRootFromPath(activePluginEntry) || activePluginEntry,
+            level,
+            ts: Date.now(),
+            message: args.map((arg) => (typeof arg === "string" ? arg : shortError(arg))).join(" "),
+          });
+          if (pluginLogs.length > 500) {
+            pluginLogs.splice(0, pluginLogs.length - 500);
+          }
+        }
+        return original.apply(this, args);
+      };
+    }
+  }
+
+  installConsoleCapture();
+
+  Object.defineProperty(window, "__maoloaderPluginReports", {
+    value: pluginReports,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+  Object.defineProperty(window, "__maoloaderPluginLogs", {
+    value: pluginLogs,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+  Object.defineProperty(window, "__maoloaderResetPluginSafeMode", {
+    value(entry) {
+      if (entry) {
+        resetPluginFailure(entry);
+      } else {
+        window.DataStore?.remove?.(PLUGIN_FAILURES_KEY);
+      }
+      return true;
+    },
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+
   function pluginFsCallerRoot() {
     return pluginRootFromPath(window.getScriptPath?.());
   }
@@ -523,36 +663,49 @@
 
   const commandActions = [
     {
-      name: "Visit Pengu home",
-      legend: "pengu.lol",
-      group: "pengu",
-      perform: () => window.open?.("https://pengu.lol", "_blank"),
+      name: "Visit maoloader home",
+      legend: "maoloader.com",
+      group: "maoloader",
+      perform: () => window.open?.("https://maoloader.com", "_blank"),
     },
     {
       name: "Open DevTools",
       legend: "F12",
       tags: ["dev", "console"],
-      group: "pengu",
+      group: "maoloader",
       perform: () => window.openDevTools?.(),
     },
     {
       name: "Open plugins folder",
       tags: ["dev"],
-      group: "pengu",
+      group: "maoloader",
       perform: () => window.openPluginsFolder?.(),
+    },
+    {
+      name: "Reload plugins",
+      legend: "Reload client",
+      tags: ["plugin", "reload"],
+      group: "maoloader",
+      perform: () => {
+        window.Toast?.info?.({
+          title: "Reloading client",
+          description: "The League renderer has to reload before plugins run again.",
+        });
+        window.reloadClient?.();
+      },
     },
     {
       name: "Reload client",
       legend: "Ctrl Shift R",
       hidden: true,
-      group: "pengu",
+      group: "maoloader",
       perform: () => window.reloadClient?.(),
     },
     {
       name: "Restart client",
       legend: "Ctrl Shift Enter",
       hidden: true,
-      group: "pengu",
+      group: "maoloader",
       perform: () => window.restartClient?.(),
     },
     {
@@ -926,6 +1079,8 @@
       iconColor: "#354252",
     },
   };
+  const MAOLOADER_ICON_URL =
+    "https://raw.githubusercontent.com/steele123/maoloader/main/app/static/maologo-icon.png";
 
   function ensureToastRoot() {
     if (typeof document === "undefined" || !document.body?.appendChild || !document.createElement) {
@@ -1322,9 +1477,16 @@
 
     const badge = document.createElement("div");
     badge.className = "maoloader-welcome-badge";
-    badge.textContent = "M";
     badge.style.cssText =
-      "flex:0 0 auto;width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#16231f;color:#9be2b2;font-weight:700;";
+      "flex:0 0 auto;width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:#141d26;box-shadow:0 10px 24px rgba(20,29,38,.18);overflow:hidden;";
+
+    const badgeIcon = document.createElement("img");
+    badgeIcon.src = MAOLOADER_ICON_URL;
+    badgeIcon.alt = "";
+    badgeIcon.decoding = "async";
+    badgeIcon.loading = "eager";
+    badgeIcon.style.cssText = "display:block;width:34px;height:34px;object-fit:contain;";
+    badge.appendChild(badgeIcon);
 
     const copy = document.createElement("div");
     copy.className = "maoloader-welcome-copy";
@@ -1343,9 +1505,9 @@
     links.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;";
 
     for (const [label, href] of [
-      ["Docs", "https://pengu.lol/"],
-      ["Discord", "https://chat.pengu.lol/"],
-      ["GitHub", "https://github.com/PenguLoader/PenguLoader/"],
+      ["Docs", "https://maoloader.com/docs"],
+      ["Plugins", "https://maoloader.com/plugins"],
+      ["GitHub", "https://github.com/steele123/maoloader"],
     ]) {
       const link = document.createElement("a");
       link.textContent = label;
@@ -1762,15 +1924,17 @@
 
   function runClassicPlugin(source, entry) {
     const url = pluginUrl(entry);
-    Function(
-      "window",
-      "document",
-      "globalThis",
-      "Pengu",
-      "rcp",
-      "socket",
-      `${source}\n//# sourceURL=${url}`,
-    )(window, document, window, pengu, rcp, rcpSocket);
+    withPluginExecution(entry, () => {
+      Function(
+        "window",
+        "document",
+        "globalThis",
+        "Pengu",
+        "rcp",
+        "socket",
+        `${source}\n//# sourceURL=${url}`,
+      )(window, document, window, pengu, rcp, rcpSocket);
+    });
     return {};
   }
 
@@ -1782,18 +1946,20 @@
     };
     const url = pluginUrl(entry);
 
-    Function(
-      "module",
-      "exports",
-      "require",
-      "window",
-      "document",
-      "globalThis",
-      "Pengu",
-      "rcp",
-      "socket",
-      `${source}\n//# sourceURL=${url}`,
-    )(module, exports, require, window, document, window, pengu, rcp, rcpSocket);
+    withPluginExecution(entry, () => {
+      Function(
+        "module",
+        "exports",
+        "require",
+        "window",
+        "document",
+        "globalThis",
+        "Pengu",
+        "rcp",
+        "socket",
+        `${source}\n//# sourceURL=${url}`,
+      )(module, exports, require, window, document, window, pengu, rcp, rcpSocket);
+    });
 
     if (typeof module.exports === "function") {
       return { default: module.exports };
@@ -1920,17 +2086,19 @@
         `${scopedSource}\n//# sourceURL=${pluginUrl(normalized)}`,
       );
 
-      await runner(
-        exports,
-        (specifier) => loadEsmPluginModule(specifier),
-        (styleEntry) => loadStylePlugin(styleEntry),
-        { url: pluginUrl(normalized) },
-        window,
-        document,
-        window,
-        pengu,
-        rcp,
-        rcpSocket,
+      await withPluginExecution(normalized, () =>
+        runner(
+          exports,
+          (specifier) => loadEsmPluginModule(specifier),
+          (styleEntry) => loadStylePlugin(styleEntry),
+          { url: pluginUrl(normalized) },
+          window,
+          document,
+          window,
+          pengu,
+          rcp,
+          rcpSocket,
+        ),
       );
       return exports;
     })();
@@ -1985,11 +2153,12 @@
     link.href = pluginUrl(entry);
     link.setAttribute?.("data-maoloader-plugin", entry);
     (document.head || document.documentElement || document.body)?.appendChild?.(link);
+    pluginReport(entry, "load", "loaded", { kind: "stylesheet" });
   }
 
   function bindPluginLifecycle(plugin, entry) {
     if (typeof plugin.init === "function") {
-      return Promise.resolve(plugin.init(pluginInitContext(entry))).then(() => plugin);
+      return Promise.resolve(withPluginExecution(entry, () => plugin.init(pluginInitContext(entry)))).then(() => plugin);
     }
 
     return Promise.resolve(plugin);
@@ -1997,31 +2166,55 @@
 
   async function loadPlugin(entry) {
     let stage = "load";
+    const normalized = normalizePluginEntry(entry);
+
+    if (pluginFailureCount(normalized) >= PLUGIN_SAFE_MODE_THRESHOLD) {
+      pluginReport(normalized, "safe-mode", "skipped", {
+        failures: pluginFailureCount(normalized),
+        threshold: PLUGIN_SAFE_MODE_THRESHOLD,
+      });
+      console.warn(
+        "%c maoloader ",
+        "background: #16231f; color: #9be2b2",
+        `Skipped plugin "${entry}" because it failed ${PLUGIN_SAFE_MODE_THRESHOLD} times. Run __maoloaderResetPluginSafeMode("${normalized}") to retry.`,
+      );
+      return;
+    }
+
+    pluginReport(normalized, stage, "started");
 
     try {
-      if (isStylePluginEntry(entry)) {
-        loadStylePlugin(entry);
-        console.info("%c maoloader ", "background: #16231f; color: #9be2b2", `Loaded stylesheet "${entry}".`);
+      if (isStylePluginEntry(normalized)) {
+        loadStylePlugin(normalized);
+        resetPluginFailure(normalized);
+        console.info("%c maoloader ", "background: #16231f; color: #9be2b2", `Loaded stylesheet "${normalized}".`);
         return;
       }
 
-      let plugin = await loadScriptPlugin(entry);
+      let plugin = await loadScriptPlugin(normalized);
 
       stage = "initialize";
-      plugin = await bindPluginLifecycle(plugin, entry);
+      pluginReport(normalized, stage, "started");
+      plugin = await bindPluginLifecycle(plugin, normalized);
 
       if (typeof plugin.load === "function") {
-        window.addEventListener("load", plugin.load);
+        window.addEventListener("load", wrapPluginCallback(normalized, plugin.load));
+        pluginReport(normalized, "load-listener", "registered", { export: "load" });
       } else if (typeof plugin.default === "function") {
-        window.addEventListener("load", plugin.default);
+        window.addEventListener("load", wrapPluginCallback(normalized, plugin.default));
+        pluginReport(normalized, "load-listener", "registered", { export: "default" });
       }
 
-      console.info("%c maoloader ", "background: #16231f; color: #9be2b2", `Loaded plugin "${entry}".`);
+      resetPluginFailure(normalized);
+      pluginReport(normalized, "complete", "loaded");
+      console.info("%c maoloader ", "background: #16231f; color: #9be2b2", `Loaded plugin "${normalized}".`);
     } catch (error) {
+      recordPluginFailure(normalized, error);
+      pluginReport(normalized, stage, "failed", { error: shortError(error) });
       console.error(
         "%c maoloader ",
         "background: #16231f; color: #9be2b2",
-        `Failed to ${stage} plugin "${entry}".`,
+        `Failed to ${stage} plugin "${normalized}".`,
         error,
       );
     }

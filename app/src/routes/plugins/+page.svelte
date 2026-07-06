@@ -5,10 +5,11 @@
 	import { Button } from "$lib/components/ui/button/index.js";
 
 	const appState = getContext<AppState>(APP_STATE_KEY);
-	const registryWebsite = import.meta.env.DEV ? "http://localhost:5173" : "https://maoloader.dev";
+	const registryWebsite = import.meta.env.DEV ? "http://localhost:5173" : "https://maoloader.com";
 	type StoreFilter = "all" | "plugin" | "theme";
 	let storeSearch = $state("");
 	let storeFilter: StoreFilter = $state("all");
+	let previewSlug = $state("");
 	const filteredStorePlugins = $derived(
 		appState.storePlugins.filter((plugin) => {
 			const kindMatches = storeFilter === "all" || plugin.kind === storeFilter;
@@ -33,12 +34,25 @@
 				.includes(query);
 		})
 	);
+	const previewPlugin = $derived(
+		appState.storePlugins.find((plugin) => (plugin.slug || plugin.name) === previewSlug)
+	);
+	const rendererLoads = $derived(appState.nativeCore?.renderer_preload_executes ?? 0);
+	const pluginAssetResolves = $derived(appState.nativeCore?.plugins_asset_resolves ?? 0);
+	const pluginSchemeCreates = $derived(appState.nativeCore?.plugins_scheme_creates ?? 0);
 
 	onMount(() => {
 		if (!appState.storePlugins.length && !appState.storeState) {
 			appState.loadPluginStore();
 		}
 	});
+
+	async function confirmInstall() {
+		if (!previewPlugin) return;
+		const plugin = previewPlugin;
+		previewSlug = "";
+		await appState.installStorePlugin(plugin);
+	}
 </script>
 
 <section class="plugins" aria-label="Local plugins">
@@ -95,6 +109,43 @@
 			<p>Open the plugin folder and add a JavaScript plugin to get started.</p>
 		</div>
 	{/if}
+</section>
+
+<section class="plugin-diagnostics" aria-label="Plugin diagnostics">
+	<div class="settings-heading">
+		<div>
+			<h2>Load Report</h2>
+			<p>Renderer and asset counters from the injected runtime.</p>
+		</div>
+		<div class="section-actions">
+			<Button variant="outline" onclick={() => appState.syncRuntime()}>Refresh</Button>
+			<Button onclick={() => appState.createDiagnosticsBundle()}>Export</Button>
+		</div>
+	</div>
+
+	<div class="diagnostic-grid">
+		<div>
+			<span>Renderer preloads</span>
+			<strong>{rendererLoads}</strong>
+		</div>
+		<div>
+			<span>Plugin requests</span>
+			<strong>{pluginSchemeCreates}</strong>
+		</div>
+		<div>
+			<span>Assets resolved</span>
+			<strong>{pluginAssetResolves}</strong>
+		</div>
+	</div>
+
+	{#if appState.diagnosticsMessage}
+		<p class="diagnostics-message">{appState.diagnosticsMessage}</p>
+	{/if}
+	<p class="diagnostics-hint">
+		In-client plugin reports are also exposed as <code>window.__maoloaderPluginReports</code>,
+		<code>window.__maoloaderPluginLogs</code>, and
+		<code>window.__maoloaderResetPluginSafeMode()</code> in DevTools.
+	</p>
 </section>
 
 <section class="plugin-store" aria-label="Plugin store">
@@ -183,6 +234,13 @@
 						<p class="install-state">{appState.installStates[plugin.slug || plugin.name]}</p>
 					{/if}
 
+					<div class="trust-badges" aria-label="Trust signals">
+						<Badge variant="secondary">Manifest valid</Badge>
+						{#if plugin.download_url}<Badge variant="outline">Mirrored</Badge>{/if}
+						{#if plugin.repo}<Badge variant="outline">Repository</Badge>{/if}
+						{#if plugin.auto_update}<Badge variant="outline">Auto update</Badge>{/if}
+					</div>
+
 					<div class="store-card-footer">
 						<div class="store-tags">
 							<span>{plugin.kind}</span>
@@ -193,7 +251,7 @@
 							<Button
 								size="sm"
 								disabled={appState.installStates[plugin.slug || plugin.name] === "Installing..."}
-								onclick={() => appState.installStorePlugin(plugin)}
+								onclick={() => (previewSlug = plugin.slug || plugin.name)}
 							>
 								{appState.installStates[plugin.slug || plugin.name] === "Installing..."
 									? "Installing"
@@ -233,3 +291,40 @@
 		</div>
 	{/if}
 </section>
+
+{#if previewPlugin}
+	<div class="install-preview" role="dialog" aria-modal="true" aria-label="Install preview">
+		<div class="install-preview-panel">
+			<div class="settings-heading">
+				<div>
+					<h2>Install {previewPlugin.name}</h2>
+					<p>{previewPlugin.description || "No description provided."}</p>
+				</div>
+				<Badge variant="secondary">{previewPlugin.kind}</Badge>
+			</div>
+			<div class="preview-grid">
+				<div>
+					<span>Version</span>
+					<strong>v{previewPlugin.version}</strong>
+				</div>
+				<div>
+					<span>Author</span>
+					<strong>{previewPlugin.author || "Unknown"}</strong>
+				</div>
+				<div>
+					<span>Source</span>
+					<strong>{previewPlugin.repo ? "GitHub + mirror" : "maoloader mirror"}</strong>
+				</div>
+			</div>
+			<div class="trust-badges">
+				<Badge variant="secondary">Manifest valid</Badge>
+				{#if previewPlugin.download_url}<Badge variant="outline">Mirrored package</Badge>{/if}
+				{#if previewPlugin.repo}<Badge variant="outline">Repository linked</Badge>{/if}
+			</div>
+			<div class="preview-actions">
+				<Button variant="outline" onclick={() => (previewSlug = "")}>Cancel</Button>
+				<Button onclick={confirmInstall}>Install</Button>
+			</div>
+		</div>
+	</div>
+{/if}

@@ -236,10 +236,15 @@ function createPreloadWindow({
     document.body.appendChild(layerHost);
   }
 
+  const testConsole = {};
+  for (const level of ["debug", "log", "info", "warn", "error"]) {
+    testConsole[level] = (...args) => calls.push(["console", level, ...args]);
+  }
+
   const source = readFileSync(new URL("./preload.js", import.meta.url), "utf8");
   vm.runInNewContext(source, {
     clearInterval,
-    console,
+    console: testConsole,
     document,
     fetch: (...args) => {
       calls.push(["fetch", ...args]);
@@ -628,6 +633,71 @@ exports.load = () => {
     expect(window.__maoloaderClassicRan).toBe("0.1.0");
   });
 
+  test("records plugin load reports and plugin-scoped console logs", async () => {
+    const { window } = createPreloadWindow({
+      plugins: ["reported/index.js"],
+      fetchImpl: () =>
+        Promise.resolve({
+          ok: true,
+          text: () =>
+            Promise.resolve(`
+console.log("booting", "reported");
+export function load() {
+  console.warn("loaded later");
+}
+`),
+        }),
+    });
+
+    await flushPluginLoad();
+
+    expect(window.__maoloaderPluginReports.map((report) => [report.entry, report.stage, report.status])).toContainEqual([
+      "reported/index.js",
+      "complete",
+      "loaded",
+    ]);
+    expect(window.__maoloaderPluginLogs).toContainEqual(
+      expect.objectContaining({
+        entry: "reported/index.js",
+        level: "log",
+        message: "booting reported",
+      }),
+    );
+
+    const pluginLoadListener = window.__maoloaderPluginReports.find(
+      (report) => report.stage === "load-listener",
+    );
+    expect(pluginLoadListener.export).toBe("load");
+  });
+
+  test("safe-mode skips plugins after repeated failures and can be reset", async () => {
+    const datastore = JSON.stringify({
+      "maoloader-plugin-failures": {
+        "broken/index.js": 3,
+      },
+    });
+    const { calls, window } = createPreloadWindow({
+      datastore,
+      plugins: ["broken/index.js"],
+      fetchImpl: () => {
+        throw new Error("should not fetch skipped plugin");
+      },
+    });
+
+    await flushPluginLoad();
+
+    expect(calls.some(([name]) => name === "fetch")).toBe(false);
+    expect(window.__maoloaderPluginReports).toContainEqual(
+      expect.objectContaining({
+        entry: "broken/index.js",
+        stage: "safe-mode",
+        status: "skipped",
+      }),
+    );
+    expect(window.__maoloaderResetPluginSafeMode("broken/index.js")).toBe(true);
+    expect(calls).toContainEqual(["SaveDataStore", JSON.stringify({ "maoloader-plugin-failures": {} })]);
+  });
+
   test("loads ESM plugins through text fallback when dynamic import cannot fetch modules", async () => {
     const sources = new Map([
       [
@@ -815,12 +885,12 @@ export const moduleUrl = import.meta.url;
     expect(events).toContain("hidden");
   });
 
-  test("includes upstream Pengu and lobby CommandBar default actions", async () => {
+  test("includes maoloader and lobby CommandBar default actions", async () => {
     const { calls, window } = createPreloadWindow();
     const actions = window.__maoloaderCommandBarActions;
     const byName = (name) => actions.find((action) => action.name === name);
 
-    byName("Visit Pengu home").perform();
+    byName("Visit maoloader home").perform();
     await byName("Create ARAM lobby").perform();
     await byName("Create normal lobby").perform();
     await byName("Create practice tool").perform();
@@ -828,7 +898,7 @@ export const moduleUrl = import.meta.url;
 
     expect(calls[0]).toEqual([
       "open",
-      "https://pengu.lol",
+      "https://maoloader.com",
       "_blank",
     ]);
     expect(calls[1]).toEqual([

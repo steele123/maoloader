@@ -163,6 +163,7 @@ export class AppState {
 	updateMessage = $state("");
 	updateProgress = $state(0);
 	updateAvailableVersion = $state("");
+	diagnosticsMessage = $state("");
 
 	async initialize() {
 		const { invoke } = await import("@tauri-apps/api/core");
@@ -442,6 +443,19 @@ export class AppState {
 			await openUrl(url);
 		} catch {
 			window.open(url, "_blank", "noreferrer");
+		}
+	}
+
+	async createDiagnosticsBundle() {
+		const { invoke } = await import("@tauri-apps/api/core");
+		this.diagnosticsMessage = "Collecting diagnostics...";
+
+		try {
+			const path = await invoke<string>("create_diagnostics_bundle");
+			this.diagnosticsMessage = `Saved diagnostics to ${path}`;
+			await this.reveal(path);
+		} catch (error) {
+			this.diagnosticsMessage = String(error);
 		}
 	}
 }

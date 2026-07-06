@@ -155,6 +155,9 @@
 		<h1>{listing.name}</h1>
 		<p>{listing.description}</p>
 		<div class="tag-row pt-2">
+			<Badge variant="secondary">reviewed</Badge>
+			{#if listing.assets.package?.key}<Badge variant="outline">mirrored</Badge>{/if}
+			{#if listing.repository}<Badge variant="outline">repository</Badge>{/if}
 			{#each listing.tags as tag}
 				<Badge variant="outline">{tag}</Badge>
 			{/each}

@@ -12,7 +12,11 @@ use native_core::NativeCoreStatus;
 use plugins::{PluginEntry, PluginToggle};
 use runtime::RuntimeStatus;
 use serde::Serialize;
-use std::{fs, io, path::PathBuf};
+use std::{
+    fs, io,
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use store::{StoreInstallResult, StorePlugin, StorePluginInstall, StoreUninstallResult};
 use tauri::{Manager, Runtime};
 use windows::ActivationStatus;
@@ -26,6 +30,25 @@ struct AppStatus {
     paths: LoaderPaths,
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct DiagnosticsBundle {
+    created_at: u128,
+    app: AppStatus,
+    config: LoaderConfig,
+    runtime: RuntimeStatus,
+    native_core: NativeCoreStatus,
+    activation: ActivationStatus,
+    plugins: Vec<PluginEntry>,
+    diagnostics: DiagnosticsFiles,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct DiagnosticsFiles {
+    directory: String,
+    latest_json: String,
+    core_trace_tail: Vec<String>,
+}
+
 #[tauri::command]
 fn app_status() -> AppStatus {
     AppStatus {
@@ -35,6 +58,13 @@ fn app_status() -> AppStatus {
         core_exists: config::core_exists(),
         paths: config::loader_paths(),
     }
+}
+
+fn current_epoch_millis() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default()
 }
 
 #[tauri::command]
@@ -205,6 +235,47 @@ fn fetch_store_plugins() -> Result<Vec<StorePlugin>, String> {
     store::fetch_plugins().map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+fn create_diagnostics_bundle() -> Result<String, String> {
+    let created_at = current_epoch_millis();
+    let diagnostics_dir = config::base_dir().join("diagnostics");
+    fs::create_dir_all(&diagnostics_dir).map_err(|error| error.to_string())?;
+
+    let bundle = DiagnosticsBundle {
+        created_at,
+        app: app_status(),
+        config: config::read_config().unwrap_or_default(),
+        runtime: runtime::status(),
+        native_core: native_core::status(),
+        activation: windows::status(),
+        plugins: plugins::list_plugins().unwrap_or_default(),
+        diagnostics: DiagnosticsFiles {
+            directory: diagnostics_dir.display().to_string(),
+            latest_json: fs::read_to_string(diagnostics_dir.join("latest.json"))
+                .unwrap_or_default(),
+            core_trace_tail: read_tail_lines(diagnostics_dir.join("core-trace.log"), 120),
+        },
+    };
+
+    let path = diagnostics_dir.join(format!("maoloader-diagnostics-{created_at}.json"));
+    let content = serde_json::to_string_pretty(&bundle).map_err(|error| error.to_string())?;
+    fs::write(&path, content).map_err(|error| error.to_string())?;
+    Ok(path.display().to_string())
+}
+
+fn read_tail_lines(path: PathBuf, limit: usize) -> Vec<String> {
+    let Ok(content) = fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    let lines = content
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let start = lines.len().saturating_sub(limit);
+    lines[start..].to_vec()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     windows::handle_activation_entrypoint();
@@ -238,6 +309,7 @@ pub fn run() {
             install_store_plugin,
             uninstall_store_plugin,
             fetch_store_plugins,
+            create_diagnostics_bundle,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

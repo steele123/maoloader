@@ -604,6 +604,7 @@ article {
 
 .settings,
 .plugins,
+.plugin-diagnostics,
 .plugin-store {
 	padding: 16px;
 	margin-bottom: 16px;
@@ -798,6 +799,59 @@ article {
 .empty-state {
 	margin-bottom: 0;
 	color: var(--app-muted);
+}
+
+.diagnostic-grid,
+.preview-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px;
+}
+
+.diagnostic-grid div,
+.preview-grid div {
+	display: grid;
+	gap: 4px;
+	min-height: 72px;
+	padding: 12px;
+	border: 1px solid rgba(31, 42, 35, 0.08);
+	border-radius: 8px;
+	background: rgba(255, 254, 250, 0.74);
+}
+
+.diagnostic-grid span,
+.preview-grid span {
+	color: var(--app-muted);
+	font-size: 0.76rem;
+	font-weight: 850;
+	text-transform: uppercase;
+}
+
+.diagnostic-grid strong,
+.preview-grid strong {
+	overflow-wrap: anywhere;
+	font-size: 1.35rem;
+}
+
+.diagnostics-message,
+.diagnostics-hint {
+	margin: 10px 0 0;
+	color: var(--app-muted);
+	font-size: 0.86rem;
+	line-height: 1.45;
+}
+
+.diagnostics-message {
+	color: #214f86;
+	font-weight: 800;
+}
+
+.diagnostics-hint code {
+	border: 1px solid rgba(31, 42, 35, 0.08);
+	border-radius: 6px;
+	background: rgba(244, 241, 233, 0.72);
+	color: var(--app-text);
+	padding: 1px 4px;
 }
 
 .empty-panel {
@@ -1001,6 +1055,12 @@ article {
 	font-weight: 800;
 }
 
+.trust-badges {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
 .installed-files {
 	display: block;
 	margin-top: -2px;
@@ -1010,6 +1070,33 @@ article {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.install-preview {
+	position: fixed;
+	inset: 0;
+	z-index: 50;
+	display: grid;
+	place-items: center;
+	padding: 18px;
+	background: rgba(17, 24, 39, 0.46);
+	backdrop-filter: blur(8px);
+}
+
+.install-preview-panel {
+	width: min(620px, 100%);
+	padding: 16px;
+	border: 1px solid rgba(31, 42, 35, 0.1);
+	border-radius: 8px;
+	background: var(--app-panel);
+	box-shadow: 0 24px 80px rgba(17, 24, 39, 0.22);
+}
+
+.preview-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	margin-top: 16px;
 }
 
 @media (max-width: 860px) {
@@ -1072,6 +1159,8 @@ article {
 
 @media (max-width: 640px) {
 	.store-grid,
+	.diagnostic-grid,
+	.preview-grid,
 	.store-filters {
 		grid-template-columns: 1fr;
 	}
