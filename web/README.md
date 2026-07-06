@@ -120,3 +120,19 @@ bun run build:release
 ```
 
 The script uploads the installer, its `.sig`, and `latest.json` under `releases/maoloader/` in `PLUGIN_BUCKET`. Release artifact URLs use the public bucket origin `https://fs.maoloader.com`.
+
+For local release testing, publish the same objects into Wrangler's local R2 store:
+
+```powershell
+cd app
+bun run build:release:local -- -SkipBuild
+```
+
+Then run the website with local bindings:
+
+```sh
+cd web
+bun run preview
+```
+
+The local release manifest points downloads at `http://localhost:8788/api/releases/download/...`.

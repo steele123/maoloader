@@ -11,6 +11,7 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"deploy": "bun run build && wrangler pages deploy",
+		"release:local": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/package-release-local.ps1",
 		"cf-typegen": "wrangler types src/worker-configuration.d.ts",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate:local": "wrangler d1 migrations apply maoloader-registry --local",

@@ -1,0 +1,149 @@
+:host {
+  z-index: 2147483647;
+  display: block;
+  width: min(440px, calc(100vw - 36px));
+  pointer-events: auto !important;
+}
+
+.testkit-panel {
+  border: 1px solid rgba(20, 29, 38, 0.14);
+  border-radius: 10px;
+  background: rgba(252, 252, 253, 0.98);
+  color: #141d26;
+  box-shadow: 0 22px 60px rgba(20, 29, 38, 0.22);
+  font: 13px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow: hidden;
+  pointer-events: auto !important;
+  user-select: none;
+}
+
+.testkit-panel * {
+  box-sizing: border-box;
+  pointer-events: auto !important;
+}
+
+.testkit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid rgba(20, 29, 38, 0.08);
+  background: #ffffff;
+}
+
+.testkit-header div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.testkit-header strong {
+  font-size: 14px;
+}
+
+.testkit-header span {
+  overflow-wrap: anywhere;
+  color: #667385;
+  font-size: 12px;
+}
+
+.testkit-panel button {
+  border: 0;
+  border-radius: 8px;
+  background: #141d26;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 32px;
+  padding: 0 11px;
+  position: relative;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.testkit-panel button:hover {
+  background: #275f8f;
+}
+
+.testkit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: rgba(20, 29, 38, 0.08);
+}
+
+.testkit-grid div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 11px 12px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.testkit-grid span,
+.testkit-api-list span {
+  color: #667385;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.testkit-grid strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #141d26;
+  font-size: 12px;
+}
+
+.testkit-api-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 12px;
+}
+
+.testkit-api-list span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(20, 29, 38, 0.12);
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #ffffff;
+}
+
+.testkit-api-list b {
+  color: #8b2d2d;
+  font-size: 11px;
+  text-transform: none;
+}
+
+.testkit-api-list b.is-ready {
+  color: #245f3f;
+}
+
+.testkit-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+#maoloader-testkit-badge {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 2147483646;
+  border: 1px solid rgba(20, 29, 38, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #141d26;
+  box-shadow: 0 12px 30px rgba(20, 29, 38, 0.18);
+  font: 12px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 800;
+  padding: 10px 12px;
+}

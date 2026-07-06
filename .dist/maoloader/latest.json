@@ -1,12 +1,12 @@
 ﻿{
     "version":  "0.1.3",
     "notes":  "maoloader v0.1.3",
-    "pub_date":  "2026-06-05T00:11:48Z",
+    "pub_date":  "2026-06-05T01:17:10Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "url":  "https://fs.maoloader.com/releases/maoloader/v0.1.3/windows-x86_64/maoloader_0.1.3_x64-setup.exe",
+                                             "url":  "http://localhost:8788/api/releases/download/releases/maoloader/v0.1.3/windows-x86_64/maoloader_0.1.3_x64-setup.exe",
                                              "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRT095NlppUzQyYlhJN2xtWjJMczFxcFA3L1k2YTJnMDhwLzNSbUVQQ3ZzdWlQQmxTUDZSZ0R6RHRGblFYdnhDWjMyNXZiT2lHRmF1bEZ3SWV1NnBLTzRNcnNwV1F3SlFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNjE4MzA4CWZpbGU6bWFvbG9hZGVyXzAuMS4zX3g2NC1zZXR1cC5leGUKS2pYUHlzYWp3cmp2TTFGdk5WVGFDRmt6SERuSEtxTnhzTkZoODdaaXJTZzV1eEgzNUcxeGkvMXZuVElTR1VQNWpyZGF6NFNqRWdqN0wyczIvWVh2REE9PQo=",
-                                             "installer_url":  "https://fs.maoloader.com/releases/maoloader/v0.1.3/windows-x86_64/maoloader_0.1.3_x64-setup.exe",
+                                             "installer_url":  "http://localhost:8788/api/releases/download/releases/maoloader/v0.1.3/windows-x86_64/maoloader_0.1.3_x64-setup.exe",
                                              "installer_name":  "maoloader_0.1.3_x64-setup.exe",
                                              "size":  3951110,
                                              "sha256":  "98866a6c4ba4b8eeb88b0bc8571f57cf5ad087ca246cda182031c0cab12006b3"

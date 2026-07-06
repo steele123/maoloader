@@ -38,6 +38,39 @@ function createPreloadWindow({
       }
     }
   }
+  function createShadowRoot(host) {
+    return {
+      children: [],
+      host,
+      appendChild(child) {
+        return appendElement(this, child);
+      },
+      replaceChildren(...children) {
+        this.children = [];
+        for (const child of children) {
+          appendElement(this, child);
+        }
+      },
+    };
+  }
+  function findElementById(root, id) {
+    if (!root) {
+      return undefined;
+    }
+    if (root.id === id) {
+      return root;
+    }
+    for (const child of root.children || []) {
+      const found = findElementById(child, id);
+      if (found) {
+        return found;
+      }
+    }
+    if (root.shadowRoot) {
+      return findElementById(root.shadowRoot, id);
+    }
+    return undefined;
+  }
   const window = {
     Pengu: {
       version: penguVersion,
@@ -137,8 +170,18 @@ function createPreloadWindow({
         focus() {
           this.focused = true;
         },
+        attachShadow() {
+          this.shadowRoot = createShadowRoot(this);
+          return this.shadowRoot;
+        },
         appendChild(child) {
           return appendElement(this, child);
+        },
+        replaceChildren(...children) {
+          this.children = [];
+          for (const child of children) {
+            appendElement(this, child);
+          }
         },
         remove() {
           this.removed = true;
@@ -160,22 +203,19 @@ function createPreloadWindow({
         },
       };
       if (name === "with-shadow") {
-        element.shadowRoot = {
-          children: [],
-          appendChild(child) {
-            this.children.push(child);
-            return child;
-          },
-        };
+        element.attachShadow();
       }
       return element;
+    },
+    getElementById(id) {
+      return findElementById(this.body, id) || findElementById(this.documentElement, id);
     },
     querySelector(selector) {
       if (selector === "lol-uikit-layer-manager-wrapper") {
         return layerHost;
       }
       if (selector === ".maoloader-welcome-root") {
-        return bodyChildren.find((element) => element.className === "maoloader-welcome-root");
+        return findElementById(this.body, "maoloader-welcome-root");
       }
       return undefined;
     },
@@ -212,6 +252,7 @@ function createPreloadWindow({
     setInterval,
     setTimeout,
     TextEncoder,
+    URL,
     URLSearchParams,
     WebSocket,
     window,
@@ -243,6 +284,26 @@ function pluginHash(value) {
 
 async function flushPluginLoad() {
   await new Promise((resolve) => setTimeout(resolve, 5));
+}
+
+function shadowChildren(element) {
+  return element?.shadowRoot?.children || element?.children || [];
+}
+
+function commandBarPanel(root) {
+  return shadowChildren(root)[0]?.children?.[0];
+}
+
+function toastStack(root) {
+  return root?.__maoloaderToastStack || shadowChildren(root).find((child) => child.style?.cssText?.includes("flex-direction:column"));
+}
+
+function welcomePanel(root) {
+  return shadowChildren(root)[0]?.children?.[0];
+}
+
+function elementText(element) {
+  return `${element?.textContent || ""}${(element?.children || []).map(elementText).join("")}`;
 }
 
 describe("preload native API globals", () => {
@@ -567,6 +628,74 @@ exports.load = () => {
     expect(window.__maoloaderClassicRan).toBe("0.1.0");
   });
 
+  test("loads ESM plugins through text fallback when dynamic import cannot fetch modules", async () => {
+    const sources = new Map([
+      [
+        "PenguFamily/index.js",
+        `
+import './styles.css';
+import { value, label } from './src/value.js';
+import { Pengu } from './src/pengu.js';
+import { moduleUrl } from './src/meta.js';
+
+export function init(context) {
+  window.__maoloaderEsmMeta = context.meta.name;
+}
+
+export function load() {
+  window.__maoloaderEsmLoaded = value + label() + Pengu.bonus;
+  window.__maoloaderEsmMetaUrl = moduleUrl;
+}
+`,
+      ],
+      [
+        "PenguFamily/src/value.js",
+        `
+export const value = 40;
+export function label() {
+  return 2;
+}
+`,
+      ],
+      [
+        "PenguFamily/src/pengu.js",
+        `
+export class Pengu {
+  static bonus = 1;
+}
+`,
+      ],
+      [
+        "PenguFamily/src/meta.js",
+        `
+export const moduleUrl = import.meta.url;
+`,
+      ],
+    ]);
+    const { document, window, windowListeners } = createPreloadWindow({
+      plugins: ["PenguFamily/index.js"],
+      fetchImpl: (url) => {
+        const key = String(url).replace(/^https:\/\/plugins\//, "");
+        return Promise.resolve({
+          ok: sources.has(key),
+          status: sources.has(key) ? 200 : 404,
+          text: () => Promise.resolve(sources.get(key) || ""),
+        });
+      },
+    });
+
+    await flushPluginLoad();
+
+    expect(window.__maoloaderEsmMeta).toBe("PenguFamily");
+    expect(document.head.children).toHaveLength(1);
+    expect(document.head.children[0].href).toBe("https://plugins/PenguFamily/styles.css");
+
+    const pluginLoadListener = windowListeners.filter(({ type }) => type === "load").at(-1);
+    pluginLoadListener.listener();
+    expect(window.__maoloaderEsmLoaded).toBe(43);
+    expect(window.__maoloaderEsmMetaUrl).toBe("https://plugins/PenguFamily/src/meta.js");
+  });
+
   test("exposes CommandBar action registration and events", () => {
     const { window, windowEvents } = createPreloadWindow();
     const initialCount = window.__maoloaderCommandBarActions.length;
@@ -613,12 +742,12 @@ exports.load = () => {
     const root = bodyChildren.find((element) => element.className === "maoloader-commandbar-root");
     expect(root.style.display).toBe("flex");
 
-    const panel = root.children[0];
+    const panel = commandBarPanel(root);
     const input = panel.children[0];
     input.value = "sample";
     input.oninput();
 
-    const filteredPanel = root.children[0];
+    const filteredPanel = commandBarPanel(root);
     const filteredInput = filteredPanel.children[0];
     filteredInput.onkeydown({
       key: "ArrowUp",
@@ -660,7 +789,7 @@ exports.load = () => {
       preventDefault: () => events.push("open-prevented"),
     });
     const root = bodyChildren.find((element) => element.className === "maoloader-commandbar-root");
-    const input = root.children[0].children[0];
+    const input = commandBarPanel(root).children[0];
     input.value = "visible";
     input.oninput();
     keydown.listener({
@@ -675,7 +804,7 @@ exports.load = () => {
     expect(events).toContain("second");
 
     window.CommandBar.show();
-    const hiddenInput = root.children[0].children[0];
+    const hiddenInput = commandBarPanel(root).children[0];
     hiddenInput.value = "hidden restart";
     hiddenInput.oninput();
     keydown.listener({
@@ -788,13 +917,13 @@ exports.load = () => {
     expect(result).toBe("ok");
     expect(bodyChildren).toHaveLength(1);
     expect(bodyChildren[0].className).toBe("maoloader-toast-root");
-    expect(bodyChildren[0].children).toHaveLength(5);
-    expect(success.textContent).toBe("Saved");
+    expect(toastStack(bodyChildren[0]).children).toHaveLength(5);
+    expect(elementText(success)).toContain("Saved");
     expect(error.className).toBe("maoloader-toast maoloader-toast-error");
     expect(info.className).toBe("maoloader-toast maoloader-toast-info");
     expect(warning.className).toBe("maoloader-toast maoloader-toast-warning");
-    expect(bodyChildren[0].children.at(-1).textContent).toBe("Loaded");
-    expect(bodyChildren[0].children.at(-1).className).toBe(
+    expect(elementText(toastStack(bodyChildren[0]).children.at(-1))).toContain("Loaded");
+    expect(toastStack(bodyChildren[0]).children.at(-1).className).toBe(
       "maoloader-toast maoloader-toast-success",
     );
   });
@@ -811,8 +940,8 @@ exports.load = () => {
     });
 
     expect(result).toEqual({ count: 2 });
-    expect(objectToast.textContent).toBe("Object saved");
-    expect(bodyChildren[0].children.at(-1).textContent).toBe("Loaded 2");
+    expect(elementText(objectToast)).toContain("Object saved");
+    expect(elementText(toastStack(bodyChildren[0]).children.at(-1))).toContain("Loaded 2");
   });
 
   test("renders welcome surface, persists dismissal, and reports updates", async () => {
@@ -841,9 +970,9 @@ exports.load = () => {
 
     expect(layerHost).toBeDefined();
     expect(welcome).toBeDefined();
-    expect(toastRoot.children.at(-1).textContent).toBe("Update available - v9.9.9");
+    expect(elementText(toastStack(toastRoot).children.at(-1))).toContain("Update available - v9.9.9");
 
-    const panel = welcome.children[0];
+    const panel = welcomePanel(welcome);
     const footer = panel.children[1];
     const checkbox = footer.children[0].children[0];
     const button = footer.children[1];
@@ -868,7 +997,7 @@ exports.load = () => {
     const welcome = layerHost.children.find(
       (element) => element.className === "maoloader-welcome-root",
     );
-    const panel = welcome.children[0];
+    const panel = welcomePanel(welcome);
     const footer = panel.children[1];
     const button = footer.children[1];
     const delegatedPointerDown = documentListeners.find(({ type }) => type === "pointerdown");

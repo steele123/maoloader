@@ -39,12 +39,29 @@
     return `https://plugins/${entry}`;
   }
 
-  function pluginRootFromPath(path) {
-    const normalized = String(path || "")
+  function normalizePluginEntry(entry) {
+    return String(entry || "")
       .replace(/^https:\/\/plugins\//i, "")
       .replace(/^[\\/]+/, "")
       .replace(/\\/g, "/")
       .split(/[?#]/)[0];
+  }
+
+  function resolvePluginImport(specifier, baseEntry) {
+    if (/^https:\/\/plugins\//i.test(specifier)) {
+      return normalizePluginEntry(specifier);
+    }
+
+    if (!/^(?:\.{1,2}\/|\/)/.test(specifier)) {
+      throw new Error(`Bare plugin import "${specifier}" is not supported.`);
+    }
+
+    const base = pluginUrl(normalizePluginEntry(baseEntry));
+    return normalizePluginEntry(new URL(specifier, base).href);
+  }
+
+  function pluginRootFromPath(path) {
+    const normalized = normalizePluginEntry(path);
     const parts = normalized.split("/").filter(Boolean);
 
     if (parts.length === 0 || (parts.length === 1 && isScriptPluginEntry(parts[0]))) {
@@ -567,6 +584,66 @@
     }
   }
 
+  const SURFACE_TAG_NAME = "maoloader-surface";
+
+  function ensureSurfaceElementDefined() {
+    if (typeof customElements === "undefined" || customElements.get?.(SURFACE_TAG_NAME)) {
+      return;
+    }
+
+    class MaoloaderSurface extends HTMLElement {
+      constructor() {
+        super();
+        if (!this.shadowRoot) {
+          try {
+            this.attachShadow({ mode: "open", delegatesFocus: true });
+          } catch {
+            this.attachShadow({ mode: "open" });
+          }
+        }
+      }
+    }
+
+    try {
+      customElements.define(SURFACE_TAG_NAME, MaoloaderSurface);
+    } catch {
+      // The client can reload injected resources without a full process restart.
+    }
+  }
+
+  function createShadowSurface(id, styleText, host = document.body) {
+    if (typeof document === "undefined" || !document.createElement) {
+      return undefined;
+    }
+
+    ensureSurfaceElementDefined();
+
+    let surface = document.getElementById?.(id);
+    if (!surface) {
+      surface = document.createElement(SURFACE_TAG_NAME);
+      surface.id = id;
+      surface.className = id;
+      (host?.appendChild ? host : document.body)?.appendChild?.(surface);
+    } else if (!surface.className) {
+      surface.className = id;
+    }
+
+    if (styleText) {
+      surface.style.cssText = styleText;
+    }
+
+    if (!surface.shadowRoot && surface.attachShadow) {
+      try {
+        surface.attachShadow({ mode: "open", delegatesFocus: true });
+      } catch {
+        surface.attachShadow({ mode: "open" });
+      }
+    }
+
+    surface.__maoloaderShadowRoot = surface.shadowRoot || surface;
+    return surface;
+  }
+
   let commandBarRoot;
   let commandBarSearch = "";
   let commandBarVisible = false;
@@ -624,11 +701,7 @@
     }
 
     if (!commandBarRoot) {
-      commandBarRoot = document.createElement("div");
-      commandBarRoot.className = "maoloader-commandbar-root";
-      commandBarRoot.style.cssText =
-        "position:fixed;inset:0;z-index:2147483646;display:none;align-items:flex-start;justify-content:center;padding-top:14vh;background:rgba(0,0,0,.42);font:14px system-ui,sans-serif;";
-      document.body.appendChild(commandBarRoot);
+      commandBarRoot = createShadowSurface("maoloader-commandbar-root", "position:fixed;inset:0;z-index:2147483646;display:none;");
     }
 
     return commandBarRoot;
@@ -640,14 +713,27 @@
       return;
     }
 
-    root.children?.splice?.(0, root.children.length);
-    root.innerHTML = "";
+    const renderRoot = root.__maoloaderShadowRoot || root;
+    renderRoot.replaceChildren?.();
+    if (!renderRoot.replaceChildren) {
+      renderRoot.innerHTML = "";
+    }
+
     root.style.display = commandBarVisible ? "flex" : "none";
     setCommandBarActiveIndex(commandBarActiveIndex);
 
     if (!commandBarVisible) {
       return;
     }
+
+    const shell = document.createElement("div");
+    shell.style.cssText =
+      "position:absolute;inset:0;display:flex;align-items:flex-start;justify-content:center;padding-top:14vh;background:rgba(0,0,0,.42);font:14px system-ui,sans-serif;";
+    shell.onclick = (event) => {
+      if (event.target === shell) {
+        closeCommandBar();
+      }
+    };
 
     const panel = document.createElement("div");
     panel.className = "maoloader-commandbar-panel";
@@ -722,7 +808,8 @@
     }
 
     panel.appendChild(list);
-    root.appendChild(panel);
+    shell.appendChild(panel);
+    renderRoot.appendChild(shell);
     input.focus?.();
   }
 
@@ -797,17 +884,68 @@
 
   let toastRoot;
 
+  const toastVisuals = {
+    info: {
+      icon: "i",
+      accent: "#3f6f9f",
+      background: "#f7fbff",
+      border: "rgba(63,111,159,.24)",
+      iconBackground: "rgba(63,111,159,.12)",
+      iconColor: "#254f7d",
+    },
+    success: {
+      icon: "✓",
+      accent: "#2f7d55",
+      background: "#f7fcf9",
+      border: "rgba(47,125,85,.24)",
+      iconBackground: "rgba(47,125,85,.12)",
+      iconColor: "#245f3f",
+    },
+    warning: {
+      icon: "!",
+      accent: "#9a6a1f",
+      background: "#fffaf1",
+      border: "rgba(154,106,31,.28)",
+      iconBackground: "rgba(154,106,31,.13)",
+      iconColor: "#7a5217",
+    },
+    error: {
+      icon: "!",
+      accent: "#9c3838",
+      background: "#fff8f8",
+      border: "rgba(156,56,56,.26)",
+      iconBackground: "rgba(156,56,56,.12)",
+      iconColor: "#833030",
+    },
+    loading: {
+      icon: "",
+      accent: "#4c5968",
+      background: "#fbfcfd",
+      border: "rgba(76,89,104,.22)",
+      iconBackground: "rgba(76,89,104,.10)",
+      iconColor: "#354252",
+    },
+  };
+
   function ensureToastRoot() {
     if (typeof document === "undefined" || !document.body?.appendChild || !document.createElement) {
       return undefined;
     }
 
     if (!toastRoot) {
-      toastRoot = document.createElement("div");
-      toastRoot.className = "maoloader-toast-root";
-      toastRoot.style.cssText =
-        "position:fixed;right:16px;bottom:16px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;pointer-events:none;";
-      document.body.appendChild(toastRoot);
+      toastRoot = createShadowSurface("maoloader-toast-root", "position:fixed;right:16px;bottom:16px;z-index:2147483647;pointer-events:none;");
+    }
+
+    const renderRoot = toastRoot?.__maoloaderShadowRoot || toastRoot;
+    if (renderRoot && !toastRoot.__maoloaderToastStack) {
+      const style = document.createElement("style");
+      style.textContent =
+        "@keyframes maoloader-toast-spin{to{transform:rotate(360deg)}}@keyframes maoloader-toast-progress{from{transform:scaleX(1)}to{transform:scaleX(0)}}";
+      renderRoot.appendChild(style);
+      const stack = document.createElement("div");
+      stack.style.cssText = "display:flex;flex-direction:column;gap:10px;pointer-events:none;width:min(380px,calc(100vw - 32px));";
+      renderRoot.appendChild(stack);
+      toastRoot.__maoloaderToastStack = stack;
     }
 
     return toastRoot;
@@ -827,15 +965,22 @@
 
   function normalizeToastInput(message, options) {
     if (message && typeof message === "object" && !Array.isArray(message)) {
+      const text = toastText(message.message ?? message.text ?? message.description ?? message.title ?? "");
       return {
-        text: toastText(message.message ?? message.text ?? message.title ?? ""),
+        title: toastText(message.title ?? ""),
+        text,
         duration: Number(message.duration ?? options?.duration ?? 5000),
+        action: message.action,
+        dismissible: message.dismissible,
       };
     }
 
     return {
+      title: "",
       text: toastText(message),
       duration: Number(options?.duration ?? 5000),
+      action: options?.action,
+      dismissible: options?.dismissible,
     };
   }
 
@@ -858,7 +1003,8 @@
     if (toast.parentNode?.removeChild) {
       toast.parentNode.removeChild(toast);
     }
-    if (toastRoot && toastRoot.children?.length === 0) {
+    const stack = toastRoot?.__maoloaderToastStack;
+    if (toastRoot && (!stack || stack.children?.length === 0)) {
       toastRoot.remove?.();
       toastRoot = undefined;
     }
@@ -877,6 +1023,103 @@
     toast.__maoloaderTimer = setTimeout(() => removeToast(toast), duration);
   }
 
+  function clearToastTimer(toast) {
+    if (toast?.__maoloaderTimer && typeof clearTimeout === "function") {
+      clearTimeout(toast.__maoloaderTimer);
+      toast.__maoloaderTimer = undefined;
+    }
+  }
+
+  function toastIcon(kind, visual) {
+    if (kind === "loading") {
+      const spinner = document.createElement("span");
+      spinner.style.cssText =
+        "width:14px;height:14px;border:2px solid rgba(76,89,104,.22);border-top-color:#4c5968;border-radius:999px;animation:maoloader-toast-spin .8s linear infinite;";
+      return spinner;
+    }
+
+    const icon = document.createElement("span");
+    icon.textContent = visual.icon;
+    icon.style.cssText =
+      "display:grid;place-items:center;width:18px;height:18px;border-radius:999px;font:700 12px/1 system-ui,sans-serif;";
+    return icon;
+  }
+
+  function renderToastContent(toast, kind, normalized) {
+    const visual = toastVisuals[kind] || toastVisuals.info;
+    toast.className = `maoloader-toast maoloader-toast-${kind}`;
+    toast.textContent = "";
+    toast.style.cssText =
+      `position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:flex-start;` +
+      `width:100%;box-sizing:border-box;overflow:hidden;border:1px solid ${visual.border};border-left:4px solid ${visual.accent};` +
+      `border-radius:8px;background:${visual.background};color:#141d26;box-shadow:0 18px 42px rgba(20,29,38,.20);` +
+      "padding:12px 10px 12px 12px;font:13px/1.4 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;pointer-events:auto;transition:opacity .14s ease,transform .14s ease;";
+
+    const iconWrap = document.createElement("div");
+    iconWrap.style.cssText =
+      `display:grid;place-items:center;width:26px;height:26px;border-radius:999px;background:${visual.iconBackground};color:${visual.iconColor};margin-top:1px;`;
+    iconWrap.appendChild(toastIcon(kind, visual));
+
+    const body = document.createElement("div");
+    body.style.cssText = "display:grid;gap:2px;min-width:0;";
+
+    const title = document.createElement("strong");
+    title.textContent = String(normalized.title || normalized.text || "");
+    title.style.cssText = "display:block;color:#141d26;font-size:13px;font-weight:800;overflow-wrap:anywhere;";
+    body.appendChild(title);
+
+    if (normalized.title && normalized.text && normalized.text !== normalized.title) {
+      const description = document.createElement("span");
+      description.textContent = String(normalized.text);
+      description.style.cssText = "display:block;color:#617082;font-size:12px;overflow-wrap:anywhere;";
+      body.appendChild(description);
+    }
+
+    if (normalized.action && typeof normalized.action === "object" && normalized.action.label) {
+      const action = document.createElement("button");
+      action.type = "button";
+      action.textContent = String(normalized.action.label);
+      action.style.cssText =
+        `justify-self:start;margin-top:6px;border:1px solid ${visual.border};border-radius:7px;background:#fff;color:${visual.iconColor};` +
+        "cursor:pointer;font:800 12px/1 system-ui,sans-serif;padding:7px 9px;";
+      action.onclick = (event) => {
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        normalized.action?.onClick?.();
+        if (normalized.action?.dismiss !== false) {
+          removeToast(toast);
+        }
+      };
+      body.appendChild(action);
+    }
+
+    const close = document.createElement("button");
+    close.type = "button";
+    close.setAttribute?.("aria-label", "Dismiss toast");
+    close.textContent = "×";
+    close.style.cssText =
+      "width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:#6a7888;cursor:pointer;font:700 18px/1 system-ui,sans-serif;";
+    close.onclick = (event) => {
+      event.preventDefault?.();
+      event.stopPropagation?.();
+      removeToast(toast);
+    };
+
+    toast.appendChild(iconWrap);
+    toast.appendChild(body);
+    toast.appendChild(close);
+
+    if (Number.isFinite(normalized.duration) && normalized.duration > 0) {
+      const progress = document.createElement("div");
+      progress.style.cssText =
+        `position:absolute;left:0;right:0;bottom:0;height:2px;background:${visual.accent};opacity:.55;transform-origin:left center;animation:maoloader-toast-progress ${normalized.duration}ms linear forwards;`;
+      toast.appendChild(progress);
+    }
+
+    toast.onmouseenter = () => clearToastTimer(toast);
+    toast.onmouseleave = () => scheduleToastRemoval(toast, normalized.duration);
+  }
+
   function showToast(kind, message, options) {
     const normalized = normalizeToastInput(message, options);
     const root = ensureToastRoot();
@@ -886,12 +1129,9 @@
     }
 
     const toast = document.createElement("div");
-    toast.className = `maoloader-toast maoloader-toast-${kind}`;
-    toast.textContent = String(normalized.text);
-    toast.style.cssText =
-      "max-width:360px;padding:10px 12px;border-radius:6px;background:#17231f;color:#f2fff7;box-shadow:0 8px 28px rgba(0,0,0,.28);font:13px system-ui,sans-serif;pointer-events:auto;transition:opacity .12s ease,transform .12s ease;cursor:pointer;";
-    toast.onclick = () => removeToast(toast);
-    root.appendChild(toast);
+    renderToastContent(toast, kind, normalized);
+    const stack = root.__maoloaderToastStack || root.__maoloaderShadowRoot || root;
+    stack.appendChild(toast);
     scheduleToastRemoval(toast, normalized.duration);
     return toast;
   }
@@ -921,9 +1161,9 @@
         .then((value) => {
           const text = toastText(message?.success, value);
           if (toast) {
-            toast.className = "maoloader-toast maoloader-toast-success";
-            toast.textContent = String(text);
-            scheduleToastRemoval(toast, toastDuration(message?.success, message));
+            const normalized = normalizeToastInput(text, { duration: toastDuration(message?.success, message) });
+            renderToastContent(toast, "success", normalized);
+            scheduleToastRemoval(toast, normalized.duration);
           } else if (text) {
             console.log("[maoloader]", text);
           }
@@ -932,9 +1172,9 @@
         .catch((error) => {
           const text = toastText(message?.error, error);
           if (toast) {
-            toast.className = "maoloader-toast maoloader-toast-error";
-            toast.textContent = String(text);
-            scheduleToastRemoval(toast, toastDuration(message?.error, message));
+            const normalized = normalizeToastInput(text, { duration: toastDuration(message?.error, message) });
+            renderToastContent(toast, "error", normalized);
+            scheduleToastRemoval(toast, normalized.duration);
           } else if (text) {
             console.error("[maoloader]", text);
           }
@@ -1046,15 +1286,30 @@
       return undefined;
     }
 
-    const existing = document.querySelector?.(".maoloader-welcome-root");
+    const existing = document.getElementById?.("maoloader-welcome-root") || document.querySelector?.(".maoloader-welcome-root");
     if (existing) {
       return existing;
     }
 
-    const root = document.createElement("div");
+    const root = createShadowSurface(
+      "maoloader-welcome-root",
+      "position:fixed;inset:0;z-index:2147483645;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);font:14px system-ui,sans-serif;color:#1f2925;pointer-events:auto;",
+      host,
+    );
+    if (!root) {
+      return undefined;
+    }
     root.className = "maoloader-welcome-root";
-    root.style.cssText =
-      "position:fixed;inset:0;z-index:2147483645;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);font:14px system-ui,sans-serif;color:#1f2925;pointer-events:auto;";
+    const renderRoot = root.__maoloaderShadowRoot || root;
+    renderRoot.replaceChildren?.();
+    if (!renderRoot.replaceChildren) {
+      renderRoot.innerHTML = "";
+    }
+
+    const shell = document.createElement("div");
+    shell.className = "maoloader-welcome-shell";
+    shell.style.cssText =
+      "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);font:14px system-ui,sans-serif;color:#1f2925;pointer-events:auto;";
 
     const panel = document.createElement("div");
     panel.className = "maoloader-welcome-panel";
@@ -1180,10 +1435,10 @@
       document.addEventListener?.(type, delegatedDismiss, true);
       window.addEventListener?.(type, delegatedDismiss, true);
     }
-    root.addEventListener?.(
+    shell.addEventListener?.(
       "click",
       (event) => {
-        if (event.target === root) {
+        if (event.target === shell) {
           dismiss(event);
         }
       },
@@ -1203,8 +1458,8 @@
     footer.appendChild(button);
     panel.appendChild(body);
     panel.appendChild(footer);
-    root.appendChild(panel);
-    (host?.appendChild ? host : document.body).appendChild(root);
+    shell.appendChild(panel);
+    renderRoot.appendChild(shell);
     button.focus?.();
     return root;
   }
@@ -1547,15 +1802,157 @@
     return module.exports && typeof module.exports === "object" ? module.exports : {};
   }
 
+  const esmModuleCache = new Map();
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+
+  function importBindingStatement(clause, specifier, entry) {
+    const resolved = resolvePluginImport(specifier, entry);
+    const trimmed = clause.trim();
+
+    if (!trimmed) {
+      return `await __import(${JSON.stringify(resolved)});`;
+    }
+
+    if (trimmed.startsWith("{")) {
+      return `const ${trimmed.replace(/\bas\b/g, ":")} = await __import(${JSON.stringify(resolved)});`;
+    }
+
+    if (trimmed.startsWith("*")) {
+      const match = /^\*\s+as\s+([\w$]+)$/.exec(trimmed);
+      if (!match) {
+        throw new Error(`Unsupported namespace import in "${entry}".`);
+      }
+      return `const ${match[1]} = await __import(${JSON.stringify(resolved)});`;
+    }
+
+    const mixed = /^([\w$]+)\s*,\s*([\s\S]+)$/.exec(trimmed);
+    if (mixed) {
+      const defaultName = mixed[1];
+      const rest = mixed[2].trim();
+      if (rest.startsWith("{")) {
+        return `const { default: ${defaultName}, ${rest.slice(1, -1).replace(/\bas\b/g, ":")} } = await __import(${JSON.stringify(resolved)});`;
+      }
+      if (rest.startsWith("*")) {
+        const match = /^\*\s+as\s+([\w$]+)$/.exec(rest);
+        if (match) {
+          return `const ${defaultName} = (await __import(${JSON.stringify(resolved)})).default; const ${match[1]} = await __import(${JSON.stringify(resolved)});`;
+        }
+      }
+    }
+
+    return `const ${trimmed} = (await __import(${JSON.stringify(resolved)})).default;`;
+  }
+
+  function transformEsmSource(source, entry) {
+    const exported = [];
+    let transformed = String(source);
+
+    transformed = transformed.replace(
+      /import\s+([^;]*?)\s+from\s*["']([^"']+)["']\s*;?/g,
+      (_match, clause, specifier) => importBindingStatement(clause, specifier, entry),
+    );
+    transformed = transformed.replace(/import\s*["']([^"']+)["']\s*;?/g, (_match, specifier) => {
+      const resolved = resolvePluginImport(specifier, entry);
+      if (isStylePluginEntry(resolved)) {
+        return `__loadStyle(${JSON.stringify(resolved)});`;
+      }
+      return `await __import(${JSON.stringify(resolved)});`;
+    });
+    transformed = transformed.replace(/\bimport\.meta\b/g, "__importMeta");
+    transformed = transformed.replace(/export\s+default\s+/g, "__exports.default = ");
+    transformed = transformed.replace(/export\s+(class|function)\s+([\w$]+)/g, (_match, kind, name) => {
+      exported.push(name);
+      return `${kind} ${name}`;
+    });
+    transformed = transformed.replace(/export\s+(const|let|var)\s+([\w$]+)/g, (_match, kind, name) => {
+      exported.push(name);
+      return `${kind} ${name}`;
+    });
+    transformed = transformed.replace(/export\s*\{([^}]+)\}\s*;?/g, (_match, names) => {
+      return names
+        .split(",")
+        .map((part) => {
+          const [local, exportedName] = part.trim().split(/\s+as\s+/);
+          const name = (exportedName || local || "").trim();
+          const value = (local || "").trim();
+          return name && value ? `__exports[${JSON.stringify(name)}] = ${value};` : "";
+        })
+        .filter(Boolean)
+        .join("\n");
+    });
+
+    if (exported.length > 0) {
+      transformed += `\n${[...new Set(exported)]
+        .map((name) => `__exports[${JSON.stringify(name)}] = ${name};`)
+        .join("\n")}`;
+    }
+
+    return transformed;
+  }
+
+  async function loadEsmPluginModule(entry) {
+    const normalized = normalizePluginEntry(entry);
+    if (isStylePluginEntry(normalized)) {
+      loadStylePlugin(normalized);
+      return {};
+    }
+
+    if (esmModuleCache.has(normalized)) {
+      return esmModuleCache.get(normalized);
+    }
+
+    const modulePromise = (async () => {
+      const source = await fetchPluginSource(normalized);
+      const exports = {};
+      const transformed = transformEsmSource(source, normalized);
+      const scopedSource = `{\n${transformed}\n}`;
+      const runner = new AsyncFunction(
+        "__exports",
+        "__import",
+        "__loadStyle",
+        "__importMeta",
+        "window",
+        "document",
+        "globalThis",
+        "Pengu",
+        "rcp",
+        "socket",
+        `${scopedSource}\n//# sourceURL=${pluginUrl(normalized)}`,
+      );
+
+      await runner(
+        exports,
+        (specifier) => loadEsmPluginModule(specifier),
+        (styleEntry) => loadStylePlugin(styleEntry),
+        { url: pluginUrl(normalized) },
+        window,
+        document,
+        window,
+        pengu,
+        rcp,
+        rcpSocket,
+      );
+      return exports;
+    })();
+
+    esmModuleCache.set(normalized, modulePromise);
+    return modulePromise;
+  }
+
   async function loadScriptPlugin(entry) {
     const extension = pluginExtension(entry);
 
     if (extension === "mjs") {
-      return import(pluginUrl(entry));
+      try {
+        return await import(pluginUrl(entry));
+      } catch {
+        return loadEsmPluginModule(entry);
+      }
     }
 
+    let source;
     try {
-      const source = await fetchPluginSource(entry);
+      source = await fetchPluginSource(entry);
       if (extension === "cjs" || looksLikeCommonJs(source)) {
         return runCommonJsPlugin(source, entry);
       }
@@ -1568,7 +1965,14 @@
       }
     }
 
-    return import(pluginUrl(entry));
+    try {
+      return await import(pluginUrl(entry));
+    } catch (error) {
+      if (source && looksLikeModule(source)) {
+        return loadEsmPluginModule(entry);
+      }
+      throw error;
+    }
   }
 
   function loadStylePlugin(entry) {

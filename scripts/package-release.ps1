@@ -3,7 +3,8 @@ param(
     [string]$BucketName = "plugins",
     [string]$PublicBaseUrl = "https://fs.maoloader.com",
     [switch]$SkipBuild,
-    [switch]$NoUpload
+    [switch]$NoUpload,
+    [switch]$Local
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,6 +23,10 @@ if (-not $Version) {
 
 if (-not $Version) {
     throw "Could not determine release version from $tauriConfig."
+}
+
+if ($Version.StartsWith("-")) {
+    throw "Invalid release version '$Version'. Pass script options after npm's -- separator, for example: bun run build:release:local -- -SkipBuild"
 }
 
 $cargoVersionLine = Select-String -Path $cargoManifest -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
@@ -116,12 +121,17 @@ if ($NoUpload) {
 
 Push-Location (Join-Path $repo "web")
 try {
-    bunx wrangler r2 object put "$BucketName/$objectPrefix/$($installer.Name)" --file "$($installer.FullName)" --remote
-    bunx wrangler r2 object put "$BucketName/$objectPrefix/$($installer.Name).sig" --file "$signaturePath" --remote
-    bunx wrangler r2 object put "$BucketName/releases/maoloader/latest.json" --file "$latestPath" --remote
+    $remoteArgs = if ($Local) { @() } else { @("--remote") }
+    bunx wrangler r2 object put "$BucketName/$objectPrefix/$($installer.Name)" --file "$($installer.FullName)" @remoteArgs
+    bunx wrangler r2 object put "$BucketName/$objectPrefix/$($installer.Name).sig" --file "$signaturePath" @remoteArgs
+    bunx wrangler r2 object put "$BucketName/releases/maoloader/latest.json" --file "$latestPath" @remoteArgs
 }
 finally {
     Pop-Location
 }
 
-Write-Output "Uploaded maoloader v$Version release to R2."
+if ($Local) {
+    Write-Output "Uploaded maoloader v$Version release to local Wrangler R2."
+} else {
+    Write-Output "Uploaded maoloader v$Version release to remote R2."
+}

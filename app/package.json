@@ -8,6 +8,7 @@
     "build": "vite build",
     "build:tauri": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"../scripts/build-core.ps1 -Release; bun run build\"",
     "build:release": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/package-release.ps1",
+    "build:release:local": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/package-release-local.ps1",
     "build:core": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/build-core.ps1",
     "build:core:release": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/build-core.ps1 -Release",
     "preview": "vite preview",

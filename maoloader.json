@@ -6,20 +6,20 @@
   },
   "plugins": [
     {
-      "slug": "maoloader-example",
-      "title": "maoloader Example",
+      "slug": "maoloader-testkit",
+      "title": "maoloader TestKit",
       "version": "0.1.0",
-      "description": "A tiny example plugin that shows how to add UI, load CSS, and clean itself up.",
-      "image": "plugin-example/assets/icon.svg",
-      "entry": "plugin-example/index.js",
+      "description": "A diagnostic plugin for testing maoloader preload APIs, styling, toasts, local storage, PluginFS, and route changes.",
+      "image": "maoloader-testkit/assets/icon.svg",
+      "entry": "maoloader-testkit/index.js",
       "files": [
-        "plugin-example/index.js",
-        "plugin-example/styles.css",
-        "plugin-example/README.md",
-        "plugin-example/assets/icon.svg"
+        "maoloader-testkit/index.js",
+        "maoloader-testkit/styles.css",
+        "maoloader-testkit/README.md",
+        "maoloader-testkit/assets/icon.svg"
       ],
-      "tags": ["example", "starter", "ui"],
-      "homepage": "https://github.com/steele123/maoloader/tree/main/plugin-example"
+      "tags": ["example", "diagnostics", "testing"],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/maoloader-testkit"
     }
   ]
 }
