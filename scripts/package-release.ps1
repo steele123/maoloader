@@ -4,7 +4,8 @@ param(
     [string]$PublicBaseUrl = "https://fs.maoloader.com",
     [switch]$SkipBuild,
     [switch]$NoUpload,
-    [switch]$Local
+    [switch]$Local,
+    [switch]$FlatDownloadUrls
 )
 
 $ErrorActionPreference = "Stop"
@@ -85,7 +86,11 @@ if (-not $signature) {
 $sha256 = (Get-FileHash -Algorithm SHA256 -Path $installer.FullName).Hash.ToLowerInvariant()
 $platformKey = "windows-x86_64"
 $objectPrefix = "releases/maoloader/v$Version/$platformKey"
-$downloadPath = "$($PublicBaseUrl.TrimEnd('/'))/$objectPrefix/$($installer.Name)"
+$downloadPath = if ($FlatDownloadUrls) {
+    "$($PublicBaseUrl.TrimEnd('/'))/$($installer.Name)"
+} else {
+    "$($PublicBaseUrl.TrimEnd('/'))/$objectPrefix/$($installer.Name)"
+}
 
 New-Item -ItemType Directory -Force -Path $distDir | Out-Null
 
@@ -106,7 +111,8 @@ $manifest = [ordered]@{
 }
 
 $latestPath = Join-Path $distDir "latest.json"
-$manifest | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 -Path $latestPath
+# Without a BOM: Windows PowerShell's -Encoding UTF8 adds one, and JSON parsers reject it.
+[System.IO.File]::WriteAllText($latestPath, ($manifest | ConvertTo-Json -Depth 8), (New-Object System.Text.UTF8Encoding $false))
 
 Write-Output "Prepared maoloader v$Version release metadata:"
 Write-Output "  Installer: $($installer.FullName)"

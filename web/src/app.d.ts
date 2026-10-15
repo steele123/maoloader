@@ -13,6 +13,7 @@ declare global {
 		PLUGIN_DB?: D1Database;
 		PLUGIN_BUCKET?: R2Bucket;
 		ADMIN_TOKEN?: string;
+		GITHUB_RELEASE_MANIFEST_URL?: string;
 	}
 }
 

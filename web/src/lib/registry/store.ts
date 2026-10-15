@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "$lib/db/client";
 import { registryListings, registrySubmissions } from "$lib/db/schema";
 import type {
@@ -44,12 +44,22 @@ export async function getListing(
 	}
 
 	const row = await db
-		.select({ listingJson: registryListings.listingJson })
+		.select({ listingJson: registryListings.listingJson, downloads: registryListings.downloads })
 		.from(registryListings)
 		.where(eq(registryListings.slug, slug))
 		.get();
 
-	return row ? parseListing(row.listingJson) : undefined;
+	return row ? parseListing(row.listingJson, row.downloads) : undefined;
+}
+
+export async function countDownload(slug: string, platform?: App.Platform) {
+	const db = getDb(platform?.env);
+	if (!db) return;
+	await db
+		.update(registryListings)
+		.set({ downloads: sql`${registryListings.downloads} + 1` })
+		.where(eq(registryListings.slug, slug))
+		.run();
 }
 
 export async function searchListings(
@@ -139,16 +149,17 @@ async function allListings(platform?: App.Platform) {
 	}
 
 	const rows = await db
-		.select({ listingJson: registryListings.listingJson })
+		.select({ listingJson: registryListings.listingJson, downloads: registryListings.downloads })
 		.from(registryListings)
 		.orderBy(desc(registryListings.updatedAt))
 		.all();
 
-	return rows.map((row) => parseListing(row.listingJson));
+	return rows.map((row) => parseListing(row.listingJson, row.downloads));
 }
 
-function parseListing(value: string): RegistryListing {
-	return JSON.parse(value) as RegistryListing;
+function parseListing(value: string, downloads?: number): RegistryListing {
+	const listing = JSON.parse(value) as RegistryListing;
+	return downloads === undefined ? listing : { ...listing, downloads };
 }
 
 function parseSubmission(value: string): RegistrySubmission {

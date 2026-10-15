@@ -15,6 +15,8 @@ function createPreloadWindow({
   welcomeHost = false,
   leagueVersion,
   WebSocket,
+  isFrame = false,
+  maoloaderVersion,
 } = {}) {
   const calls = [];
   const dispatchedEvents = [];
@@ -121,6 +123,9 @@ function createPreloadWindow({
   };
   if (disabledPlugins !== undefined) {
     window.Pengu.disabledPlugins = disabledPlugins;
+  }
+  if (isFrame) {
+    window.top = {};
   }
   if (leagueVersion !== undefined) {
     window.__llver = leagueVersion;
@@ -241,7 +246,9 @@ function createPreloadWindow({
     testConsole[level] = (...args) => calls.push(["console", level, ...args]);
   }
 
-  const source = readFileSync(new URL("./preload.js", import.meta.url), "utf8");
+  let source = readFileSync(new URL("./preload.js", import.meta.url), "utf8");
+  // The maoloader app stamps its version into the file when it writes it (runtime.rs).
+  if (maoloaderVersion) source = source.replaceAll("__MAOLOADER_VERSION__", maoloaderVersion);
   vm.runInNewContext(source, {
     clearInterval,
     console: testConsole,
@@ -305,6 +312,12 @@ function toastStack(root) {
 
 function welcomePanel(root) {
   return shadowChildren(root)[0]?.children?.[0];
+}
+
+function skipLoadingScreen(windowListeners) {
+  // The welcome waits for the loading screen; Esc dismisses it, as a user can.
+  windowListeners.filter(({ type }) => type === "keydown").at(-1).listener({ key: "Escape" });
+  return new Promise((resolve) => setTimeout(resolve, 350));
 }
 
 function elementText(element) {
@@ -621,6 +634,7 @@ exports.load = () => {
   test("runs classic script plugins when they are not ESM or CommonJS", async () => {
     const { window } = createPreloadWindow({
       plugins: ["classic/index.js"],
+      maoloaderVersion: "0.1.3",
       fetchImpl: () =>
         Promise.resolve({
           ok: true,
@@ -630,7 +644,7 @@ exports.load = () => {
 
     await flushPluginLoad();
 
-    expect(window.__maoloaderClassicRan).toBe("0.1.0");
+    expect(window.__maoloaderClassicRan).toBe("0.1.3");
   });
 
   test("records plugin load reports and plugin-scoped console logs", async () => {
@@ -832,6 +846,51 @@ export const moduleUrl = import.meta.url;
     expect(root.style.display).toBe("none");
   });
 
+  test("CommandBar hover highlights exactly one row", () => {
+    const { bodyChildren, window } = createPreloadWindow();
+    for (const name of ["First", "Second", "Third"]) window.CommandBar.addAction({ name, perform() {} });
+    window.CommandBar.show();
+
+    const root = bodyChildren.find((element) => element.className === "maoloader-commandbar-root");
+    const rows = commandBarPanel(root).children[1].children;
+    const highlighted = () => rows.filter((row) => row.style.background !== "transparent").map((row) => elementText(row.children[0]));
+
+    expect(highlighted()).toHaveLength(1);
+    rows[1].onmouseenter();
+    rows[2].onmouseenter();
+    rows[0].onmouseenter();
+    rows[3].onmouseenter();
+    expect(highlighted()).toEqual([elementText(rows[3].children[0])]);
+  });
+
+  test("CommandBar and Toast recover when the client replaces their surfaces with blank copies", () => {
+    const { bodyChildren, document, window } = createPreloadWindow();
+    window.CommandBar.addAction({ name: "Plugin action", perform() {} });
+    window.Toast.info("First");
+
+    // Simulate the client rebuilding the body: originals detach, blank copies take their place.
+    const copies = {};
+    for (const id of ["maoloader-commandbar-root", "maoloader-toast-root"]) {
+      const original = bodyChildren.find((element) => element.id === id);
+      bodyChildren.splice(bodyChildren.indexOf(original), 1);
+      original.isConnected = false;
+      const copy = document.createElement("with-shadow");
+      copy.id = id;
+      copy.className = id;
+      copy.style.cssText = original.style.cssText;
+      document.body.appendChild(copy);
+      copies[id] = copy;
+    }
+
+    window.CommandBar.show();
+    const commandBar = copies["maoloader-commandbar-root"];
+    expect(commandBar.style.display).toBe("flex");
+    expect(elementText(commandBarPanel(commandBar))).toContain("Plugin action");
+
+    window.Toast.success("Second");
+    expect(elementText(toastStack(copies["maoloader-toast-root"]))).toContain("Second");
+  });
+
   test("CommandBar arrow navigation selects later actions and search reveals hidden actions", () => {
     const { bodyChildren, window, windowListeners } = createPreloadWindow();
     const events = [];
@@ -966,7 +1025,8 @@ export const moduleUrl = import.meta.url;
       penguVersion: "",
     });
 
-    expect(window.Pengu.version).toBe("0.1.0");
+    // Unstamped (dev builds and tests): no real version to report.
+    expect(window.Pengu.version).toBe("0.0.0");
     expect(window.__llver).toBe("v13.24.1");
     expect(Object.isFrozen(window.Pengu)).toBe(true);
   });
@@ -1015,19 +1075,22 @@ export const moduleUrl = import.meta.url;
   });
 
   test("renders welcome surface, persists dismissal, and reports updates", async () => {
-    const { bodyChildren, calls, documentListeners } = createPreloadWindow({
+    const { bodyChildren, calls, documentListeners, windowListeners } = createPreloadWindow({
       fetchImpl: () =>
         Promise.resolve({
+          ok: true,
           json: () =>
             Promise.resolve({
-              tag_name: "v9.9.9",
-              body: "New release",
+              version: "0.1.4",
+              notes: "maoloader v0.1.4",
             }),
         }),
+      maoloaderVersion: "0.1.3",
       welcomeHost: true,
     });
 
     const domReady = documentListeners.find(({ type }) => type === "DOMContentLoaded");
+    await skipLoadingScreen(windowListeners);
     await domReady.listener();
 
     const layerHost = bodyChildren.find(
@@ -1040,7 +1103,9 @@ export const moduleUrl = import.meta.url;
 
     expect(layerHost).toBeDefined();
     expect(welcome).toBeDefined();
-    expect(elementText(toastStack(toastRoot).children.at(-1))).toContain("Update available - v9.9.9");
+    expect(calls).toContainEqual(["fetch", "https://maoloader.com/api/releases/latest.json"]);
+    expect(elementText(toastStack(toastRoot).children.at(-1))).toContain("maoloader 0.1.4 is available");
+    expect(elementText(toastStack(toastRoot).children.at(-1))).toContain("You're on 0.1.3");
 
     const panel = welcomePanel(welcome);
     const footer = panel.children[1];
@@ -1056,9 +1121,10 @@ export const moduleUrl = import.meta.url;
   });
 
   test("dismisses welcome surface from delegated okay events", async () => {
-    const { bodyChildren, documentListeners } = createPreloadWindow({ welcomeHost: true });
+    const { bodyChildren, documentListeners, windowListeners } = createPreloadWindow({ welcomeHost: true });
 
     const domReady = documentListeners.find(({ type }) => type === "DOMContentLoaded");
+    await skipLoadingScreen(windowListeners);
     await domReady.listener();
 
     const layerHost = bodyChildren.find(
@@ -1087,5 +1153,167 @@ export const moduleUrl = import.meta.url;
 
     expect(welcome.style.pointerEvents).toBe("none");
     expect(welcome.removed).toBe(true);
+  });
+});
+
+describe("preload loading screen", () => {
+  function loadingRoot(document) {
+    return document.documentElement.children.find((element) => element.id === "maoloader-loading-root");
+  }
+
+  function loadingText(root) {
+    return shadowChildren(root).map(elementText).join(" ");
+  }
+
+  // Lets a test decide whether Riot's own loading screen is on the page.
+  function stubRiotLoading(document) {
+    const original = document.querySelector.bind(document);
+    const state = { riot: undefined, navigation: undefined };
+    document.querySelector = (selector) => {
+      if (selector === ".lol-loading-screen-container") return state.riot;
+      if (selector === 'div[data-screen-name="rcp-fe-lol-navigation-screen"]') return state.navigation;
+      return original(selector);
+    };
+    return state;
+  }
+
+  test("covers the boot screen with plugin progress and the client part being loaded", async () => {
+    const { document } = createPreloadWindow({ plugins: ["theme.css", "broken/index.js"] });
+    const root = loadingRoot(document);
+
+    expect(root).toBeDefined();
+    expect(root.style.cssText).toContain("position:fixed");
+    expect(loadingText(root)).toContain("Starting the client");
+
+    document.dispatchEvent({ type: "riotPlugin.announce:rcp-fe-lol-champ-select", registrationHandler() {} });
+    expect(loadingText(root)).toContain("Loading champ select");
+
+    await flushPluginLoad();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(loadingText(root)).toContain("maoloader · 1 of 2 plugins ready · 1 failed");
+  });
+
+  test("goes away once Riot's loading screen has come and gone", async () => {
+    const { document } = createPreloadWindow();
+    const riot = stubRiotLoading(document);
+    const root = loadingRoot(document);
+
+    riot.riot = { className: "lol-loading-screen-container" };
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(root.removed).toBeUndefined();
+
+    riot.riot = undefined;
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    expect(root.style.opacity).toBe("0");
+    expect(root.removed).toBe(true);
+  });
+
+  test("goes away when Riot's loading screen is hidden but left on the page", async () => {
+    const { calls, document } = createPreloadWindow();
+    const riot = stubRiotLoading(document);
+    const root = loadingRoot(document);
+
+    let visible = true;
+    riot.riot = { className: "lol-loading-screen-container", getClientRects: () => (visible ? [{}] : []) };
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(root.removed).toBeUndefined();
+
+    visible = false;
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    expect(root.removed).toBe(true);
+    const log = calls.find(([kind, level, , , message]) => kind === "console" && level === "info" && String(message).startsWith("Loading screen hidden"));
+    expect(log[4]).toContain("Riot's loading screen finished");
+  });
+
+  test("goes away when the client's top bar appears without Riot's screen", async () => {
+    const { document } = createPreloadWindow();
+    const riot = stubRiotLoading(document);
+    const root = loadingRoot(document);
+
+    riot.navigation = { className: "navigation" };
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    expect(root.removed).toBe(true);
+  });
+
+  test("Escape skips it", async () => {
+    const { document, windowListeners } = createPreloadWindow();
+    const root = loadingRoot(document);
+    const skip = windowListeners.filter(({ type }) => type === "keydown").at(-1);
+
+    skip.listener({ key: "Escape" });
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(root.removed).toBe(true);
+  });
+
+  test("can be switched back to Riot's loading screen", () => {
+    const { calls, document, window } = createPreloadWindow({ datastore: JSON.stringify({ "maoloader-loading-screen": false }) });
+    expect(loadingRoot(document)).toBeUndefined();
+
+    const toggle = window.__maoloaderCommandBarActions.find((action) => typeof action.name === "function" && action.name().includes("loading screen"));
+    expect(toggle.name()).toBe("Use maoloader's loading screen");
+    toggle.perform();
+    expect(calls.find(([name]) => name === "SaveDataStore")[1]).toContain('"maoloader-loading-screen":true');
+  });
+
+  test("holds the welcome until the loading screen is gone, then shows plugin status", async () => {
+    const { bodyChildren, documentListeners, windowListeners } = createPreloadWindow({ welcomeHost: true, plugins: ["theme.css"] });
+    const domReady = documentListeners.find(({ type }) => type === "DOMContentLoaded");
+    const layerHost = bodyChildren.find((element) => element.className === "lol-uikit-layer-manager-wrapper");
+    const welcome = () => layerHost.children.find((element) => element.className === "maoloader-welcome-root");
+
+    const opening = domReady.listener();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(welcome()).toBeUndefined();
+
+    windowListeners.filter(({ type }) => type === "keydown").at(-1).listener({ key: "Escape" });
+    await opening;
+    const text = elementText(shadowChildren(welcome())[0]);
+    expect(text).toContain("You're all set");
+    expect(text).toContain("1 of 1 plugin loaded");
+    expect(text).toContain("Let's play");
+  });
+
+  test("clicks elsewhere in the welcome don't dismiss it", async () => {
+    const { bodyChildren, documentListeners, windowListeners } = createPreloadWindow({ welcomeHost: true });
+    const domReady = documentListeners.find(({ type }) => type === "DOMContentLoaded");
+    windowListeners.filter(({ type }) => type === "keydown").at(-1).listener({ key: "Escape" });
+    await domReady.listener();
+    const layerHost = bodyChildren.find((element) => element.className === "lol-uikit-layer-manager-wrapper");
+    const welcome = layerHost.children.find((element) => element.className === "maoloader-welcome-root");
+    const checkbox = welcomePanel(welcome).children[1].children[0].children[0];
+    const delegatedClick = documentListeners.find(({ type }) => type === "click");
+
+    // A click on the checkbox arrives at the page retargeted to the popup's host.
+    const event = { target: welcome, composedPath: () => [checkbox, welcome], preventDefault() { this.prevented = true; } };
+    delegatedClick.listener(event);
+    expect(welcome.removed).toBeUndefined();
+    expect(event.prevented).toBeUndefined();
+  });
+
+  test("reports the stamped maoloader version", () => {
+    const { window } = createPreloadWindow({ maoloaderVersion: "0.1.3" });
+    expect(window.Pengu.version).toBe("0.1.3");
+  });
+
+  test("only checks maoloader's own releases, and only with a real version", async () => {
+    const released = (version) => () => Promise.resolve({ ok: true, json: () => Promise.resolve({ version }) });
+
+    // Unstamped dev build: no request at all.
+    const dev = createPreloadWindow({ fetchImpl: released("9.9.9") });
+    expect(await dev.window.__maoloaderFetchUpdate()).toBe(false);
+    expect(dev.calls.some(([name, url]) => name === "fetch" && String(url).includes("releases"))).toBe(false);
+
+    // Up to date: nothing to report, whatever other projects have released.
+    const current = createPreloadWindow({ fetchImpl: released("0.1.3"), maoloaderVersion: "0.1.3" });
+    expect(await current.window.__maoloaderFetchUpdate()).toBe(false);
+    expect(current.calls.some(([, url]) => String(url).includes("PenguLoader"))).toBe(false);
+
+    const behind = createPreloadWindow({ fetchImpl: released("v0.2.0"), maoloaderVersion: "0.1.3" });
+    expect(await behind.window.__maoloaderFetchUpdate()).toEqual({ old: "0.1.3", version: "0.2.0", changelog: "" });
+  });
+
+  test("only shows on the client's main page, not inside frames", () => {
+    const { document } = createPreloadWindow({ isFrame: true });
+    expect(loadingRoot(document)).toBeUndefined();
   });
 });

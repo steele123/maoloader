@@ -1,172 +1,206 @@
 <script lang="ts">
 	import ArrowRightIcon from "@lucide/svelte/icons/arrow-right";
 	import BoxIcon from "@lucide/svelte/icons/box";
-	import CheckCircleIcon from "@lucide/svelte/icons/check-circle";
+	import CircleCheckIcon from "@lucide/svelte/icons/circle-check";
+	import CodeIcon from "@lucide/svelte/icons/code";
 	import DownloadIcon from "@lucide/svelte/icons/download";
-	import ExternalLinkIcon from "@lucide/svelte/icons/external-link";
-	import PackageCheckIcon from "@lucide/svelte/icons/package-check";
+	import MousePointerClickIcon from "@lucide/svelte/icons/mouse-pointer-click";
 	import PaletteIcon from "@lucide/svelte/icons/palette";
-	import PlugIcon from "@lucide/svelte/icons/plug";
+	import PowerIcon from "@lucide/svelte/icons/power";
 	import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
 	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
-	import SparklesIcon from "@lucide/svelte/icons/sparkles";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
 	import type { PageData } from "./$types";
 
 	let { data }: { data: PageData } = $props();
+
+	// The wall of icons around the logo; the middle 2x2 is the logo itself.
+	const mosaic = [
+		"auto-accept",
+		"champ-select-tools",
+		"chat-status",
+		"client-declutter",
+		"friend-alerts",
+		"steeles-ui",
+		"rune-presets",
+		"loot-helper",
+		"session-tracker",
+		"lobby-tools",
+		"plugin-health-overlay",
+		"maoloader-devtools"
+	];
+	// Grid cells (row-major, 4x4) that are not covered by the logo.
+	const cells = [0, 1, 2, 3, 4, 7, 8, 11, 12, 13, 14, 15];
+	const faded = new Set([0, 3, 12, 15]);
+
+	const features = [
+		{
+			icon: PowerIcon,
+			title: "One switch",
+			text: "Turn maoloader on and every plugin loads the next time the League client starts. Turn it off and the client is untouched."
+		},
+		{
+			icon: MousePointerClickIcon,
+			title: "One-click installs",
+			text: "Hit Install in maoloader on any plugin page and the app opens straight to it. No folders, no copying files."
+		},
+		{
+			icon: ShieldCheckIcon,
+			title: "Reviewed plugins",
+			text: "Everything in the store is checked by a person before it's listed, and you see what a plugin contains before you install it."
+		},
+		{
+			icon: RefreshCwIcon,
+			title: "Easy updates",
+			text: "New versions install from inside the app with one click. No hunting for a new installer after a League patch."
+		}
+	];
 </script>
 
 <svelte:head>
-	<title>maoloader</title>
+	<title>maoloader · Plugins for the League client</title>
 	<meta
 		name="description"
-		content="maoloader is a desktop loader and plugin manager for League Client customization."
+		content="maoloader is a small desktop app that loads plugins and themes into the League of Legends client. Install reviewed plugins in one click."
 	/>
 </svelte:head>
 
-<section class="home-landing">
-	<div class="home-landing-copy">
-		<p class="eyebrow">League Client plugin loader</p>
-		<h1>maoloader</h1>
-		<p>
-			A desktop app for activating the client runtime, installing reviewed plugins, and keeping
-			your setup current from one place.
+<section class="home-hero">
+	<div>
+		<p class="eyebrow">League client plugin loader</p>
+		<h1>Make the League client <span class="gold-text">yours.</span></h1>
+		<p class="lede">
+			maoloader is a small desktop app that loads plugins and themes into the League client.
+			Auto-accept queues, clean up the home screen, save rune pages and more, with one click
+			each.
 		</p>
 		<div class="hero-actions">
 			<Button href="/download" size="lg">
 				<DownloadIcon />
-				Download
+				{data.release ? `Download v${data.release.version}` : "Download"}
 			</Button>
 			<Button href="/plugins" variant="outline" size="lg">
-				<PlugIcon />
 				Browse plugins
-			</Button>
-			<Button href="https://github.com/steele123/maoloader" variant="outline" size="lg">
-				<ExternalLinkIcon />
-				GitHub
+				<ArrowRightIcon />
 			</Button>
 		</div>
-	</div>
-	<div class="home-landing-panel">
-		<div class="home-logo-stage">
-			<img src="/maologo.png" alt="" />
-		</div>
-		<div class="release-strip">
-			<span>Latest release</span>
-			<strong>{data.release ? `v${data.release.version}` : "pending"}</strong>
-			{#if data.release}
-				<Button href="/download" variant="secondary" size="sm">Get installer</Button>
+		<p class="hero-note">
+			<span><CircleCheckIcon />Free, source on GitHub</span>
+			<span><CircleCheckIcon />Windows 10 and 11</span>
+			{#if data.totalDownloads > 0}
+				<span><CircleCheckIcon />{data.totalDownloads.toLocaleString()} plugin installs</span>
 			{/if}
-		</div>
-	</div>
-</section>
-
-<section class="product-stats" aria-label="Project overview">
-	<div>
-		<PackageCheckIcon />
-		<span>{data.listingCount} registry listings</span>
-	</div>
-	<div>
-		<BoxIcon />
-		<span>{data.pluginCount} plugins</span>
-	</div>
-	<div>
-		<PaletteIcon />
-		<span>{data.themeCount} themes</span>
-	</div>
-	<div>
-		<DownloadIcon />
-		<span>{data.totalDownloads} downloads tracked</span>
-	</div>
-</section>
-
-<section class="feature-grid" aria-label="What maoloader does">
-	<article>
-		<div class="article-heading">
-			<ShieldCheckIcon />
-			<h2>Activate the runtime</h2>
-		</div>
-		<p>
-			Configure activation, sync runtime assets, and see whether the client hook is ready from
-			the desktop app.
 		</p>
-	</article>
-	<article>
-		<div class="article-heading">
-			<PlugIcon />
-			<h2>Install plugins</h2>
-		</div>
-		<p>
-			Browse reviewed plugins from the store, install them into your plugin folder, and manage
-			local enable states.
-		</p>
-	</article>
-	<article>
-		<div class="article-heading">
-			<RefreshCwIcon />
-			<h2>Update in place</h2>
-		</div>
-		<p>
-			Release builds use signed Tauri updater artifacts, with downloads served from
-			fs.maoloader.com.
-		</p>
-	</article>
-	<article>
-		<div class="article-heading">
-			<SparklesIcon />
-			<h2>Publish safely</h2>
-		</div>
-		<p>
-			Submit GitHub repos or direct zip packages for review before they appear in the public
-			registry.
-		</p>
-	</article>
-</section>
-
-<section class="homepage-band">
-	<div>
-		<p class="eyebrow">Registry</p>
-		<h2>Featured plugins and themes</h2>
-		<p>Start with reviewed listings, then paste install links into the desktop app or install from the built-in store.</p>
 	</div>
-	<Button href="/plugins" variant="outline">
-		View registry
-		<ArrowRightIcon />
-	</Button>
-</section>
 
-<section class="featured-row" aria-label="Featured registry listings">
-	{#each data.featured as item}
-		<a class="featured-mini-card" href={`/plugins/${item.slug}`}>
-			<div class="listing-icon" aria-hidden="true">
-				{#if item.kind === "theme"}
-					<PaletteIcon />
-				{:else}
-					<BoxIcon />
-				{/if}
+	<div class="icon-mosaic" aria-hidden="true">
+		{#each cells as cell, index}
+			<div
+				class="mosaic-tile"
+				class:is-faded={faded.has(cell)}
+				style={`grid-row: ${Math.floor(cell / 4) + 1}; grid-column: ${(cell % 4) + 1}; --i: ${index}`}
+			>
+				<img src={`/plugin-icons/${mosaic[index]}.svg`} alt="" />
 			</div>
+		{/each}
+		<div class="mosaic-center"><img src="/maologo.png" alt="" /></div>
+	</div>
+</section>
+
+<section class="home-section" aria-labelledby="how-heading">
+	<div class="section-heading">
+		<div>
+			<p class="eyebrow">How it works</p>
+			<h2 id="how-heading">Up and running in a minute</h2>
+		</div>
+	</div>
+	<ol class="step-grid">
+		<li>
+			<h3>Install the app</h3>
+			<p>Download maoloader for Windows and run the installer.</p>
+		</li>
+		<li>
+			<h3>Turn it on</h3>
+			<p>Flip the switch in the app, then start (or restart) the League client.</p>
+		</li>
+		<li>
+			<h3>Add plugins</h3>
+			<p>Pick plugins from the store in the app or on this site. They're live on the next client start.</p>
+		</li>
+	</ol>
+</section>
+
+<section class="home-section" aria-labelledby="why-heading">
+	<div class="section-heading">
+		<div>
+			<p class="eyebrow">Why maoloader</p>
+			<h2 id="why-heading">Built to stay out of your way</h2>
+		</div>
+	</div>
+	<div class="feature-grid">
+		{#each features as feature}
+			<article>
+				<div class="icon-chip"><feature.icon /></div>
+				<h3>{feature.title}</h3>
+				<p>{feature.text}</p>
+			</article>
+		{/each}
+	</div>
+</section>
+
+{#if data.highlights.length}
+	<section class="home-section" aria-labelledby="plugins-heading">
+		<div class="section-heading">
 			<div>
-				<h3>{item.name}</h3>
-				<p>{item.description}</p>
-				<div class="tag-row">
-					<Badge variant="secondary">{item.kind}</Badge>
-					<Badge variant="outline">v{item.version}</Badge>
-				</div>
+				<p class="eyebrow">Plugins</p>
+				<h2 id="plugins-heading">Popular right now</h2>
 			</div>
-		</a>
-	{:else}
-		<article class="featured-mini-card">
-			<div class="listing-icon" aria-hidden="true">
-				<CheckCircleIcon />
-			</div>
-			<div>
-				<h3>Registry opening soon</h3>
-				<p>Approved plugins will appear here after the first listings are published.</p>
-				<div class="tag-row">
-					<Badge variant="outline">{data.tagCount} tags ready</Badge>
-				</div>
-			</div>
-		</article>
-	{/each}
+			<Button href="/plugins" variant="outline">
+				All {data.listingCount} plugins
+				<ArrowRightIcon />
+			</Button>
+		</div>
+		<div class="featured-row">
+			{#each data.highlights as item}
+				<a class="featured-mini-card" href={`/plugins/${item.slug}`}>
+					<div class="listing-icon" class:has-icon={!!item.assets.icon?.url} aria-hidden="true">
+						{#if item.assets.icon?.url}
+							<img src={item.assets.icon.url} alt="" loading="lazy" />
+						{:else if item.kind === "theme"}
+							<PaletteIcon />
+						{:else}
+							<BoxIcon />
+						{/if}
+					</div>
+					<div>
+						<h3>{item.name}</h3>
+						<p>{item.description}</p>
+						<div class="tag-row">
+							<Badge variant="secondary">{item.kind}</Badge>
+							<Badge variant="outline">v{item.version}</Badge>
+						</div>
+					</div>
+				</a>
+			{/each}
+		</div>
+	</section>
+{/if}
+
+<section class="home-section cta-band" aria-labelledby="build-heading">
+	<div>
+		<p class="eyebrow">For creators</p>
+		<h2 id="build-heading">Made a plugin? Share it.</h2>
+		<p>
+			Plugins are plain JavaScript. Drop your .zip on the submit page or point us at a GitHub repo,
+			and it's in the store once it's reviewed.
+		</p>
+	</div>
+	<div class="hero-actions">
+		<Button href="/submit">Submit a plugin</Button>
+		<Button href="/docs" variant="outline">
+			<CodeIcon />
+			Read the docs
+		</Button>
+	</div>
 </section>

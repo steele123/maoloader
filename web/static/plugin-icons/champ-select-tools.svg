@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="champselecttools-title">
+  <title id="champselecttools-title">Champ Select Tools</title>
+  <defs>
+    <linearGradient id="champselecttools-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#132636"/>
+      <stop offset="1" stop-color="#07111b"/>
+    </linearGradient>
+    <radialGradient id="champselecttools-glow" cx="0.5" cy="0.38" r="0.62">
+      <stop offset="0" stop-color="#2ad4c4" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#2ad4c4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="champselecttools-rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8aa6e" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#c8aa6e" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#champselecttools-bg)"/>
+  <rect width="64" height="64" rx="14" fill="url(#champselecttools-glow)"/>
+  <rect x="1" y="1" width="62" height="62" rx="13" fill="none" stroke="url(#champselecttools-rim)" stroke-width="2"/>
+  <path d="M32 15l14 8v16l-14 8-14-8V23z" fill="#2ad4c4" fill-opacity="0.14" stroke="#2ad4c4" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M24.5 39.5L39 25l2.5-5-5 2.5L22 37" fill="#f0e6d2" fill-opacity="0.2" stroke="#f0e6d2" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M21 33.5l9.5 9.5M22.5 41.5l-3 3" stroke="#2ad4c4" stroke-width="3.5" stroke-linecap="round"/>
+</svg>

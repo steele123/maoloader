@@ -20,6 +20,9 @@ pub struct PluginEntry {
     pub author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub link: Option<String>,
+    /// The plugin folder's icon as a data URL, so the app can show it without file access.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -159,7 +162,39 @@ fn push_plugin(
         description: metadata.description,
         author: metadata.author,
         link: metadata.link,
+        icon: plugin_icon(root, &path),
     });
+}
+
+const ICON_FILES: [&str; 6] = [
+    "assets/icon.svg",
+    "assets/icon.png",
+    "assets/icon.webp",
+    "icon.svg",
+    "icon.png",
+    "icon.webp",
+];
+const MAX_ICON_BYTES: u64 = 256 * 1024;
+
+/// Folder plugins can ship an icon next to their entry. Single-file plugins have nowhere to put one.
+fn plugin_icon(root: &Path, entry: &Path) -> Option<String> {
+    use base64::Engine;
+
+    let dir = entry.parent().filter(|dir| *dir != root)?;
+    ICON_FILES.iter().find_map(|name| {
+        let path = dir.join(name);
+        let mime = match path.extension()?.to_str()? {
+            "svg" => "image/svg+xml",
+            "png" => "image/png",
+            _ => "image/webp",
+        };
+        if fs::metadata(&path).ok()?.len() > MAX_ICON_BYTES {
+            return None;
+        }
+        let bytes = fs::read(&path).ok()?;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+        Some(format!("data:{mime};base64,{encoded}"))
+    })
 }
 
 fn plugin_display_name(entry: &str) -> String {
@@ -310,6 +345,30 @@ fn fnv1a(entry: &str) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn folder_plugins_pick_up_their_icon() {
+        let root =
+            std::env::temp_dir().join(format!("maoloader-app-icon-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("with-icon/assets")).unwrap();
+        fs::create_dir_all(root.join("no-icon")).unwrap();
+        fs::write(root.join("with-icon/index.js"), "").unwrap();
+        fs::write(root.join("with-icon/assets/icon.svg"), "<svg/>").unwrap();
+        fs::write(root.join("no-icon/index.js"), "").unwrap();
+        fs::write(root.join("single.js"), "").unwrap();
+        fs::write(root.join("icon.svg"), "<svg/>").unwrap();
+
+        assert_eq!(
+            plugin_icon(&root, &root.join("with-icon/index.js")).as_deref(),
+            Some("data:image/svg+xml;base64,PHN2Zy8+")
+        );
+        assert_eq!(plugin_icon(&root, &root.join("no-icon/index.js")), None);
+        // A loose plugin file must not borrow an icon from the plugins folder itself.
+        assert_eq!(plugin_icon(&root, &root.join("single.js")), None);
+
+        let _ = fs::remove_dir_all(root);
+    }
 
     #[test]
     fn plugin_listing_matches_runtime_entry_shapes() {

@@ -914,6 +914,7 @@ mod tests {
             description: None,
             author: None,
             link: None,
+            icon: None,
         }];
 
         annotate_installed_plugins_from_entries(&mut plugins, &root, local_plugins);

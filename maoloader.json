@@ -10,16 +10,284 @@
       "title": "maoloader TestKit",
       "version": "0.1.0",
       "description": "A diagnostic plugin for testing maoloader preload APIs, styling, toasts, local storage, PluginFS, and route changes.",
-      "image": "maoloader-testkit/assets/icon.svg",
-      "entry": "maoloader-testkit/index.js",
+      "image": "plugins/maoloader-testkit/assets/icon.svg",
+      "entry": "plugins/maoloader-testkit/index.js",
       "files": [
-        "maoloader-testkit/index.js",
-        "maoloader-testkit/styles.css",
-        "maoloader-testkit/README.md",
-        "maoloader-testkit/assets/icon.svg"
+        "plugins/maoloader-testkit/README.md",
+        "plugins/maoloader-testkit/assets/icon.svg",
+        "plugins/maoloader-testkit/index.js",
+        "plugins/maoloader-testkit/styles.css"
       ],
-      "tags": ["example", "diagnostics", "testing"],
-      "homepage": "https://github.com/steele123/maoloader/tree/main/maoloader-testkit"
+      "tags": [
+        "example",
+        "diagnostics",
+        "testing"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/maoloader-testkit"
+    },
+    {
+      "slug": "plugin-health-overlay",
+      "title": "Plugin Health Overlay",
+      "version": "0.1.0",
+      "description": "Inspect plugin load states, safe-mode failures, lifecycle events, and attributed console logs inside the League client.",
+      "image": "plugins/plugin-health-overlay/assets/icon.svg",
+      "entry": "plugins/plugin-health-overlay/index.js",
+      "files": [
+        "plugins/plugin-health-overlay/README.md",
+        "plugins/plugin-health-overlay/assets/icon.svg",
+        "plugins/plugin-health-overlay/index.js",
+        "plugins/plugin-health-overlay/styles.css"
+      ],
+      "tags": [
+        "diagnostics",
+        "plugin-health",
+        "logs",
+        "utility"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/plugin-health-overlay"
+    },
+    {
+      "slug": "maoloader-devtools",
+      "title": "maoloader DOM Inspector",
+      "version": "0.1.0",
+      "description": "Visually select League client elements and export sanitized DOM, selectors, computed styles, and starter CSS for plugin development.",
+      "image": "plugins/maoloader-devtools/assets/icon.svg",
+      "entry": "plugins/maoloader-devtools/index.js",
+      "files": [
+        "plugins/maoloader-devtools/README.md",
+        "plugins/maoloader-devtools/assets/icon.svg",
+        "plugins/maoloader-devtools/index.js",
+        "plugins/maoloader-devtools/styles.css"
+      ],
+      "tags": [
+        "developer-tools",
+        "dom",
+        "inspector",
+        "plugin-development"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/maoloader-devtools"
+    },
+    {
+      "slug": "auto-accept",
+      "title": "Auto-accept",
+      "version": "0.1.0",
+      "description": "Accept ready checks automatically after a short delay you can cancel from a toast.",
+      "image": "plugins/auto-accept/assets/icon.svg",
+      "entry": "plugins/auto-accept/index.js",
+      "files": [
+        "plugins/auto-accept/README.md",
+        "plugins/auto-accept/assets/icon.svg",
+        "plugins/auto-accept/index.js",
+        "plugins/auto-accept/styles.css"
+      ],
+      "tags": [
+        "queue",
+        "ready-check",
+        "automation",
+        "utility"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/auto-accept"
+    },
+    {
+      "slug": "client-declutter",
+      "title": "Declutter",
+      "version": "0.1.0",
+      "description": "Hide League client clutter with toggleable presets and your own CSS selectors.",
+      "image": "plugins/client-declutter/assets/icon.svg",
+      "entry": "plugins/client-declutter/index.js",
+      "files": [
+        "plugins/client-declutter/README.md",
+        "plugins/client-declutter/assets/icon.svg",
+        "plugins/client-declutter/index.js",
+        "plugins/client-declutter/styles.css"
+      ],
+      "tags": [
+        "ui",
+        "declutter",
+        "css",
+        "utility"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/client-declutter"
+    },
+    {
+      "slug": "steeles-ui",
+      "title": "Steele's UI",
+      "version": "0.1.0",
+      "description": "Backdrop, custom home, custom or hidden top bar, and right panel controls for the League client, with one tabbed settings window.",
+      "image": "plugins/steeles-ui/assets/icon.svg",
+      "entry": "plugins/steeles-ui/index.js",
+      "files": [
+        "plugins/steeles-ui/README.md",
+        "plugins/steeles-ui/assets/icon.svg",
+        "plugins/steeles-ui/backgrounds/README.md",
+        "plugins/steeles-ui/home.css",
+        "plugins/steeles-ui/index.js",
+        "plugins/steeles-ui/src/backdrop.js",
+        "plugins/steeles-ui/src/core.js",
+        "plugins/steeles-ui/src/home.js",
+        "plugins/steeles-ui/src/panel.js",
+        "plugins/steeles-ui/src/settings.js",
+        "plugins/steeles-ui/src/topbar.js",
+        "plugins/steeles-ui/styles.css",
+        "plugins/steeles-ui/topbar.css"
+      ],
+      "tags": [
+        "theme",
+        "backdrop",
+        "home",
+        "top-bar",
+        "ui"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/steeles-ui"
+    },
+    {
+      "slug": "champ-select-tools",
+      "title": "Champ Select Tools",
+      "version": "0.1.0",
+      "description": "A champ select HUD with the phase timer, auto pick and ban, random skin, ARAM reroll, and a dodge button that needs a second click.",
+      "image": "plugins/champ-select-tools/assets/icon.svg",
+      "entry": "plugins/champ-select-tools/index.js",
+      "files": [
+        "plugins/champ-select-tools/README.md",
+        "plugins/champ-select-tools/assets/icon.svg",
+        "plugins/champ-select-tools/index.js",
+        "plugins/champ-select-tools/settings.css",
+        "plugins/champ-select-tools/styles.css"
+      ],
+      "tags": [
+        "champ-select",
+        "hud",
+        "auto-pick",
+        "skins",
+        "utility"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/champ-select-tools"
+    },
+    {
+      "slug": "chat-status",
+      "title": "Status",
+      "version": "0.1.0",
+      "description": "Appear online, away, mobile, or offline, and set, save, or rotate a custom status message.",
+      "image": "plugins/chat-status/assets/icon.svg",
+      "entry": "plugins/chat-status/index.js",
+      "files": [
+        "plugins/chat-status/README.md",
+        "plugins/chat-status/assets/icon.svg",
+        "plugins/chat-status/index.js",
+        "plugins/chat-status/styles.css"
+      ],
+      "tags": [
+        "chat",
+        "status",
+        "offline",
+        "utility"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/chat-status"
+    },
+    {
+      "slug": "session-tracker",
+      "title": "Session Tracker",
+      "version": "0.1.0",
+      "description": "Track today's wins, losses, streak, and LP change in a small card, with a summary after each game.",
+      "image": "plugins/session-tracker/assets/icon.svg",
+      "entry": "plugins/session-tracker/index.js",
+      "files": [
+        "plugins/session-tracker/README.md",
+        "plugins/session-tracker/assets/icon.svg",
+        "plugins/session-tracker/index.js",
+        "plugins/session-tracker/styles.css"
+      ],
+      "tags": [
+        "stats",
+        "ranked",
+        "lp",
+        "tracker"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/session-tracker"
+    },
+    {
+      "slug": "rune-presets",
+      "title": "Rune Presets",
+      "version": "0.1.0",
+      "description": "Save rune pages as named presets, apply them in one click, and auto-apply them per champion.",
+      "image": "plugins/rune-presets/assets/icon.svg",
+      "entry": "plugins/rune-presets/index.js",
+      "files": [
+        "plugins/rune-presets/README.md",
+        "plugins/rune-presets/assets/icon.svg",
+        "plugins/rune-presets/index.js",
+        "plugins/rune-presets/styles.css"
+      ],
+      "tags": [
+        "runes",
+        "presets",
+        "champ-select",
+        "utility"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/rune-presets"
+    },
+    {
+      "slug": "loot-helper",
+      "title": "Loot Helper",
+      "version": "0.1.0",
+      "description": "Preview and bulk-disenchant champion shards for Blue Essence, with a confirm step.",
+      "image": "plugins/loot-helper/assets/icon.svg",
+      "entry": "plugins/loot-helper/index.js",
+      "files": [
+        "plugins/loot-helper/README.md",
+        "plugins/loot-helper/assets/icon.svg",
+        "plugins/loot-helper/index.js",
+        "plugins/loot-helper/styles.css"
+      ],
+      "tags": [
+        "loot",
+        "hextech",
+        "blue-essence",
+        "utility"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/loot-helper"
+    },
+    {
+      "slug": "friend-alerts",
+      "title": "Friend Alerts",
+      "version": "0.1.0",
+      "description": "Toasts when chosen friends come online or finish a game, with a quick invite while you're in a lobby.",
+      "image": "plugins/friend-alerts/assets/icon.svg",
+      "entry": "plugins/friend-alerts/index.js",
+      "files": [
+        "plugins/friend-alerts/README.md",
+        "plugins/friend-alerts/assets/icon.svg",
+        "plugins/friend-alerts/index.js",
+        "plugins/friend-alerts/styles.css"
+      ],
+      "tags": [
+        "friends",
+        "notifications",
+        "social",
+        "utility"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/friend-alerts"
+    },
+    {
+      "slug": "lobby-tools",
+      "title": "Lobby Tools",
+      "version": "0.1.0",
+      "description": "Create any available queue's lobby from the command bar, start or stop queue, and play again or re-queue after games.",
+      "image": "plugins/lobby-tools/assets/icon.svg",
+      "entry": "plugins/lobby-tools/index.js",
+      "files": [
+        "plugins/lobby-tools/README.md",
+        "plugins/lobby-tools/assets/icon.svg",
+        "plugins/lobby-tools/index.js",
+        "plugins/lobby-tools/styles.css"
+      ],
+      "tags": [
+        "lobby",
+        "queue",
+        "command-bar",
+        "utility"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/lobby-tools"
     }
   ]
 }

@@ -1,4 +1,5 @@
 import { fetchGitHubFile, parseGitHubRepository, rawGitHubUrl } from "./github";
+import type { PackageZip } from "./package-zip";
 import type { ListingKind, RegistryListing } from "./types";
 
 type ManifestAuthor =
@@ -70,15 +71,16 @@ export async function loadListingsFromManifest(
 	}
 
 	const listings = manifest.plugins.map((entry, index) =>
-		listingFromManifestPlugin(manifest, entry, parsedRepo.url, manifestFile.ref, now, index)
+		listingFromManifestPlugin(manifest, entry, { repository: parsedRepo.url, ref: manifestFile.ref }, now, index)
 	);
-	const slugs = new Set<string>();
-	for (const listing of listings) {
-		if (slugs.has(listing.slug)) {
-			throw new Error(`maoloader.json includes duplicate slug "${listing.slug}".`);
-		}
-		slugs.add(listing.slug);
-	}
+	assertUniqueSlugs(listings);
+
+	// The README next to the manifest becomes the plugin page. Repos without one are fine.
+	const readmePath = normalizedManifestPath.replace(/[^/]*$/, "") + "README.md";
+	const readme = await fetchGitHubFile(parsedRepo.url, readmePath, manifestFile.ref)
+		.then((file) => file.text.slice(0, 64 * 1024))
+		.catch(() => undefined);
+	if (readme) for (const listing of listings) listing.readme = readme;
 
 	return {
 		ref: manifestFile.ref,
@@ -87,14 +89,82 @@ export async function loadListingsFromManifest(
 	};
 }
 
+export type PackageFields = {
+	name?: string;
+	version?: string;
+	description?: string;
+	author?: string;
+	kind?: string;
+	tags?: string;
+};
+
+/**
+ * Listings for an uploaded .zip. Uses its maoloader.json when it has one, otherwise the form
+ * fields plus the entry file found in the zip. Icons are left for the caller to store.
+ */
+export function listingsFromPackage(zip: PackageZip, fields: PackageFields, now: string): RegistryListing[] {
+	let manifest: MaoloaderManifest;
+	if (zip.manifestText) {
+		manifest = parseManifestJson(zip.manifestText);
+		validateRootKeys(manifest);
+		if (!hasAuthor(manifest.author) && fields.author?.trim()) manifest.author = fields.author.trim();
+	} else {
+		if (!zip.defaultEntry) {
+			throw new Error(
+				"Couldn't find the plugin's entry file. Put index.js at the top of the zip, or add a maoloader.json that names it."
+			);
+		}
+		manifest = {
+			author: fields.author?.trim() || undefined,
+			plugins: [
+				{
+					kind: fields.kind,
+					title: fields.name,
+					version: fields.version,
+					description: fields.description,
+					entry: zip.defaultEntry,
+					tags: fields.tags
+				}
+			]
+		};
+	}
+	if (!Array.isArray(manifest.plugins) || manifest.plugins.length === 0) {
+		throw new Error("maoloader.json must include a non-empty plugins array.");
+	}
+
+	const declared = stringValue(manifest.repository);
+	const repository = declared ? parseGitHubRepository(declared)?.url : undefined;
+	const listings = manifest.plugins.map((entry, index) => {
+		const listing = listingFromManifestPlugin(manifest, entry, { repository }, now, index);
+		if (!zip.files.includes(listing.entry)) {
+			throw new Error(`"${listing.name}" loads ${listing.entry}, but the zip doesn't contain it.`);
+		}
+		if (!listValue((entry as ManifestPlugin).files).length) listing.files = zip.files;
+		if (zip.readme) listing.readme = zip.readme;
+		return listing;
+	});
+	assertUniqueSlugs(listings);
+	return listings;
+}
+
+function assertUniqueSlugs(listings: RegistryListing[]) {
+	const slugs = new Set<string>();
+	for (const listing of listings) {
+		if (slugs.has(listing.slug)) {
+			throw new Error(`maoloader.json includes duplicate slug "${listing.slug}".`);
+		}
+		slugs.add(listing.slug);
+	}
+}
+
 function listingFromManifestPlugin(
 	manifest: MaoloaderManifest,
 	entry: unknown,
-	repository: string,
-	ref: string,
+	source: { repository?: string; ref?: string },
 	now: string,
 	index: number
 ): RegistryListing {
+	const { repository, ref } = source;
 	if (!isObject(entry)) {
 		throw new Error(`Plugin entry ${index + 1} must be an object.`);
 	}
@@ -117,8 +187,15 @@ function listingFromManifestPlugin(
 	if (!slug) {
 		throw new Error(`Plugin entry ${index + 1} is missing a slug or title.`);
 	}
-	if (!title || !version || !description || !imagePath) {
-		throw new Error(`Plugin "${slug}" must include title, version, description, and image.`);
+	if (slug.length > 64) {
+		throw new Error(`Slug "${slug}" is too long. Keep it under 64 characters.`);
+	}
+	// GitHub listings link their icon from the repo, so it is required there. Uploads may skip it.
+	const needsImage = Boolean(ref);
+	if (!title || !version || !description || (needsImage && !imagePath)) {
+		throw new Error(
+			`Plugin "${slug}" must include title, version, description${needsImage ? ", and image" : ""}.`
+		);
 	}
 
 	const authorName = author.name || "Unknown";
@@ -145,7 +222,8 @@ function listingFromManifestPlugin(
 		downloads: 0,
 		updated_at: now,
 		assets: {
-			icon: imagePath
+			icon:
+				imagePath && repository && ref
 				? {
 						key: imagePath,
 						url: rawGitHubUrl(repository, ref, imagePath)

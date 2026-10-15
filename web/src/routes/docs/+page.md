@@ -1,5 +1,5 @@
 <svelte:head>
-	<title>Plugin docs - maoloader</title>
+	<title>Plugin docs · maoloader</title>
 	<meta
 		name="description"
 		content="Learn how to create, package, and submit plugins and themes for maoloader."
@@ -14,18 +14,18 @@
 
 		# Create maoloader plugins
 
-		Build a small JavaScript package, describe it with `maoloader.json`, host it in a GitHub repository, then submit the repository for review and mirroring.
+		Build a small JavaScript package, describe it with `maoloader.json`, then upload it as a .zip or submit its GitHub repository. Every submission is reviewed before it goes live.
 
 		<div class="docs-actions">
-			<a data-slot="button" class="docs-button" href="/submit">Submit a repository</a>
+			<a data-slot="button" class="docs-button" href="/submit">Submit a plugin</a>
 			<a data-slot="button" class="docs-button secondary" href="#manifest">View manifest shape</a>
 		</div>
 	</div>
 	<div class="docs-hero-card" aria-label="Plugin flow">
-		<span>1. Create repo</span>
-		<span>2. Add manifest</span>
-		<span>3. Submit for review</span>
-		<span>4. Mirror package</span>
+		<span>1. Write your plugin</span>
+		<span>2. Add maoloader.json</span>
+		<span>3. Upload a .zip or link a repo</span>
+		<span>4. Reviewed and listed</span>
 	</div>
 </section>
 
@@ -190,11 +190,12 @@ One repository can publish multiple plugins. Add more entries to the `plugins` a
 
 ## Submitting for review
 
-1. Push your repository to GitHub.
-2. Make sure `maoloader.json` exists at the root, or note the custom manifest path.
-3. Open the submit page and paste the GitHub repository URL.
-4. After approval, maoloader mirrors the package into the registry storage.
-5. Users can copy the install link from the plugin page and paste it into the desktop app.
+There are two ways in, both on the [submit page](/submit):
+
+- **Upload a .zip.** Drop in your plugin folder as a zip. A `maoloader.json` is optional here: without one, fill in the name, version and description on the page and `index.js` at the top of the zip is used. A `README.md` in the zip becomes the plugin page.
+- **Link a GitHub repo.** Push your repository with `maoloader.json` at the root (or note a custom manifest path), then paste the repository URL. The README next to the manifest becomes the plugin page.
+
+After a reviewer approves it, the plugin shows up in the store. People install it with **Install in maoloader** on its page, which opens the desktop app straight to it.
 
 </section>
 

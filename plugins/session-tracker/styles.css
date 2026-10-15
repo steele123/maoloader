@@ -1,0 +1,166 @@
+:host {
+  display: block;
+  color-scheme: dark;
+}
+
+.card,
+.card * {
+  box-sizing: border-box;
+}
+
+.card {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(17, 24, 32, 0.92);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+  color: #e8edf2;
+  font: 13px/1.4 Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: 0;
+}
+
+button:focus-visible {
+  outline: 2px solid #7fb0e0;
+  outline-offset: 2px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 5px 6px 5px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: grab;
+  user-select: none;
+}
+
+.card-header:active {
+  cursor: grabbing;
+}
+
+.card-title {
+  flex: 1 1 auto;
+  color: #aeb9c5;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.card-icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: transparent;
+  color: #aeb9c5;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.card-icon:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.card-body {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+
+.card-empty {
+  margin: 0;
+  color: #aeb9c5;
+}
+
+.record {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.record strong {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.record > span {
+  color: #aeb9c5;
+  font-weight: 700;
+}
+
+.streak {
+  margin-left: auto;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.streak.is-win {
+  background: rgba(98, 183, 138, 0.18);
+  color: #8fd6ae;
+}
+
+.streak.is-loss {
+  background: rgba(240, 138, 126, 0.16);
+  color: #f3a59c;
+}
+
+.dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.dot.is-win {
+  background: #4fae7c;
+}
+
+.dot.is-loss {
+  background: #c4473a;
+}
+
+.lp-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  color: #aeb9c5;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-rank {
+  overflow: hidden;
+  color: #e8edf2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-delta {
+  font-weight: 800;
+}
+
+.lp-delta.is-up {
+  color: #8fd6ae;
+}
+
+.lp-delta.is-down {
+  color: #f3a59c;
+}

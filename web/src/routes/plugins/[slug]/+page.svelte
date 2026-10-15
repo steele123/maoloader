@@ -5,12 +5,13 @@
 	import DownloadIcon from "@lucide/svelte/icons/download";
 	import ExternalLinkIcon from "@lucide/svelte/icons/external-link";
 	import FileCodeIcon from "@lucide/svelte/icons/file-code";
-	import FileIcon from "@lucide/svelte/icons/file";
-	import FolderIcon from "@lucide/svelte/icons/folder";
+	import BookOpenIcon from "@lucide/svelte/icons/book-open";
 	import LinkIcon from "@lucide/svelte/icons/link-2";
+	import MonitorDownIcon from "@lucide/svelte/icons/monitor-down";
 	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
 	import UserIcon from "@lucide/svelte/icons/user";
 	import { Badge } from "$lib/components/ui/badge";
+	import { fileType } from "$lib/file-types";
 	import { Button } from "$lib/components/ui/button";
 	import { toast } from "svelte-sonner";
 	import type { PageData } from "./$types";
@@ -97,7 +98,23 @@
 	const authorHref = $derived(listing.author.url ?? repository?.ownerHref);
 	const authorLabel = $derived(repository?.ownerLabel ?? listing.author.name);
 	const explorerRows = $derived(createExplorerRows(listing.files, listing.entry));
+	const iconUrl = $derived(listing.assets.icon?.url);
+	const formatDate = (value: string) =>
+		new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+	const versions = $derived([
+		{ version: listing.version, published_at: listing.updated_at, current: true },
+		...(listing.history ?? []).map((entry) => ({ ...entry, current: false }))
+	]);
 	const installPath = $derived(`/api/plugins/${listing.slug}`);
+	// Opens the desktop app, which shows its install preview for this slug.
+	const deepLink = $derived(`maoloader://install/${encodeURIComponent(listing.slug)}`);
+
+	// A custom-scheme link fails silently when the app is missing, so offer the download after a beat.
+	let launchHint = $state(false);
+	function launchApp() {
+		launchHint = false;
+		setTimeout(() => (launchHint = true), 1500);
+	}
 
 	function fallbackCopy(text: string) {
 		const textarea = document.createElement("textarea");
@@ -119,7 +136,7 @@
 	async function copyInstallLink() {
 		if (!browser) return;
 
-		const installUrl = new URL(installPath, window.location.origin).toString();
+		const installUrl = deepLink;
 
 		try {
 			if (navigator.clipboard?.writeText) {
@@ -129,7 +146,7 @@
 			}
 
 			toast.success("Install link copied", {
-				description: "Paste it into the maoloader desktop app."
+				description: "Anyone with maoloader can open it to install this plugin."
 			});
 		} catch {
 			toast.error("Could not copy link", {
@@ -140,24 +157,26 @@
 </script>
 
 <svelte:head>
-	<title>{listing.name} - maoloader plugins</title>
+	<title>{listing.name} · maoloader</title>
 	<meta name="description" content={listing.description} />
 </svelte:head>
 
 <a class="back-link" href="/">
 	<ArrowLeftIcon />
-	Registry
+	All plugins
 </a>
 
 <section class="detail-hero">
-	<div>
+	<div class="detail-copy">
+		{#if iconUrl}
+			<img class="detail-icon" src={iconUrl} alt="" width="64" height="64" />
+		{/if}
 		<p class="eyebrow">{listing.kind}</p>
 		<h1>{listing.name}</h1>
 		<p>{listing.description}</p>
 		<div class="tag-row pt-2">
 			<Badge variant="secondary">reviewed</Badge>
-			{#if listing.assets.package?.key}<Badge variant="outline">mirrored</Badge>{/if}
-			{#if listing.repository}<Badge variant="outline">repository</Badge>{/if}
+			{#if listing.kind === "theme"}<Badge variant="secondary">theme</Badge>{/if}
 			{#each listing.tags as tag}
 				<Badge variant="outline">{tag}</Badge>
 			{/each}
@@ -166,12 +185,37 @@
 	<div class="install-card">
 		<strong>v{listing.version}</strong>
 		<span>Compatible with maoloader {listing.compatibility.maoloader}</span>
-		<Button href={data.download_url}>
-			<DownloadIcon />
-			Download package
+		<Button href={deepLink} onclick={launchApp}>
+			<MonitorDownIcon />
+			Install in maoloader
 		</Button>
+		<Button href={data.download_url} variant="outline">
+			<DownloadIcon />
+			Download .zip
+		</Button>
+		{#if typeof listing.downloads === "number"}
+			<span class="install-meta">{listing.downloads.toLocaleString()} {listing.downloads === 1 ? "install" : "installs"}</span>
+		{/if}
+		<p class="install-hint" class:is-shown={launchHint} aria-live="polite">
+			{#if launchHint}
+				Nothing opened? <a href="/download">Get the maoloader app</a>, then try again.
+			{:else}
+				Needs the <a href="/download">maoloader app</a>.
+			{/if}
+		</p>
 	</div>
 </section>
+
+{#if data.readme_html}
+	<section class="readme-panel">
+		<div class="article-heading">
+			<BookOpenIcon />
+			<h2>About</h2>
+		</div>
+		<!-- Rendered on the server with raw HTML escaped and unsafe links dropped. -->
+		<div class="readme">{@html data.readme_html}</div>
+	</section>
+{/if}
 
 <section class="detail-grid">
 	<article>
@@ -189,13 +233,10 @@
 				<dd>
 					<div class="file-explorer" aria-label="Package files">
 						{#each explorerRows as row}
+							{@const type = fileType(row.path, row.kind)}
 							<div class:entry-file={row.isEntry} class="file-row" style={`--depth: ${row.depth}`}>
-								<span class="file-icon" aria-hidden="true">
-									{#if row.kind === "folder"}
-										<FolderIcon />
-									{:else}
-										<FileIcon />
-									{/if}
+								<span class="file-icon" data-tone={type.tone} title={type.label}>
+									<type.icon aria-hidden="true" />
 								</span>
 								<span class="file-name">{row.name}</span>
 								<span class="file-path">{row.path}</span>
@@ -208,8 +249,18 @@
 				</dd>
 			</div>
 			<div>
-				<dt>R2 key</dt>
-				<dd>{listing.assets.package?.key ?? "not configured"}</dd>
+				<dt>Versions</dt>
+				<dd>
+					<ol class="version-list">
+						{#each versions as entry}
+							<li class:current={entry.current}>
+								<strong>v{entry.version}</strong>
+								<span>{formatDate(entry.published_at)}</span>
+								{#if entry.current}<Badge variant="secondary">latest</Badge>{/if}
+							</li>
+						{/each}
+					</ol>
+				</dd>
 			</div>
 		</dl>
 	</article>
@@ -269,9 +320,9 @@
 
 <section class="api-panel">
 	<div>
-		<p class="eyebrow">Registry API</p>
-		<h2>Desktop install metadata</h2>
-		<p>The app can read this endpoint to install or inspect the listing.</p>
+		<p class="eyebrow">Share</p>
+		<h2>Share or inspect</h2>
+		<p>The install link opens maoloader straight to this plugin. The JSON is what the app reads.</p>
 	</div>
 	<div class="api-actions">
 		<Button onclick={copyInstallLink}>

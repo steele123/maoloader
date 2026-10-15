@@ -1,10 +1,17 @@
 <script lang="ts">
+	import HouseIcon from "@lucide/svelte/icons/house";
 	import MinusIcon from "@lucide/svelte/icons/minus";
+	import PuzzleIcon from "@lucide/svelte/icons/puzzle";
+	import SettingsIcon from "@lucide/svelte/icons/settings";
+	import StoreIcon from "@lucide/svelte/icons/store";
 	import XIcon from "@lucide/svelte/icons/x";
+	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
+	import { getCurrentWindow } from "@tauri-apps/api/window";
 	import { onMount, setContext } from "svelte";
 	import { APP_STATE_KEY, AppState } from "$lib/app-state.svelte";
-	import { Button } from "$lib/components/ui/button/index.js";
+	import { listenForInstallLinks } from "$lib/deep-link";
+	import { DISCORD_URL } from "$lib/links";
 	import "./layout.css";
 
 	const { children } = $props();
@@ -13,38 +20,40 @@
 	setContext(APP_STATE_KEY, state);
 
 	const navItems = [
-		{ href: "/", label: "Overview", title: "Loader Control Center" },
-		{ href: "/plugins", label: "Plugins", title: "Plugin Manager" },
-		{ href: "/settings", label: "Settings", title: "Client Settings" },
+		{ href: "/", label: "Home", icon: HouseIcon },
+		{ href: "/plugins", label: "Plugins", icon: PuzzleIcon },
+		{ href: "/store", label: "Store", icon: StoreIcon },
+		{ href: "/settings", label: "Settings", icon: SettingsIcon },
 	];
 
-	let currentTitle = $derived(
-		navItems.find((item) => item.href === $page.url.pathname)?.title ?? "Loader Control Center",
-	);
+	const active = $derived(state.activation?.activated ?? false);
+	const enabledCount = $derived(state.plugins.filter((plugin) => plugin.enabled).length);
 
 	onMount(() => {
 		void state.initialize();
+		const stopListening = listenForInstallLinks((slug) => goto(`/store?install=${encodeURIComponent(slug)}`));
+		return () => void stopListening.then((unlisten) => unlisten?.());
 	});
 
-	async function minimizeWindow() {
-		const { getCurrentWindow } = await import("@tauri-apps/api/window");
-		await getCurrentWindow().minimize();
+	function minimizeWindow() {
+		void getCurrentWindow().minimize();
 	}
 
-	async function closeWindow() {
-		const { getCurrentWindow } = await import("@tauri-apps/api/window");
-		await getCurrentWindow().close();
+	function closeWindow() {
+		void getCurrentWindow().close();
 	}
 
-	async function startDragging(event: PointerEvent) {
-		if (event.button !== 0) return;
+	// The only drag handler for the title bar. It must start the drag in the same tick as the
+	// press: anything awaited first lets the button come up before Windows starts moving the window.
+	function startDragging(event: PointerEvent) {
+		if (event.button !== 0 || event.detail > 1) return;
+		if ((event.target as HTMLElement | null)?.closest(".window-controls")) return;
 
-		const target = event.target as HTMLElement | null;
-		if (target?.closest(".window-controls")) return;
-
+		event.preventDefault();
 		try {
-			const { getCurrentWindow } = await import("@tauri-apps/api/window");
-			await getCurrentWindow().startDragging();
+			getCurrentWindow()
+				.startDragging()
+				.catch(() => {});
 		} catch {
 			// The browser preview does not provide the Tauri window API.
 		}
@@ -61,67 +70,66 @@
 		role="toolbar"
 		aria-label="Window controls"
 		tabindex="-1"
-		data-tauri-drag-region
 		onpointerdown={startDragging}
 	>
-		<div class="titlebar-brand" data-tauri-drag-region>
-			<span data-tauri-drag-region>maoloader</span>
+		<div class="titlebar-brand">
+			<span>maoloader</span>
+			{#if state.status}
+				<span class="titlebar-version">v{state.status.version}</span>
+			{/if}
 		</div>
 		<div class="window-controls">
-			<Button
-				variant="ghost"
-				size="icon-sm"
-				class="window-button"
-				aria-label="Minimize window"
-				onclick={minimizeWindow}
-			>
+			<button class="window-button" type="button" aria-label="Minimize window" onclick={minimizeWindow}>
 				<MinusIcon />
-			</Button>
-			<Button
-				variant="ghost"
-				size="icon-sm"
-				class="window-button close"
-				aria-label="Close window"
-				onclick={closeWindow}
-			>
+			</button>
+			<button class="window-button close" type="button" aria-label="Close window" onclick={closeWindow}>
 				<XIcon />
-			</Button>
+			</button>
 		</div>
 	</div>
 
 	<main class="app-shell">
 		<aside class="sidebar" aria-label="Primary">
 			<div class="brand">
-				<div class="mark" aria-hidden="true">
+				<div class="medallion" class:is-off={!active} aria-hidden="true">
 					<img src="/maologo.png" alt="" />
 				</div>
 				<div>
 					<strong>maoloader</strong>
-					<span>{state.status ? `v${state.status.version}` : ""}</span>
+					<small>
+						<span class="status-dot" class:is-on={active}></span>
+						{state.activation ? (active ? "Active" : "Inactive") : "Checking…"}
+					</small>
 				</div>
 			</div>
 
-			<nav>
+			<nav class="nav">
 				{#each navItems as item}
+					{@const Icon = item.icon}
 					<a
 						href={item.href}
-						class={$page.url.pathname === item.href ? "nav-button active" : "nav-button"}
+						class="nav-link"
+						class:active={$page.url.pathname === item.href}
 						aria-current={$page.url.pathname === item.href ? "page" : undefined}
 					>
+						<Icon />
 						{item.label}
+						{#if item.href === "/plugins" && state.plugins.length}
+							<span class="nav-count">{enabledCount}</span>
+						{/if}
 					</a>
 				{/each}
 			</nav>
+
+			{#if DISCORD_URL}
+				<button class="nav-link sidebar-discord" type="button" onclick={() => state.openExternal(DISCORD_URL)}>
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.3 5.3A16.6 16.6 0 0 0 15.2 4l-.5 1a15.4 15.4 0 0 0-4.6 0l-.5-1a16.5 16.5 0 0 0-4.1 1.3A17.3 17.3 0 0 0 2.6 17a16.7 16.7 0 0 0 5 2.6l1.1-1.7a10.8 10.8 0 0 1-1.7-.8l.4-.3a11.9 11.9 0 0 0 10.2 0l.4.3c-.5.3-1.1.6-1.7.8l1.1 1.7a16.6 16.6 0 0 0 5-2.6 17.2 17.2 0 0 0-3.1-11.7ZM8.7 14.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.6 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+					Discord
+				</button>
+			{/if}
 		</aside>
 
 		<section class="workspace">
-			<header>
-				<div>
-					<p class="eyebrow">Control center</p>
-					<h1>{currentTitle}</h1>
-				</div>
-			</header>
-
 			{@render children()}
 		</section>
 	</main>

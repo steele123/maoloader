@@ -3,6 +3,12 @@ use serde::Serialize;
 use std::{fs, io, path::PathBuf};
 
 const PRELOAD_JS: &str = include_str!("../runtime/preload.js");
+// The preload carries this placeholder so the client knows which maoloader version it runs on.
+const VERSION_PLACEHOLDER: &str = "__MAOLOADER_VERSION__";
+
+fn preload_source() -> String {
+    PRELOAD_JS.replace(VERSION_PLACEHOLDER, env!("CARGO_PKG_VERSION"))
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RuntimeStatus {
@@ -29,7 +35,7 @@ pub fn status() -> RuntimeStatus {
 
 pub fn sync_assets() -> io::Result<RuntimeStatus> {
     fs::create_dir_all(runtime_dir())?;
-    fs::write(preload_path(), PRELOAD_JS)?;
+    fs::write(preload_path(), preload_source())?;
     Ok(status())
 }
 
@@ -54,5 +60,13 @@ mod tests {
         assert!(std::fs::read_to_string(&status.preload_path)
             .unwrap()
             .contains("window.DataStore"));
+    }
+
+    #[test]
+    fn preload_is_stamped_with_the_app_version() {
+        assert!(PRELOAD_JS.contains(VERSION_PLACEHOLDER));
+        let source = preload_source();
+        assert!(!source.contains(VERSION_PLACEHOLDER));
+        assert!(source.contains(&format!("\"{}\"", env!("CARGO_PKG_VERSION"))));
     }
 }

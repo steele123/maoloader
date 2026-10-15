@@ -15,17 +15,16 @@
 </script>
 
 <svelte:head>
-	<title>Admin upload - maoloader plugins</title>
+	<title>Admin upload · maoloader</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
 <section class="page-hero compact">
 	<div>
 		<p class="eyebrow">Admin</p>
-		<h1>Review GitHub repos, then mirror approved packages.</h1>
+		<h1>Review submissions</h1>
 		<p>
-			Approve manifest-backed submissions and mirror immutable GitHub archives into registry
-			storage.
+			Approve uploaded zips and GitHub repos. Download an upload to read its code before you approve it.
 		</p>
 	</div>
 	<div class:ready={data.hasBindings} class="status-panel">
@@ -85,14 +84,22 @@
 					<article>
 						<div>
 							<strong>{submissionListings(submission).map((listing) => listing.name).join(", ")}</strong>
-							<span>{submission.repository || submissionListings(submission)[0]?.repository}</span>
+							<span>{submission.repository || submissionListings(submission)[0]?.repository || "Uploaded .zip"}</span>
 							<small>
 								{submissionListings(submission).length} listing{submissionListings(submission).length === 1
 									? ""
 									: "s"}
 								{#if submission.github_ref} - {submission.github_ref}{/if}
 							</small>
+							{#if submission.notes}<small class="submission-notes">{submission.notes}</small>{/if}
 						</div>
+						{#if !submission.repository}
+							<!-- Read uploaded code before approving it. -->
+							<form method="POST" action={`/api/admin/submissions/${submission.id}/package`}>
+								<Input name="token" type="password" placeholder="Admin token" />
+								<Button type="submit" size="sm" variant="outline">Download zip</Button>
+							</form>
+						{/if}
 						<form method="POST" action="?/approve">
 							<Input name="id" type="hidden" value={submission.id} />
 							<Input name="token" type="password" placeholder="Admin token" />
@@ -104,7 +111,7 @@
 		{:else}
 			<div class="empty-panel">
 				<strong>No pending submissions</strong>
-				<span>Submitted repos with a valid maoloader.json manifest will appear here.</span>
+				<span>New uploads and repo submissions show up here.</span>
 			</div>
 		{/if}
 	</section>

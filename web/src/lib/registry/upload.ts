@@ -1,8 +1,10 @@
 import { createSubmission, publishListing } from "./admin";
 import { listingFromParsedForm, parseListingForm, stringField } from "./forms";
+import { listingsFromPackage } from "./manifest";
+import { MAX_PACKAGE_BYTES, readPackageIcon, readPackageZip, wrapPackageZip } from "./package-zip";
+import { getListing } from "./store";
 import type { RegistryAsset, RegistryListing, RegistrySubmission } from "./types";
 
-const MAX_PACKAGE_BYTES = 25 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export type DirectUploadResult = {
@@ -88,6 +90,101 @@ export async function directUploadProject(env: Env, form: FormData): Promise<Dir
 		published: false,
 		listing
 	};
+}
+
+export type PackageSubmissionResult = {
+	message: string;
+	submissionId: string;
+	listings: { slug: string; name: string; version: string; updates?: string }[];
+};
+
+/** Anyone can send a zip. It is stored apart from published packages and waits for review. */
+export async function submitPackageZip(
+	env: Env,
+	form: FormData,
+	platform?: App.Platform
+): Promise<PackageSubmissionResult> {
+	if (!env.PLUGIN_DB || !env.PLUGIN_BUCKET) {
+		throw new Error("Uploads are not available in this environment yet.");
+	}
+
+	const packageFile = fileField(form, "package");
+	if (!packageFile) throw new Error("Choose your plugin's .zip file.");
+	if (!packageFile.name.toLowerCase().endsWith(".zip")) {
+		throw new Error("The package must be a .zip file.");
+	}
+	if (packageFile.size > MAX_PACKAGE_BYTES) throw new Error("The package must be 25 MB or smaller.");
+
+	const bytes = new Uint8Array(await packageFile.arrayBuffer());
+	const zip = readPackageZip(bytes);
+	const now = new Date().toISOString();
+	const listings = listingsFromPackage(
+		zip,
+		{
+			name: stringField(form, "name"),
+			version: stringField(form, "version"),
+			description: stringField(form, "description"),
+			author: stringField(form, "author"),
+			kind: stringField(form, "kind"),
+			tags: stringField(form, "tags")
+		},
+		now
+	);
+
+	const id = crypto.randomUUID();
+	const base = `submissions/${id}`;
+	const packageKey = `${base}/package.zip`;
+	const stored = (zip.root ? bytes : wrapPackageZip(bytes, listings[0].slug)) as Uint8Array<ArrayBuffer>;
+	await env.PLUGIN_BUCKET.put(packageKey, stored, { httpMetadata: { contentType: "application/zip" } });
+	const sha256 = await sha256Hex(stored);
+
+	const summary: PackageSubmissionResult["listings"] = [];
+	for (const listing of listings) {
+		listing.assets.package = {
+			key: packageKey,
+			url: `/api/plugins/${listing.slug}/download`,
+			size: stored.byteLength,
+			sha256
+		};
+		const icon = readPackageIcon(zip, listing.image_path);
+		if (icon) {
+			const key = `${base}/${listing.slug}-icon.${icon.extension}`;
+			await env.PLUGIN_BUCKET.put(key, icon.data, { httpMetadata: { contentType: icon.type } });
+			listing.assets.icon = { key, url: `/api/plugins/${listing.slug}/icon`, size: icon.data.byteLength };
+		}
+		const existing = await getListing(listing.slug, platform);
+		summary.push({
+			slug: listing.slug,
+			name: listing.name,
+			version: listing.version,
+			updates: existing ? `${existing.name} v${existing.version} by ${existing.author.name}` : undefined
+		});
+	}
+
+	// Reviewers need to know when an upload would replace someone's listing.
+	const updates = summary.filter((entry) => entry.updates).map((entry) => `Replaces ${entry.updates}.`);
+	const submission: RegistrySubmission = {
+		id,
+		status: "pending",
+		created_at: now,
+		updated_at: now,
+		listing: listings[0],
+		listings,
+		notes: [stringField(form, "notes"), ...updates].filter(Boolean).join("\n") || undefined
+	};
+	await createSubmission(env, submission);
+
+	const names = summary.map((entry) => entry.name).join(", ");
+	return {
+		message: `Thanks! ${names} is in the review queue. It shows up in the store once it's approved.`,
+		submissionId: id,
+		listings: summary
+	};
+}
+
+async function sha256Hex(bytes: Uint8Array<ArrayBuffer>) {
+	const digest = await crypto.subtle.digest("SHA-256", bytes);
+	return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 export function validateAdminToken(env: Env, form: FormData, authorization?: string | null) {

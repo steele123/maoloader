@@ -1,5 +1,5 @@
 import { error, redirect } from "@sveltejs/kit";
-import { getListing } from "$lib/registry/store";
+import { countDownload, getListing } from "$lib/registry/store";
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ params, platform }) => {
@@ -7,6 +7,10 @@ export const GET: RequestHandler = async ({ params, platform }) => {
 	if (!listing?.assets.package) {
 		error(404, "Package not found");
 	}
+
+	// Count without holding up the download.
+	const counting = countDownload(listing.slug, platform).catch(() => {});
+	if (platform?.ctx) platform.ctx.waitUntil(counting);
 
 	if (listing.assets.package.url && !listing.assets.package.url.startsWith("/api/")) {
 		redirect(302, listing.assets.package.url);

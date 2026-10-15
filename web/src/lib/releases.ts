@@ -1,4 +1,6 @@
 export const RELEASE_CHANNEL_KEY = "releases/maoloader/latest.json";
+export const DEFAULT_GITHUB_RELEASE_MANIFEST_URL =
+	"https://github.com/steele123/maoloader/releases/latest/download/latest.json";
 
 export type ReleasePlatform = {
 	url: string;
@@ -27,17 +29,16 @@ export type DownloadRelease = {
 export async function getLatestRelease(
 	platform?: App.Platform
 ): Promise<ReleaseManifest | undefined> {
-	const bucket = releaseBucket(platform);
-	if (!bucket) {
-		return fallbackRelease();
+	const bucketManifest = await getBucketRelease(platform);
+	const githubManifest = await getGitHubRelease(platform);
+
+	if (bucketManifest && githubManifest) {
+		return isNewerVersion(githubManifest.version, bucketManifest.version)
+			? githubManifest
+			: bucketManifest;
 	}
 
-	const object = await bucket.get(RELEASE_CHANNEL_KEY);
-	if (!object) {
-		return undefined;
-	}
-
-	return JSON.parse(await object.text()) as ReleaseManifest;
+	return bucketManifest ?? githubManifest ?? fallbackRelease();
 }
 
 export async function getDownloadRelease(
@@ -61,6 +62,45 @@ export async function getDownloadRelease(
 
 export function releaseBucket(platform?: App.Platform) {
 	return platform?.env?.PLUGIN_BUCKET;
+}
+
+async function getBucketRelease(platform?: App.Platform): Promise<ReleaseManifest | undefined> {
+	const bucket = releaseBucket(platform);
+	if (!bucket) {
+		return undefined;
+	}
+
+	const object = await bucket.get(RELEASE_CHANNEL_KEY);
+	if (!object) {
+		return undefined;
+	}
+
+	// Windows PowerShell writes UTF-8 with a BOM, which JSON.parse rejects. A broken manifest
+	// falls back to the GitHub release instead of taking the page down.
+	try {
+		return JSON.parse((await object.text()).replace(/^﻿/, "")) as ReleaseManifest;
+	} catch (error) {
+		console.error(`Ignoring unreadable ${RELEASE_CHANNEL_KEY}:`, error);
+		return undefined;
+	}
+}
+
+async function getGitHubRelease(platform?: App.Platform): Promise<ReleaseManifest | undefined> {
+	const url = platform?.env?.GITHUB_RELEASE_MANIFEST_URL || DEFAULT_GITHUB_RELEASE_MANIFEST_URL;
+
+	try {
+		const response = await fetch(url, {
+			headers: {
+				accept: "application/json"
+			}
+		});
+		if (!response.ok) {
+			return undefined;
+		}
+		return (await response.json()) as ReleaseManifest;
+	} catch {
+		return undefined;
+	}
 }
 
 export function absoluteUrl(origin: string, path: string) {

@@ -16,6 +16,11 @@ export type RegistryAsset = {
 	sha256?: string;
 };
 
+export type RegistryVersion = {
+	version: string;
+	published_at: string;
+};
+
 export type RegistryListing = {
 	schema: string;
 	kind: ListingKind;
@@ -33,6 +38,10 @@ export type RegistryListing = {
 	image_path?: string;
 	featured?: boolean;
 	downloads?: number;
+	/** README.md from the package, shown on the plugin page. */
+	readme?: string;
+	/** Earlier published versions, newest first. */
+	history?: RegistryVersion[];
 	updated_at: string;
 	assets: {
 		package?: RegistryAsset;

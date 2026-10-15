@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="chatstatus-title">
+  <title id="chatstatus-title">Chat Status</title>
+  <defs>
+    <linearGradient id="chatstatus-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#132636"/>
+      <stop offset="1" stop-color="#07111b"/>
+    </linearGradient>
+    <radialGradient id="chatstatus-glow" cx="0.5" cy="0.38" r="0.62">
+      <stop offset="0" stop-color="#5ab3ff" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#5ab3ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="chatstatus-rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8aa6e" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#c8aa6e" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#chatstatus-bg)"/>
+  <rect width="64" height="64" rx="14" fill="url(#chatstatus-glow)"/>
+  <rect x="1" y="1" width="62" height="62" rx="13" fill="none" stroke="url(#chatstatus-rim)" stroke-width="2"/>
+  <path d="M17 22a5 5 0 0 1 5-5h18a5 5 0 0 1 5 5v12a5 5 0 0 1-5 5h-9l-7.5 6v-6H22a5 5 0 0 1-5-5z" fill="#5ab3ff" fill-opacity="0.14" stroke="#f0e6d2" stroke-width="3.5" stroke-linejoin="round"/>
+  <circle cx="44.5" cy="19.5" r="6.5" fill="#5ab3ff" stroke="#0a1622" stroke-width="3"/>
+  <path d="M24 26h12M24 31.5h7" stroke="#f0e6d2" stroke-opacity="0.7" stroke-width="3" stroke-linecap="round"/>
+</svg>

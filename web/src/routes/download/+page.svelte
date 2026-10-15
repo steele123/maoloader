@@ -1,103 +1,100 @@
 <script lang="ts">
-	import AlertCircleIcon from "@lucide/svelte/icons/alert-circle";
-	import BadgeCheckIcon from "@lucide/svelte/icons/badge-check";
 	import DownloadIcon from "@lucide/svelte/icons/download";
 	import ExternalLinkIcon from "@lucide/svelte/icons/external-link";
-	import FileArchiveIcon from "@lucide/svelte/icons/file-archive";
-	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
-	import { Badge } from "$lib/components/ui/badge";
+	import MonitorIcon from "@lucide/svelte/icons/monitor";
+	import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
+	import ShieldAlertIcon from "@lucide/svelte/icons/shield-alert";
 	import { Button } from "$lib/components/ui/button";
 	import type { PageData } from "./$types";
 
 	let { data }: { data: PageData } = $props();
 	const release = $derived(data.release);
+
+	const formatSize = (bytes?: number) => (bytes ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : undefined);
+	const formatDate = (value?: string) =>
+		value ? new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : undefined;
+	const facts = $derived(
+		release
+			? [formatDate(release.pub_date), formatSize(release.platform.size), "Windows 10/11, 64-bit"].filter(Boolean)
+			: []
+	);
 </script>
 
 <svelte:head>
 	<title>Download maoloader</title>
-	<meta
-		name="description"
-		content="Download the latest maoloader desktop installer for Windows."
-	/>
+	<meta name="description" content="Download the latest maoloader desktop app for Windows." />
 </svelte:head>
 
 <section class="download-hero">
 	<div>
 		<p class="eyebrow">Desktop app</p>
-		<h1>Download maoloader.</h1>
-		<p>
-			Install the desktop app, activate the runtime, and manage reviewed plugins from the
-			built-in store.
+		<h1>Download <span class="gold-text">maoloader</span></h1>
+		<p class="lede">
+			Install the app, turn it on, and restart the League client. Your plugins load every time
+			the client starts from then on.
 		</p>
 		<div class="hero-actions">
-			{#if release}
-				<Button href={release.platform.installer_url || release.platform.url} size="lg">
-					<DownloadIcon />
-					Download for Windows
-				</Button>
-			{:else}
-				<Button disabled size="lg">
-					<DownloadIcon />
-					No release yet
-				</Button>
-			{/if}
-			<Button href="https://github.com/steele123/maoloader" variant="outline" size="lg">
+			<Button href="/plugins" variant="outline" size="lg">Browse plugins first</Button>
+			<Button href="https://github.com/steele123/maoloader" variant="outline" size="lg" target="_blank" rel="noreferrer">
 				<ExternalLinkIcon />
-				View source
+				Source on GitHub
 			</Button>
 		</div>
 	</div>
+
 	<div class="download-card">
-		<div class="download-mark">
-			<img src="/maologo.png" alt="" />
-		</div>
+		<div class="download-mark"><img src="/maologo.png" alt="" /></div>
 		{#if release}
 			<strong>v{release.version}</strong>
-			<span>{release.platform.installer_name || "maoloader installer"}</span>
-			<Badge variant="secondary">{release.platform_key}</Badge>
+			<span>{facts.join(" · ")}</span>
+			<Button href={release.platform.installer_url || release.platform.url} size="lg">
+				<DownloadIcon />
+				Download for Windows
+			</Button>
+			{#if release.platform.installer_name}
+				<span>{release.platform.installer_name}</span>
+			{/if}
 		{:else}
-			<strong>Release pending</strong>
-			<span>The installer will appear here after the first published build.</span>
+			<strong>Coming soon</strong>
+			<span>The installer shows up here as soon as the first build is published.</span>
+			<Button disabled size="lg">
+				<DownloadIcon />
+				No release yet
+			</Button>
 		{/if}
 	</div>
 </section>
 
-<section class="download-grid" aria-label="Distribution details">
+<section class="download-grid" aria-label="Before you install">
 	<article>
-		<div class="article-heading">
-			<FileArchiveIcon />
-			<h2>Installer</h2>
-		</div>
+		<div class="icon-chip"><MonitorIcon /></div>
+		<h3>What you need</h3>
 		<p>
-			The website serves the Windows installer from Cloudflare R2. Future platforms can be
-			added by publishing another artifact into the same release manifest.
+			Windows 10 or 11 and the League of Legends client. maoloader also needs Microsoft
+			WebView2; the app tells you if it's missing.
 		</p>
 	</article>
 	<article>
-		<div class="article-heading">
-			<ShieldCheckIcon />
-			<h2>Updates</h2>
-		</div>
+		<div class="icon-chip"><ShieldAlertIcon /></div>
+		<h3>"Windows protected your PC"</h3>
 		<p>
-			Release builds generate Tauri updater artifacts and signatures. The app checks the
-			website release endpoint once the updater public key is configured.
+			maoloader isn't code-signed yet, so SmartScreen may warn you. Click
+			<strong>More info</strong>, then <strong>Run anyway</strong>.
 		</p>
 	</article>
 	<article>
-		<div class="article-heading">
-			<BadgeCheckIcon />
-			<h2>Current version</h2>
-		</div>
-		<p>{release ? `Latest published version is v${release.version}.` : "No build has been published yet."}</p>
-	</article>
-	<article>
-		<div class="article-heading">
-			<AlertCircleIcon />
-			<h2>Signing</h2>
-		</div>
+		<div class="icon-chip"><RefreshCwIcon /></div>
+		<h3>Updates</h3>
 		<p>
-			Windows may still show reputation warnings until maoloader is code-signed with a trusted
-			certificate and enough users have installed it.
+			Once installed, new versions come from inside the app. Click the version tile on its Home
+			page to check for updates.
 		</p>
 	</article>
 </section>
+
+{#if release?.notes}
+	<section class="home-section surface release-notes">
+		<p class="eyebrow">What's new in v{release.version}</p>
+		<p>{release.notes}</p>
+	</section>
+{/if}

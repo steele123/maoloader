@@ -1,0 +1,750 @@
+:host {
+  display: block;
+  color-scheme: dark;
+}
+
+.home,
+.home * {
+  box-sizing: border-box;
+}
+
+.home {
+  --card-alpha: 0.7;
+  --text-strong: #f0e6d2;
+  --text-muted: #8c96a0;
+  --text-faint: #5b6670;
+  --gold: #c8aa6e;
+  --gold-bright: #f0e6d2;
+  --gold-dim: #785a28;
+  --line: rgba(200, 170, 110, 0.22);
+  --line-strong: rgba(200, 170, 110, 0.4);
+  --green: #4fae7c;
+  --red: #c4473a;
+  --amber: #d8a13c;
+  --navy: #0a1428;
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 24px 40px 32px;
+  color: #e8edf2;
+  font: 13px/1.45 Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+textarea {
+  font: inherit;
+  letter-spacing: 0;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+button:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #c8aa6e;
+  outline-offset: 2px;
+}
+
+.card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid rgba(200, 170, 110, 0.22);
+  border-radius: 8px;
+  background: rgba(1, 10, 19, var(--card-alpha));
+  padding: 16px 18px;
+}
+
+.card h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #c8aa6e;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.count {
+  border-radius: 999px;
+  background: rgba(200, 170, 110, 0.16);
+  padding: 0 7px;
+  font-size: 11px;
+}
+
+.muted {
+  color: #8c96a0;
+}
+
+.greeting {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+}
+
+.avatar {
+  width: 56px;
+  height: 56px;
+  border: 2px solid #c8aa6e;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.greeting-copy h1 {
+  margin: 0;
+  color: #f0e6d2;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.greeting-copy span,
+.clock span {
+  color: #8c96a0;
+}
+
+.clock {
+  display: grid;
+  justify-items: end;
+}
+
+.clock strong {
+  color: #f0e6d2;
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+/* Cards in the same row stretch to the same height. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 16px;
+}
+
+/* One column when the home area is narrow. */
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.play-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.play-button {
+  min-height: 44px;
+  border: 1px solid #c8aa6e;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(30, 35, 40, 0.9), rgba(1, 10, 19, 0.9));
+  color: #f0e6d2;
+  padding: 8px 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.play-button:hover {
+  border-color: #f0e6d2;
+  background: linear-gradient(180deg, rgba(60, 50, 30, 0.9), rgba(20, 20, 20, 0.9));
+}
+
+.friends {
+  display: grid;
+  gap: 4px;
+  max-height: 280px;
+  margin: 0;
+  overflow: auto;
+  padding: 0;
+  list-style: none;
+}
+
+.friends li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.friend-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presence {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4fae7c;
+}
+
+.presence.is-away {
+  background: #d8a13c;
+}
+
+.presence.is-dnd,
+.presence.is-game {
+  background: #5ba3d9;
+}
+
+.presence.is-mobile {
+  background: #7b8794;
+}
+
+.rank-row {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.rank-row strong {
+  color: #f0e6d2;
+}
+
+textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  border: 1px solid rgba(200, 170, 110, 0.22);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #e8edf2;
+  padding: 8px 10px;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.link-button {
+  border: 1px solid rgba(200, 170, 110, 0.4);
+  border-radius: 999px;
+  background: transparent;
+  color: #f0e6d2;
+  padding: 5px 12px;
+}
+
+.link-button:hover {
+  border-color: #c8aa6e;
+  background: rgba(200, 170, 110, 0.12);
+}
+
+.empty {
+  color: #8c96a0;
+  text-align: center;
+}
+
+/* Slim gold scrollbars for the dashboard, the friends list and notes. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(200, 170, 110, 0.35) padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(200, 170, 110, 0.65);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: #c8aa6e;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* Settings live in the greeting card as a ringed icon button, like the client's own round buttons. */
+.customize {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(200, 170, 110, 0.4);
+  border-radius: 50%;
+  background: rgba(1, 10, 19, 0.4);
+  color: #a09b8c;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.customize:hover {
+  border-color: #c8aa6e;
+  background: rgba(200, 170, 110, 0.12);
+  color: #f0e6d2;
+}
+
+.customize svg {
+  transition: transform 0.4s ease;
+}
+
+.customize:hover svg {
+  transform: rotate(60deg);
+}
+
+/* Used when the greeting card is switched off. */
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.customize-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(200, 170, 110, 0.4);
+  border-radius: 4px;
+  background: rgba(1, 10, 19, var(--card-alpha));
+  color: #a09b8c;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.customize-text:hover {
+  border-color: #c8aa6e;
+  color: #f0e6d2;
+}
+
+.greeting-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ---- Card layout and Customize mode ---- */
+
+.home-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 28px;
+  margin-bottom: -6px;
+  font-size: 12px;
+}
+
+.bar-tools {
+  display: flex;
+  gap: 6px;
+}
+
+.text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: rgba(1, 10, 19, calc(var(--card-alpha) * 0.6));
+  color: var(--text-muted);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.text-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.text-button:hover {
+  border-color: var(--line);
+  background: rgba(200, 170, 110, 0.08);
+  color: var(--text-strong);
+}
+
+.text-button.is-primary {
+  border-color: var(--gold);
+  color: var(--gold-bright);
+}
+
+.home-cell {
+  position: relative;
+  min-width: 0;
+}
+
+.home-cell.is-wide {
+  grid-column: 1 / -1;
+}
+
+.home-cell > .card-body {
+  height: 100%;
+}
+
+.home-cell > .card-body > .card {
+  height: 100%;
+}
+
+.grid.is-customizing .home-cell {
+  border-radius: 10px;
+  outline: 1px dashed var(--line-strong);
+  outline-offset: 4px;
+}
+
+.grid.is-customizing .home-cell.is-hidden .card-body {
+  opacity: 0.3;
+  filter: grayscale(1);
+}
+
+.home-cell.is-dragging {
+  z-index: 2;
+  outline-color: var(--gold) !important;
+  outline-style: solid !important;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+}
+
+.home-cell.is-dragging .card-body {
+  opacity: 0.85;
+}
+
+.card-tools {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: rgba(6, 17, 28, 0.95);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.card-tool-title {
+  padding: 0 6px 0 2px;
+  color: var(--text-strong);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.card-tool {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.card-tool:hover,
+.card-tool:focus-visible {
+  background: rgba(200, 170, 110, 0.12);
+  color: var(--text-strong);
+}
+
+.card-tool.grip {
+  cursor: grab;
+  touch-action: none;
+}
+
+.home-cell.is-dragging .card-tool.grip {
+  cursor: grabbing;
+}
+
+/* ---- Shared card parts ---- */
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.card-empty {
+  margin: 0;
+  padding: 4px 0 2px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.row-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.row-copy strong,
+.row-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-copy strong {
+  color: var(--text-strong);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.row-copy small {
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+/* Friends playing */
+.activity-list {
+  display: grid;
+  gap: 2px;
+  max-height: 260px;
+  margin: 0 -6px;
+  overflow-y: auto;
+  padding: 0;
+  list-style: none;
+}
+
+.activity-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border-radius: 6px;
+  padding: 5px 6px;
+}
+
+.activity-list li:hover {
+  background: rgba(200, 170, 110, 0.05);
+}
+
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.activity-dot.is-inGame {
+  background: #5ba3d9;
+  box-shadow: 0 0 8px rgba(91, 163, 217, 0.6);
+}
+
+.activity-dot.is-championSelect {
+  background: var(--amber);
+}
+
+.activity-dot.is-inQueue {
+  background: var(--green);
+  box-shadow: 0 0 8px rgba(79, 174, 124, 0.6);
+  animation: steeles-pulse 1.6s ease-in-out infinite;
+}
+
+.activity-dot.is-lobby {
+  background: var(--gold-dim);
+}
+
+@keyframes steeles-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.row-time {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Apex cutoffs */
+.region-select {
+  height: 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--navy);
+  color: var(--text-strong);
+  padding: 0 4px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cutoff-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cutoff {
+  display: grid;
+  gap: 1px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 11px;
+}
+
+.cutoff span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cutoff strong {
+  color: var(--text-strong);
+  font-size: 21px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.cutoff strong small {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cutoff.is-challenger {
+  border-color: rgba(10, 200, 185, 0.3);
+  background: linear-gradient(160deg, rgba(10, 200, 185, 0.1), transparent 70%);
+}
+
+.cutoff.is-challenger span {
+  color: #5fd6c9;
+}
+
+.cutoff.is-grandmaster {
+  border-color: rgba(224, 88, 75, 0.3);
+  background: linear-gradient(160deg, rgba(224, 88, 75, 0.1), transparent 70%);
+}
+
+.cutoff.is-grandmaster span {
+  color: #f0a39a;
+}
+
+.cutoff-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* Recent games */
+.record {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.record .is-win {
+  color: var(--green);
+}
+
+.record .is-loss {
+  color: #f0a39a;
+}
+
+.match-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.match-list.is-wide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 8px;
+}
+
+.match-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 9px;
+  border-left: 3px solid var(--text-faint);
+  border-radius: 6px;
+  background: rgba(1, 10, 19, 0.35);
+  padding: 5px 9px 5px 6px;
+}
+
+.match-list li.is-win {
+  border-left-color: var(--green);
+  background: linear-gradient(90deg, rgba(79, 174, 124, 0.12), rgba(1, 10, 19, 0.35) 45%);
+}
+
+.match-list li.is-loss {
+  border-left-color: var(--red);
+  background: linear-gradient(90deg, rgba(224, 88, 75, 0.1), rgba(1, 10, 19, 0.35) 45%);
+}
+
+.match-list img {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.match-kda {
+  display: grid;
+  min-width: 0;
+  text-align: right;
+}
+
+.match-kda strong {
+  color: var(--text-strong);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.match-kda small {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.match-when {
+  min-width: 44px;
+  color: var(--text-faint);
+  font-size: 11px;
+  text-align: right;
+}
+
+/* Two columns of games only when there's room for them. */
+@media (max-width: 1100px) {
+  .match-list.is-wide {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

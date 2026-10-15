@@ -88,7 +88,7 @@ Required root fields are `repository`, `author`, and a non-empty `plugins` array
 - `/api/plugins` returns registry JSON.
 - `/api/plugins/[slug]` returns one listing.
 - `/api/plugins/[slug]/download` streams the R2 package when configured.
-- `/api/releases/latest.json` returns the latest desktop release manifest.
+- `/api/releases/latest.json` returns the latest desktop release manifest from R2 or GitHub Releases.
 - `/api/releases/[target]/[arch]/[currentVersion]` returns Tauri updater JSON or `204` when no update is available.
 - `/api/releases/download/[...key]` streams release artifacts from R2.
 - `POST /api/admin/upload` uploads a zip package directly with metadata fields, no GitHub repo or `maoloader.json` required. Set `ADMIN_TOKEN` in production and send it as `token` in the multipart form or `Authorization: Bearer <token>`.
@@ -120,6 +120,14 @@ bun run build:release
 ```
 
 The script uploads the installer, its `.sig`, and `latest.json` under `releases/maoloader/` in `PLUGIN_BUCKET`. Release artifact URLs use the public bucket origin `https://fs.maoloader.com`.
+
+GitHub tag releases are also supported. Pushing a tag like `v0.1.4` runs
+`.github/workflows/desktop-release.yml`, uploads the Tauri artifacts to that
+GitHub Release, and attaches a GitHub-hosted `latest.json`. The website release
+API checks R2 first, then falls back to
+`https://github.com/steele123/maoloader/releases/latest/download/latest.json`.
+Set `GITHUB_RELEASE_MANIFEST_URL` if that fallback URL ever needs to point at a
+different repository or channel.
 
 For local release testing, publish the same objects into Wrangler's local R2 store:
 

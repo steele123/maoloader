@@ -8,7 +8,9 @@
   const rootId = "maoloader-testkit";
   const stylesheetId = "maoloader-testkit-styles";
   const storeKey = "maoloader-testkit.clicks";
+  const hiddenKey = "maoloader-testkit.hidden";
   let pluginRoot = pluginName;
+  let mountObserver;
   let routeTimer = 0;
   let lastLocation = "";
   let keybindBound = false;
@@ -39,12 +41,42 @@
     styleRoot.appendChild(link);
   }
 
+  // The client can rebuild the page after load, leaving an empty copy of our host behind. Only a
+  // host that still holds the panel counts; an empty copy is removed so render() makes a new one.
   function panelHost() {
-    return document.getElementById(rootId);
+    const host = document.getElementById(rootId);
+    if (!host) {
+      return undefined;
+    }
+    if ((host.shadowRoot || host).querySelector?.(".testkit-panel")) {
+      return host;
+    }
+    host.remove();
+    return undefined;
   }
 
+  function closedByUser() {
+    return window.DataStore?.get?.(hiddenKey, false) === true;
+  }
+
+  // Puts the panel back if the client removed it, unless you closed it yourself.
+  function keepMounted() {
+    if (!closedByUser() && !panelHost()) {
+      render({ showToast: false });
+    }
+  }
+
+  function watchMount() {
+    if (mountObserver || !document.body) {
+      return;
+    }
+    mountObserver = new MutationObserver(keepMounted);
+    mountObserver.observe(document.body, { childList: true });
+  }
+
+  // The raw element, not panelHost(): render() needs the host before the panel is inside it.
   function panelRoot() {
-    const host = panelHost();
+    const host = document.getElementById(rootId);
     return host?.shadowRoot || host;
   }
 
@@ -177,6 +209,8 @@
   function togglePanel(showToast = true) {
     const existing = panelHost();
     if (existing) {
+      // Remembered across reloads, so a closed TestKit stays closed.
+      window.DataStore?.set?.(hiddenKey, true);
       existing.remove();
       if (showToast) {
         toast("info", "maoloader TestKit hidden. Press Ctrl+Shift+M to reopen.", { duration: 3200 });
@@ -184,6 +218,7 @@
       return;
     }
 
+    window.DataStore?.set?.(hiddenKey, false);
     render({ showToast });
   }
 
@@ -287,6 +322,9 @@
         lastLocation = location.href;
         refreshStatus();
       }
+      // Backup for when the client swaps out <body> itself, which the observer can't see.
+      keepMounted();
+      watchMount();
     }, 1000);
 
     window.addEventListener("hashchange", refreshStatus);
@@ -300,7 +338,10 @@
   };
 
   exports.load = function load() {
-    render();
+    if (!closedByUser()) {
+      render();
+    }
+    watchMount();
     watchRoute();
     bindKeybind();
   };

@@ -1,4 +1,10 @@
 (function () {
+  // Stamped with the app's version when the maoloader app writes this file (see runtime.rs).
+  // Compared with a pattern, not the placeholder text, since every copy of that text gets replaced.
+  const MAOLOADER_VERSION = "__MAOLOADER_VERSION__";
+  const HAS_MAOLOADER_VERSION = /^\d+\.\d+\.\d+/.test(MAOLOADER_VERSION);
+  const MAOLOADER_RELEASES_URL = "https://maoloader.com/api/releases/latest.json";
+  const MAOLOADER_DOWNLOAD_URL = "https://maoloader.com/download";
   const pengu = window.Pengu || {};
   const plugins = Array.isArray(pengu.plugins) ? pengu.plugins : [];
   const native = window.__native || {};
@@ -709,6 +715,19 @@
       perform: () => window.restartClient?.(),
     },
     {
+      name: () => (loadingScreenEnabled() ? "Use Riot's loading screen" : "Use maoloader's loading screen"),
+      tags: ["loading", "boot", "splash"],
+      group: "maoloader",
+      perform: () => {
+        const enabled = !loadingScreenEnabled();
+        window.DataStore?.set?.(LOADING_SCREEN_KEY, enabled);
+        window.Toast?.info?.({
+          title: enabled ? "maoloader loading screen on" : "Riot loading screen on",
+          description: "Takes effect the next time the client loads.",
+        });
+      },
+    },
+    {
       name: "Create ARAM lobby",
       group: "lobby",
       perform: () => createLobby(queueId.ARAM),
@@ -797,6 +816,12 @@
     return surface;
   }
 
+  // The client can rebuild the body after a surface is cached, leaving a blank copy (same id,
+  // empty shadow root) on the page while the cached element is detached and renders nowhere.
+  function isDetached(element) {
+    return element?.isConnected === false;
+  }
+
   let commandBarRoot;
   let commandBarSearch = "";
   let commandBarVisible = false;
@@ -853,11 +878,22 @@
       return undefined;
     }
 
-    if (!commandBarRoot) {
+    if (!commandBarRoot || isDetached(commandBarRoot)) {
       commandBarRoot = createShadowSurface("maoloader-commandbar-root", "position:fixed;inset:0;z-index:2147483646;display:none;");
     }
 
     return commandBarRoot;
+  }
+
+  // Exactly one row looks selected: the one Enter will run, whether picked by keyboard or mouse.
+  function paintCommandRows(list) {
+    for (const row of list?.children || []) {
+      const active = Number(row.dataset?.index) === commandBarActiveIndex;
+      if (row.dataset) {
+        row.dataset.active = String(active);
+      }
+      row.style.background = active ? "rgba(22,35,31,.12)" : "transparent";
+    }
   }
 
   function renderCommandBar() {
@@ -922,18 +958,12 @@
       row.type = "button";
       row.dataset = row.dataset || {};
       row.dataset.index = String(index);
-      row.dataset.active = String(index === commandBarActiveIndex);
       row.style.cssText =
         "box-sizing:border-box;width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;border:0;border-radius:6px;padding:10px 12px;background:transparent;color:inherit;text-align:left;font:14px system-ui,sans-serif;cursor:pointer;";
-      if (index === commandBarActiveIndex) {
-        row.style.background = "rgba(22,35,31,.12)";
-      }
+      // Hovering selects the row; repainting the whole list clears the previously selected one.
       row.onmouseenter = () => {
         commandBarActiveIndex = index;
-        row.style.background = "rgba(22,35,31,.08)";
-      };
-      row.onmouseleave = () => {
-        row.style.background = index === commandBarActiveIndex ? "rgba(22,35,31,.12)" : "transparent";
+        paintCommandRows(list);
       };
       row.onclick = () => runCommandAction(action);
 
@@ -951,6 +981,7 @@
 
       list.appendChild(row);
     }
+    paintCommandRows(list);
 
     if (actions.length === 0) {
       const empty = document.createElement("div");
@@ -1087,7 +1118,7 @@
       return undefined;
     }
 
-    if (!toastRoot) {
+    if (!toastRoot || isDetached(toastRoot)) {
       toastRoot = createShadowSurface("maoloader-toast-root", "position:fixed;right:16px;bottom:16px;z-index:2147483647;pointer-events:none;");
     }
 
@@ -1338,6 +1369,269 @@
     },
   };
 
+  // ---- Loading screen ----
+  // Covers Riot's boot screen with a maoloader one that names the client part being loaded and
+  // shows plugin progress. It always gets out of the way: when Riot's screen goes, when the top
+  // bar appears, on Esc, or after LOADING_SCREEN_MAX_MS no matter what.
+
+  const LOADING_SCREEN_KEY = "maoloader-loading-screen";
+  const LOADING_SCREEN_ID = "maoloader-loading-root";
+  const LOADING_SCREEN_MAX_MS = 90000;
+  // The welcome waits for the loading screen, but never longer than this.
+  const WELCOME_MAX_WAIT_MS = 20000;
+  const RIOT_LOADING_SELECTOR = ".lol-loading-screen-container";
+  const NAVIGATION_SCREEN_SELECTOR = 'div[data-screen-name="rcp-fe-lol-navigation-screen"]';
+  const loadingScreen = {
+    root: undefined,
+    timer: undefined,
+    startedAt: 0,
+    riotSeen: false,
+    step: "",
+    hiding: false,
+  };
+
+  function loadingScreenEnabled() {
+    return window.DataStore?.get?.(LOADING_SCREEN_KEY, true) !== false;
+  }
+
+  // "rcp-fe-lol-champ-select" -> "Champ select"
+  function loadingStepLabel(name) {
+    const short = String(name || "")
+      .replace(/^rcp-(?:fe|be)-/, "")
+      .replace(/^lol-/, "")
+      .replace(/-/g, " ")
+      .trim();
+    return short ? short.charAt(0).toUpperCase() + short.slice(1) : "";
+  }
+
+  function noteLoadingStep(name) {
+    const label = loadingStepLabel(name);
+    if (!label || !loadingScreen.root) {
+      return;
+    }
+    loadingScreen.step = label;
+    const step = loadingScreen.root.__maoloaderLoadingStep;
+    if (step) {
+      step.textContent = `Loading ${label.toLowerCase()}`;
+    }
+  }
+
+  function pluginLoadCounts() {
+    const ready = new Set();
+    const failed = new Set();
+    for (const report of pluginReports) {
+      if (report.status === "loaded" && (report.stage === "complete" || report.kind === "stylesheet")) {
+        ready.add(report.entry);
+      } else if (report.status === "failed" || report.status === "skipped") {
+        failed.add(report.entry);
+      }
+    }
+    const total = pengu.plugins.length;
+    return { total, ready: Math.min(ready.size, total), failed: failed.size };
+  }
+
+  function loadingPluginSummary() {
+    const { total, ready, failed } = pluginLoadCounts();
+    if (!total) {
+      return "maoloader";
+    }
+    const parts = [`maoloader · ${ready} of ${total} plugin${total === 1 ? "" : "s"} ready`];
+    if (failed) {
+      parts.push(`${failed} failed`);
+    }
+    return parts.join(" · ");
+  }
+
+  // Resolves once the loading screen starts fading, so nothing pops up underneath it. Never waits
+  // longer than maxMs: the welcome should not depend on the loading screen noticing the client.
+  function whenLoadingScreenDone(maxMs = WELCOME_MAX_WAIT_MS) {
+    const started = Date.now();
+    return new Promise((resolve) => {
+      const check = () => {
+        if (!loadingScreen.root || loadingScreen.hiding || Date.now() - started >= maxMs) {
+          resolve();
+        } else {
+          setTimeout(check, 100);
+        }
+      };
+      check();
+    });
+  }
+
+  // Present isn't enough: the client can keep an element on the page but hidden.
+  function isShown(element) {
+    if (!element || element.isConnected === false) {
+      return false;
+    }
+    if (typeof element.getClientRects === "function" && element.getClientRects().length === 0) {
+      return false;
+    }
+    if (typeof getComputedStyle === "function") {
+      const style = getComputedStyle(element);
+      if (style.visibility === "hidden" || Number(style.opacity) === 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function hideLoadingScreen(reason) {
+    const root = loadingScreen.root;
+    if (!root || loadingScreen.hiding) {
+      return;
+    }
+    loadingScreen.hiding = true;
+    // In the client's DevTools console, so slow boots can be diagnosed.
+    console.info(
+      "%c maoloader ",
+      "background: #16231f; color: #9be2b2",
+      `Loading screen hidden after ${((Date.now() - loadingScreen.startedAt) / 1000).toFixed(1)}s (${reason}).`,
+    );
+    clearInterval(loadingScreen.timer);
+    root.style.opacity = "0";
+    root.style.pointerEvents = "none";
+    setTimeout(() => {
+      root.remove?.();
+      if (root.parentNode?.removeChild) {
+        root.parentNode.removeChild(root);
+      }
+      loadingScreen.root = undefined;
+    }, 320);
+  }
+
+  function checkLoadingScreen() {
+    const root = loadingScreen.root;
+    if (!root) {
+      clearInterval(loadingScreen.timer);
+      return;
+    }
+    if (root.__maoloaderLoadingPlugins) {
+      root.__maoloaderLoadingPlugins.textContent = loadingPluginSummary();
+    }
+
+    const riot = isShown(document.querySelector?.(RIOT_LOADING_SELECTOR));
+    if (riot) {
+      loadingScreen.riotSeen = true;
+    }
+    const navigation = isShown(document.querySelector?.(NAVIGATION_SCREEN_SELECTOR));
+    if (loadingScreen.riotSeen && !riot) {
+      hideLoadingScreen("Riot's loading screen finished");
+    } else if (navigation && !riot) {
+      hideLoadingScreen("the client's top bar appeared");
+    } else if (Date.now() - loadingScreen.startedAt > LOADING_SCREEN_MAX_MS) {
+      hideLoadingScreen("safety limit reached");
+    }
+  }
+
+  function renderLoadingScreen() {
+    const host = document.documentElement || document.body;
+    // Mounted on <html> beside <body>, so the client's own page never touches it.
+    const root = createShadowSurface(
+      LOADING_SCREEN_ID,
+      "position:fixed;inset:0;z-index:2147483645;display:block;opacity:1;transition:opacity .3s ease;",
+      host,
+    );
+    if (!root) {
+      return undefined;
+    }
+    const renderRoot = root.__maoloaderShadowRoot || root;
+    const still = Boolean(pengu.superPotato);
+
+    const style = document.createElement("style");
+    style.textContent =
+      "@keyframes maoloader-loading-sweep{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}" +
+      "@keyframes maoloader-loading-glow{0%,100%{box-shadow:0 0 0 5px rgba(200,170,110,.06),0 0 28px rgba(200,170,110,.14)}50%{box-shadow:0 0 0 5px rgba(200,170,110,.14),0 0 52px rgba(200,170,110,.34)}}";
+    renderRoot.appendChild(style);
+
+    const shell = document.createElement("div");
+    shell.style.cssText =
+      "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;" +
+      "background:radial-gradient(ellipse at 50% 38%,#0f2230 0%,#060d14 55%,#010407 100%);" +
+      "color:#a09b8c;font:13px/1.4 Inter,system-ui,-apple-system,'Segoe UI',sans-serif;user-select:none;";
+
+    // The same gold medallion as the welcome popup, so the dark mark reads on the dark screen.
+    const medallion = document.createElement("div");
+    medallion.style.cssText =
+      "display:grid;place-items:center;width:84px;height:84px;border:2px solid #785a28;border-radius:50%;" +
+      "background:radial-gradient(circle at 50% 28%,#f0e6d2 0%,#c8aa6e 48%,#8a6a32 100%);" +
+      "box-shadow:0 0 0 5px rgba(200,170,110,.08),0 0 40px rgba(200,170,110,.22);" +
+      (still ? "" : "animation:maoloader-loading-glow 2.4s ease-in-out infinite;");
+    const mark = document.createElement("img");
+    mark.src = MAOLOADER_ICON_URL;
+    mark.alt = "";
+    mark.style.cssText = "width:54px;height:54px;object-fit:contain;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));";
+    mark.onerror = () => {
+      mark.style.display = "none";
+    };
+    medallion.appendChild(mark);
+
+    const title = document.createElement("div");
+    title.textContent = "League of Legends";
+    title.style.cssText = "margin-top:6px;color:#c8aa6e;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;";
+
+    const track = document.createElement("div");
+    track.style.cssText = "position:relative;width:220px;height:2px;overflow:hidden;border-radius:2px;background:rgba(200,170,110,.15);";
+    const sweep = document.createElement("div");
+    sweep.style.cssText =
+      "position:absolute;top:0;left:0;width:40%;height:100%;border-radius:2px;" +
+      "background:linear-gradient(90deg,transparent,#c8aa6e 40%,#0ac8b9 60%,transparent);" +
+      (still ? "transform:translateX(75%);" : "animation:maoloader-loading-sweep 1.4s cubic-bezier(.45,0,.25,1) infinite;");
+    track.appendChild(sweep);
+
+    const step = document.createElement("div");
+    step.textContent = loadingScreen.step ? `Loading ${loadingScreen.step.toLowerCase()}` : "Starting the client";
+    step.style.cssText = "min-height:18px;color:#a09b8c;font-size:12px;";
+
+    const plugins = document.createElement("div");
+    plugins.textContent = loadingPluginSummary();
+    plugins.style.cssText = "position:absolute;bottom:22px;left:0;right:0;text-align:center;color:#5b5a56;font-size:11px;letter-spacing:.04em;";
+
+    const hint = document.createElement("div");
+    hint.textContent = "Esc to skip";
+    hint.style.cssText = "position:absolute;bottom:22px;right:24px;color:#3c3c41;font-size:11px;";
+
+    shell.appendChild(medallion);
+    shell.appendChild(title);
+    shell.appendChild(track);
+    shell.appendChild(step);
+    shell.appendChild(plugins);
+    shell.appendChild(hint);
+    renderRoot.appendChild(shell);
+
+    root.__maoloaderLoadingStep = step;
+    root.__maoloaderLoadingPlugins = plugins;
+    return root;
+  }
+
+  function startLoadingScreen() {
+    if (typeof document === "undefined" || !document.createElement || !loadingScreenEnabled()) {
+      return;
+    }
+    // Only the client's main page, not frames inside it.
+    if (window.top && window.top !== window) {
+      return;
+    }
+    if (!document.documentElement && !document.body) {
+      setTimeout(startLoadingScreen, 16);
+      return;
+    }
+    loadingScreen.startedAt = Date.now();
+    loadingScreen.root = renderLoadingScreen();
+    if (!loadingScreen.root) {
+      return;
+    }
+    loadingScreen.timer = setInterval(checkLoadingScreen, 250);
+    // Don't keep a test runner (or anything else without a page) alive just for this check.
+    loadingScreen.timer?.unref?.();
+    window.addEventListener?.("keydown", (event) => {
+      if (event.key === "Escape" && loadingScreen.root) {
+        hideLoadingScreen("skipped with Esc");
+      }
+    });
+  }
+
+  startLoadingScreen();
+
   function parseVersion(version) {
     const match = /v?(\d+(?:\.\d+){2,3})/i.exec(String(version || ""));
     if (!match) {
@@ -1348,18 +1642,25 @@
     return parts[0] * 10000 * 10000 + parts[1] * 10000 + parts[2] + (parts[3] || 0) / 10000;
   }
 
+  // Checks maoloader's own release manifest (the one the desktop app's updater uses).
   async function fetchLatestUpdate() {
-    const currentVersion = pengu.version || window.__llver || "v0.0.0";
+    // Dev builds and tests run this file without a stamped version, so there's nothing to compare.
+    if (!HAS_MAOLOADER_VERSION) {
+      return false;
+    }
 
     try {
-      const response = await fetch("https://api.github.com/repos/PenguLoader/PenguLoader/releases/latest");
+      const response = await fetch(MAOLOADER_RELEASES_URL);
+      if (response && "ok" in response && !response.ok) {
+        return false;
+      }
       const release = await response?.json?.();
-      const latestVersion = release?.tag_name;
-      if (parseVersion(latestVersion) > parseVersion(currentVersion)) {
+      const latestVersion = String(release?.version || "").replace(/^v/i, "");
+      if (parseVersion(latestVersion) > parseVersion(MAOLOADER_VERSION)) {
         return {
-          old: currentVersion,
+          old: MAOLOADER_VERSION,
           version: latestVersion,
-          changelog: String(release?.body || ""),
+          changelog: String(release?.notes || ""),
         };
       }
     } catch (error) {
@@ -1370,6 +1671,23 @@
   }
 
   const WELCOME_HOST_SELECTOR = "lol-uikit-layer-manager-wrapper";
+
+  // "Don't show again": a dark square with a gold edge that fills gold with a dark tick when checked.
+  const WELCOME_CHECK_MARK =
+    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.6 8.4l2.9 2.9 5.9-6.6' fill='none' stroke='%23071018' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")";
+  const WELCOME_CHECKBOX_CSS =
+    ".maoloader-welcome-dismiss{color:#7d8b94;transition:color .15s ease}" +
+    ".maoloader-welcome-dismiss:hover{color:#c8c2b4}" +
+    ".maoloader-welcome-dismiss-check{appearance:none;-webkit-appearance:none;flex:0 0 auto;width:16px;height:16px;margin:0;" +
+    "border:1px solid rgba(200,170,110,.45);border-radius:4px;background-color:#08121b;" +
+    "box-shadow:inset 0 1px 2px rgba(0,0,0,.6);cursor:pointer;" +
+    "transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,transform .1s ease}" +
+    ".maoloader-welcome-dismiss:hover .maoloader-welcome-dismiss-check{border-color:#c8aa6e;box-shadow:inset 0 1px 2px rgba(0,0,0,.6),0 0 0 3px rgba(200,170,110,.12)}" +
+    ".maoloader-welcome-dismiss-check:active{transform:scale(.92)}" +
+    `.maoloader-welcome-dismiss-check:checked{border-color:#f0e6d2;background-color:#c8aa6e;background-image:${WELCOME_CHECK_MARK},linear-gradient(180deg,#f0e6d2,#c8aa6e 55%,#a7853f);` +
+    "background-size:12px 12px,100% 100%;background-position:center,center;background-repeat:no-repeat,no-repeat;" +
+    "box-shadow:0 0 10px rgba(200,170,110,.35)}" +
+    ".maoloader-welcome-dismiss-check:focus-visible{outline:2px solid #0ac8b9;outline-offset:2px}";
 
   function closeWelcome(root) {
     if (root) {
@@ -1448,7 +1766,7 @@
 
     const root = createShadowSurface(
       "maoloader-welcome-root",
-      "position:fixed;inset:0;z-index:2147483645;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);font:14px system-ui,sans-serif;color:#1f2925;pointer-events:auto;",
+      "position:fixed;inset:0;z-index:2147483645;display:flex;align-items:center;justify-content:center;font:14px Inter,system-ui,-apple-system,'Segoe UI',sans-serif;color:#a09b8c;pointer-events:auto;",
       host,
     );
     if (!root) {
@@ -1461,48 +1779,122 @@
       renderRoot.innerHTML = "";
     }
 
+    const still = Boolean(pengu.superPotato);
+
     const shell = document.createElement("div");
     shell.className = "maoloader-welcome-shell";
     shell.style.cssText =
-      "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);font:14px system-ui,sans-serif;color:#1f2925;pointer-events:auto;";
+      "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;" +
+      "background:radial-gradient(ellipse at 50% 45%,rgba(4,12,20,.55) 0%,rgba(1,4,9,.82) 70%);backdrop-filter:blur(3px);" +
+      "font:14px Inter,system-ui,-apple-system,'Segoe UI',sans-serif;color:#a09b8c;pointer-events:auto;" +
+      (still ? "" : "animation:maoloader-welcome-fade .25s ease-out both;");
 
     const panel = document.createElement("div");
     panel.className = "maoloader-welcome-panel";
     panel.style.cssText =
-      "box-sizing:border-box;width:min(520px,calc(100vw - 32px));border-radius:8px;background:#fff;box-shadow:0 24px 80px rgba(0,0,0,.35);overflow:hidden;";
+      "position:relative;box-sizing:border-box;width:min(460px,calc(100vw - 32px));overflow:hidden;border:1px solid rgba(200,170,110,.38);border-radius:8px;" +
+      "background:linear-gradient(180deg,#0c1822 0%,#070e15 100%);" +
+      "box-shadow:0 30px 90px rgba(0,0,0,.65),0 0 0 1px rgba(0,0,0,.55),inset 0 1px 0 rgba(240,230,210,.06);" +
+      (still ? "" : "animation:maoloader-welcome-in .4s cubic-bezier(.2,.8,.2,1) both;");
 
     const body = document.createElement("div");
     body.className = "maoloader-welcome-body";
-    body.style.cssText = "display:flex;gap:14px;padding:22px 24px 18px;";
+    body.style.cssText = "position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;padding:30px 28px 22px;text-align:center;";
+
+    // A thin gold-to-teal line across the top edge, like the client's own dialogs.
+    const accent = document.createElement("div");
+    accent.style.cssText = "position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#c8aa6e 30%,#0ac8b9 70%,transparent);";
+
+    const glow = document.createElement("div");
+    glow.style.cssText =
+      "position:absolute;top:-60px;left:50%;width:260px;height:160px;transform:translateX(-50%);pointer-events:none;" +
+      "background:radial-gradient(ellipse,rgba(200,170,110,.18),transparent 70%);";
 
     const badge = document.createElement("div");
     badge.className = "maoloader-welcome-badge";
     badge.style.cssText =
-      "flex:0 0 auto;width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:#141d26;box-shadow:0 10px 24px rgba(20,29,38,.18);overflow:hidden;";
+      // A gold medallion, so the dark maoloader mark reads clearly against the dark card.
+      "position:relative;display:grid;place-items:center;width:76px;height:76px;border:2px solid #785a28;border-radius:50%;" +
+      "background:radial-gradient(circle at 50% 28%,#f0e6d2 0%,#c8aa6e 48%,#8a6a32 100%);" +
+      "box-shadow:0 0 0 4px rgba(200,170,110,.1),0 0 28px rgba(200,170,110,.25),0 10px 30px rgba(0,0,0,.5);";
 
     const badgeIcon = document.createElement("img");
     badgeIcon.src = MAOLOADER_ICON_URL;
     badgeIcon.alt = "";
     badgeIcon.decoding = "async";
     badgeIcon.loading = "eager";
-    badgeIcon.style.cssText = "display:block;width:34px;height:34px;object-fit:contain;";
+    badgeIcon.style.cssText =
+      "display:block;width:48px;height:48px;object-fit:contain;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));" +
+      (still ? "" : "animation:maoloader-welcome-glow 3s ease-in-out infinite;");
+    badgeIcon.onerror = () => {
+      badgeIcon.style.display = "none";
+    };
     badge.appendChild(badgeIcon);
 
     const copy = document.createElement("div");
     copy.className = "maoloader-welcome-copy";
+    copy.style.cssText = "position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;";
+
+    const eyebrow = document.createElement("div");
+    eyebrow.textContent = HAS_MAOLOADER_VERSION ? `maoloader v${MAOLOADER_VERSION}` : "maoloader";
+    eyebrow.style.cssText = "color:#c8aa6e;font-size:11px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;";
 
     const title = document.createElement("h3");
-    title.textContent = "maoloader";
-    title.style.cssText = "margin:0 0 8px;font:600 16px system-ui,sans-serif;color:#0f1916;";
+    title.textContent = "You're all set";
+    title.style.cssText = "margin:0;color:#f0e6d2;font-size:24px;font-weight:800;line-height:1.2;letter-spacing:.01em;";
 
-    const text = document.createElement("p");
-    text.textContent =
-      "maoloader is active. Drop plugins into the plugins folder, reload the client, and use CommandBar or Toast from your plugins.";
-    text.style.cssText = "margin:0;line-height:1.45;color:#33443d;";
+    // Plugin status, which only maoloader can tell you.
+    const counts = pluginLoadCounts();
+    const status = document.createElement("div");
+    status.className = "maoloader-welcome-status";
+    const problem = counts.failed > 0;
+    status.style.cssText =
+      "display:inline-flex;align-items:center;gap:8px;margin-top:4px;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;" +
+      (problem
+        ? "border:1px solid rgba(232,170,70,.35);background:rgba(232,170,70,.08);color:#e8b45a;"
+        : "border:1px solid rgba(10,200,185,.3);background:rgba(10,200,185,.07);color:#5fd6c9;");
+    const dot = document.createElement("span");
+    dot.style.cssText = `width:7px;height:7px;border-radius:50%;background:${problem ? "#e8aa46" : "#0ac8b9"};box-shadow:0 0 8px currentColor;`;
+    const statusText = document.createElement("span");
+    if (!counts.total) {
+      statusText.textContent = "No plugins yet. Browse the plugin store to add some.";
+    } else {
+      statusText.textContent =
+        `${counts.ready} of ${counts.total} plugin${counts.total === 1 ? "" : "s"} loaded` +
+        (problem ? ` · ${counts.failed} need${counts.failed === 1 ? "s" : ""} attention` : "");
+    }
+    status.appendChild(dot);
+    status.appendChild(statusText);
+
+    // Shortcuts worth knowing on day one.
+    const keyStyle =
+      "display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;box-sizing:border-box;border:1px solid rgba(200,170,110,.3);border-bottom-width:2px;" +
+      "border-radius:4px;background:#0a1520;color:#f0e6d2;font:600 11px/1 'Cascadia Code',Consolas,monospace;";
+    const shortcut = (keys, label) => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:inline-flex;align-items:center;gap:4px;color:#7d8b94;font-size:12px;";
+      for (const key of keys) {
+        const kbd = document.createElement("span");
+        kbd.textContent = key;
+        kbd.style.cssText = keyStyle;
+        row.appendChild(kbd);
+      }
+      const text = document.createElement("span");
+      text.textContent = label;
+      text.style.cssText = "margin-left:4px;";
+      row.appendChild(text);
+      return row;
+    };
+    const shortcuts = document.createElement("div");
+    shortcuts.style.cssText = "display:flex;flex-wrap:wrap;justify-content:center;gap:10px 18px;margin-top:8px;";
+    shortcuts.appendChild(shortcut(["Ctrl", "K"], "Command bar"));
+    if (pengu.plugins.some((entry) => /^plugin-health-overlay\//i.test(entry))) {
+      shortcuts.appendChild(shortcut(["Ctrl", "Shift", "H"], "Plugin health"));
+    }
 
     const links = document.createElement("div");
     links.className = "maoloader-welcome-links";
-    links.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;";
+    links.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px;";
 
     for (const [label, href] of [
       ["Docs", "https://maoloader.com/docs"],
@@ -1515,24 +1907,41 @@
       link.target = "_blank";
       link.rel = "noreferrer";
       link.style.cssText =
-        "display:inline-flex;align-items:center;padding:4px 8px;border-radius:6px;background:#eef3f0;color:#20342d;text-decoration:none;font-size:12px;";
+        "display:inline-flex;align-items:center;padding:6px 14px;border:1px solid rgba(200,170,110,.28);border-radius:999px;color:#c8aa6e;" +
+        "text-decoration:none;font-size:12px;font-weight:600;transition:border-color .15s ease,color .15s ease,background .15s ease;";
+      link.onmouseenter = () => {
+        link.style.borderColor = "#c8aa6e";
+        link.style.color = "#f0e6d2";
+        link.style.background = "rgba(200,170,110,.1)";
+      };
+      link.onmouseleave = () => {
+        link.style.borderColor = "rgba(200,170,110,.28)";
+        link.style.color = "#c8aa6e";
+        link.style.background = "transparent";
+      };
       links.appendChild(link);
     }
 
+    copy.appendChild(eyebrow);
     copy.appendChild(title);
-    copy.appendChild(text);
+    copy.appendChild(status);
+    copy.appendChild(shortcuts);
     copy.appendChild(links);
+    body.appendChild(accent);
+    body.appendChild(glow);
     body.appendChild(badge);
     body.appendChild(copy);
 
     const footer = document.createElement("div");
     footer.className = "maoloader-welcome-footer";
     footer.style.cssText =
-      "display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 24px;background:#f4f6f5;";
+      "display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 22px;border-top:1px solid rgba(200,170,110,.14);background:rgba(0,0,0,.28);";
 
     const label = document.createElement("label");
-    label.style.cssText = "display:flex;align-items:center;gap:8px;color:#41554d;font-size:13px;";
+    label.className = "maoloader-welcome-dismiss";
+    label.style.cssText = "display:flex;align-items:center;gap:9px;font-size:12px;cursor:pointer;";
 
+    // A real checkbox, restyled by the rules in the surface's <style> (see WELCOME_CHECKBOX_CSS).
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.className = "maoloader-welcome-dismiss-check";
@@ -1549,10 +1958,20 @@
     const button = document.createElement("button");
     button.type = "button";
     button.className = "maoloader-welcome-ok";
-    button.textContent = "Okay";
+    button.textContent = "Let's play";
     button.tabIndex = 0;
     button.style.cssText =
-      "position:relative;z-index:1;border:0;border-radius:6px;background:#d8dedb;color:#182620;padding:6px 12px;text-transform:uppercase;font:600 12px system-ui,sans-serif;cursor:pointer;pointer-events:auto;";
+      "position:relative;z-index:1;border:1px solid #c8aa6e;border-radius:4px;background:linear-gradient(180deg,#1e2328,#0a1428);color:#f0e6d2;" +
+      "padding:9px 24px;text-transform:uppercase;letter-spacing:.08em;font:700 12px Inter,system-ui,sans-serif;cursor:pointer;pointer-events:auto;" +
+      "box-shadow:0 0 0 1px rgba(0,0,0,.5),0 0 18px rgba(200,170,110,.15);transition:box-shadow .15s ease,border-color .15s ease;";
+    button.onmouseenter = () => {
+      button.style.borderColor = "#f0e6d2";
+      button.style.boxShadow = "0 0 0 1px rgba(0,0,0,.5),0 0 24px rgba(200,170,110,.35)";
+    };
+    button.onmouseleave = () => {
+      button.style.borderColor = "#c8aa6e";
+      button.style.boxShadow = "0 0 0 1px rgba(0,0,0,.5),0 0 18px rgba(200,170,110,.15)";
+    };
     const dismiss = (event) => {
       event?.preventDefault?.();
       event?.stopPropagation?.();
@@ -1572,7 +1991,10 @@
       if (!target) {
         return false;
       }
-      if (target === button || target === root) {
+      // Not `target === root`: any click inside the popup reaches the page retargeted to root,
+      // which used to dismiss it (and cancel the click) from the checkbox and links too. The
+      // composed path below still identifies real clicks on the button.
+      if (target === button) {
         return true;
       }
       if (target.closest?.(".maoloader-welcome-ok")) {
@@ -1622,11 +2044,22 @@
     panel.appendChild(footer);
     shell.appendChild(panel);
     renderRoot.appendChild(shell);
+    // After the shell, so the shell stays the surface's first child.
+    const keyframes = document.createElement("style");
+    keyframes.textContent =
+      "@keyframes maoloader-welcome-fade{from{opacity:0}to{opacity:1}}" +
+      "@keyframes maoloader-welcome-in{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}" +
+      "@keyframes maoloader-welcome-glow{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}" +
+      WELCOME_CHECKBOX_CSS;
+    renderRoot.appendChild(keyframes);
     button.focus?.();
     return root;
   }
 
   async function initWelcomeSurface() {
+    // Wait for the loading screen so the welcome doesn't open underneath it, and so plugin
+    // counts are final.
+    await whenLoadingScreenDone();
     if (window.DataStore?.get("pengu-welcome", true) !== false) {
       renderWelcome(await waitForWelcomeHost());
     } else {
@@ -1635,7 +2068,12 @@
 
     const update = await fetchLatestUpdate();
     if (update) {
-      window.Toast?.success?.(`Update available - ${update.version}`);
+      window.Toast?.info?.({
+        title: `maoloader ${update.version} is available`,
+        description: `You're on ${update.old}. Update from the maoloader app, or download it.`,
+        duration: 12000,
+        action: { label: "Download", onClick: () => window.open?.(MAOLOADER_DOWNLOAD_URL, "_blank") },
+      });
     }
   }
 
@@ -1697,6 +2135,7 @@
 
     function onPluginAnnounce(event) {
       const name = event.type.substring(prefix.length);
+      noteLoadingStep(name);
       const registrationHandler = event.registrationHandler;
       if (typeof registrationHandler !== "function") {
         return;
@@ -2220,7 +2659,7 @@
     }
   }
 
-  pengu.version = "0.1.0";
+  pengu.version = HAS_MAOLOADER_VERSION ? MAOLOADER_VERSION : "0.0.0";
   delete pengu.disabledPlugins;
   Object.freeze(pengu);
 

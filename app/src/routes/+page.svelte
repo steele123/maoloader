@@ -1,172 +1,150 @@
 <script lang="ts">
-	import CpuIcon from "@lucide/svelte/icons/cpu";
+	import ActivityIcon from "@lucide/svelte/icons/activity";
+	import CircleAlertIcon from "@lucide/svelte/icons/circle-alert";
+	import CircleCheckIcon from "@lucide/svelte/icons/circle-check";
+	import CircleXIcon from "@lucide/svelte/icons/circle-x";
 	import DownloadIcon from "@lucide/svelte/icons/download";
+	import FileCogIcon from "@lucide/svelte/icons/file-cog";
 	import FolderOpenIcon from "@lucide/svelte/icons/folder-open";
-	import PlugIcon from "@lucide/svelte/icons/plug";
+	import LoaderCircleIcon from "@lucide/svelte/icons/loader-circle";
 	import PowerIcon from "@lucide/svelte/icons/power";
+	import PuzzleIcon from "@lucide/svelte/icons/puzzle";
 	import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
-	import SettingsIcon from "@lucide/svelte/icons/settings";
-	import ShieldIcon from "@lucide/svelte/icons/shield";
 	import { getContext } from "svelte";
 	import { APP_STATE_KEY, type AppState } from "$lib/app-state.svelte";
-	import { Badge } from "$lib/components/ui/badge/index.js";
-	import { Button } from "$lib/components/ui/button/index.js";
 
 	const state = getContext<AppState>(APP_STATE_KEY);
+
+	const active = $derived(state.activation?.activated ?? false);
+	const enabledCount = $derived(state.plugins.filter((plugin) => plugin.enabled).length);
+	const universal = $derived((state.config?.app.activation_mode ?? "universal") === "universal");
+
+	// Each check is a requirement for plugins to load; null means still loading.
+	const checks = $derived([
+		{
+			label: universal ? "Universal mode" : state.config?.app.league_dir ? "League folder set" : "League folder needed",
+			ok: state.config ? universal || Boolean(state.config.app.league_dir) : null,
+		},
+		{ label: state.status?.core_exists === false ? "Core missing" : "Core ready", ok: state.status ? state.status.core_exists : null },
+		{
+			label: state.activation?.webview2_installed === false ? "WebView2 missing" : "WebView2 ready",
+			ok: state.activation ? state.activation.webview2_installed : null,
+		},
+		{
+			label: state.runtime?.preload_exists === false ? "Runtime not synced" : "Runtime synced",
+			ok: state.runtime ? state.runtime.preload_exists : null,
+		},
+	]);
 </script>
 
-<section class="home-hero" aria-label="Loader summary">
-	<div class="home-hero-copy">
-		<p class="eyebrow">Loader workspace</p>
-		<h2>Manage activation, plugins, and runtime state.</h2>
-		<p>
-			{#if state.status}
-				{state.status.app_name} is ready; injector state is {state.status.injector}.
-			{:else if state.statusError}
-				Status unavailable: {state.statusError}
+<section class="panel status-hero" class:is-off={!active} aria-label="maoloader status">
+	<div class="medallion is-large" class:is-off={!active} aria-hidden="true">
+		<img src="/maologo.png" alt="" />
+	</div>
+
+	<div class="status-copy">
+		<p class="eyebrow">Status</p>
+		<h2>
+			{#if !state.activation}
+				Checking…
+			{:else if active}
+				maoloader is on
 			{:else}
-				Checking local loader state...
+				maoloader is off
+			{/if}
+		</h2>
+		<p>
+			{#if active}
+				Your plugins load whenever League starts. If it's open now, restart it.
+			{:else if state.activation}
+				Turn it on to load your plugins into the League client.
+			{:else}
+				Reading your setup…
 			{/if}
 		</p>
 	</div>
 
-	<div class="home-hero-panel">
-		<Badge variant={state.activation?.activated ? "secondary" : "outline"}>
-			{state.activation?.activated ? "Active" : "Inactive"}
-		</Badge>
-		<strong>{state.runtime?.plugin_count ?? state.plugins.length} plugins</strong>
-		<span>{state.status?.core_exists ? "core.dll found" : "core.dll missing"}</span>
-	</div>
-</section>
-
-<section class="home-actions" aria-label="Quick actions">
-	<Button onclick={() => state.reveal(state.status?.paths.base_dir)}>
-		<FolderOpenIcon />
-		Open Base
-	</Button>
-	<Button variant="outline" onclick={() => state.openPluginsFolder()}>
-		<PlugIcon />
-		Plugins
-	</Button>
-	<Button variant="outline" onclick={() => state.syncRuntime()}>
-		<RefreshCwIcon />
-		Sync Runtime
-	</Button>
-	<Button variant="outline" disabled={state.updateBusy} onclick={() => state.checkAndInstallUpdate()}>
-		<DownloadIcon />
-		{state.updateBusy ? "Updating" : "Update"}
-	</Button>
 	{#if state.activation}
-		<Button
-			variant={state.activation.activated ? "destructive" : "secondary"}
+		<button
+			class="hero-button"
+			class:is-off={active}
+			type="button"
 			disabled={state.activationBusy}
-			onclick={() => state.setActivation(!state.activation?.activated)}
+			onclick={() => state.setActivation(!active)}
 		>
-			<PowerIcon />
-			{state.activationBusy ? "Working" : state.activation.activated ? "Deactivate" : "Activate"}
-		</Button>
-	{/if}
-</section>
-
-{#if state.activationNotice}
-	<p class="activation-notice">{state.activationNotice}</p>
-{/if}
-
-<section class="home-grid" aria-label="Current state">
-	<article class="home-card">
-		<div class="home-card-heading">
-			<span><ShieldIcon /></span>
-			<div>
-				<p class="eyebrow">Activation</p>
-				<h3>{state.activation?.activated ? "Installed" : "Not installed"}</h3>
-			</div>
-		</div>
-		<p>
-			{#if state.activation}
-				{state.activation.mode === "targeted"
-					? "Targeted mode links into the configured League directory."
-					: "Universal mode launches the client through the configured loader hook."}
+			{#if state.activationBusy}
+				<LoaderCircleIcon class="spin" />
+				Working
 			{:else}
-				Activation state is still loading.
+				<PowerIcon />
+				{active ? "Turn off" : "Turn on"}
 			{/if}
-		</p>
-		<div class="card-badges">
-			<Badge variant="outline">{state.activation?.admin ? "Admin" : "Standard user"}</Badge>
-			<Badge variant={state.activation?.webview2_installed ? "secondary" : "destructive"}>
-				{state.activation?.webview2_installed ? "WebView2 ready" : "WebView2 missing"}
-			</Badge>
-		</div>
-		{#if state.activation?.message}
-			<p class="activation-error">{state.activation.message}</p>
-		{/if}
-	</article>
+		</button>
+	{/if}
 
-	<article class="home-card">
-		<div class="home-card-heading">
-			<span><CpuIcon /></span>
-			<div>
-				<p class="eyebrow">Runtime</p>
-				<h3>{state.runtime?.preload_exists ? "Preload synced" : "Preload pending"}</h3>
-			</div>
-		</div>
-		<p>
-			{state.runtime?.preload_exists
-				? "The injected preload is ready for the client runtime."
-				: "Runtime assets are loading."}
-		</p>
-		<div class="card-badges">
-			<Badge variant="secondary">{state.runtime?.plugin_count ?? state.plugins.length} plugins</Badge>
-			<Badge variant="outline">{state.status?.core_exists ? "core ready" : "core missing"}</Badge>
-		</div>
-	</article>
-
-	<article class="home-card">
-		<div class="home-card-heading">
-			<span><SettingsIcon /></span>
-			<div>
-				<p class="eyebrow">Configuration</p>
-				<h3>{state.config?.app.league_dir ? "League path set" : "League path needed"}</h3>
-			</div>
-		</div>
-		<p>{state.config?.app.league_dir || "Set the League directory before using targeted activation."}</p>
-		<div class="card-badges">
-			<Badge variant="outline">{state.config?.app.activation_mode ?? "loading"}</Badge>
-			<Badge variant="outline">debug {state.config?.client.debug_port ?? "n/a"}</Badge>
-		</div>
-	</article>
-
-	<article class="home-card">
-		<div class="home-card-heading">
-			<span><DownloadIcon /></span>
-			<div>
-				<p class="eyebrow">Updates</p>
-				<h3>{state.updateAvailableVersion ? `v${state.updateAvailableVersion}` : "Manual check"}</h3>
-			</div>
-		</div>
-		<p>{state.updateMessage || "Check the website release endpoint for a signed app update."}</p>
-		{#if state.updateProgress > 0}
-			<div class="update-progress" aria-label="Update progress">
-				<span style={`width: ${state.updateProgress}%`}></span>
-			</div>
-		{/if}
-		<div class="card-badges">
-			<Badge variant="outline">current v{state.status?.version ?? "0.1.0"}</Badge>
-			<Badge variant={state.updateBusy ? "secondary" : "outline"}>
-				{state.updateBusy ? "working" : "ready"}
-			</Badge>
-		</div>
-	</article>
+	<div class="checks" aria-label="Requirements">
+		{#each checks as check}
+			<span class="check-chip" class:is-bad={check.ok === false} class:is-pending={check.ok === null}>
+				{#if check.ok === null}
+					<LoaderCircleIcon class="spin" />
+				{:else if check.ok}
+					<CircleCheckIcon />
+				{:else}
+					<CircleXIcon />
+				{/if}
+				{check.label}
+			</span>
+		{/each}
+	</div>
 </section>
 
-{#if state.status}
-	<section class="path-list" aria-label="Loader paths">
-		<Button variant="outline" class="path-card" onclick={() => state.reveal(state.status?.paths.config_path)}>
-			<span>Config</span>
-			<strong>Open config location</strong>
-		</Button>
-		<Button variant="outline" class="path-card" onclick={() => state.openPluginsFolder()}>
-			<span>Plugins</span>
-			<strong>Open plugin folder</strong>
-		</Button>
-	</section>
+{#if state.statusError}
+	<p class="notice is-error"><CircleAlertIcon />{state.statusError}</p>
 {/if}
+{#if state.activation?.message}
+	<p class="notice is-error"><CircleAlertIcon />{state.activation.message}</p>
+{/if}
+{#if state.activationNotice}
+	<p class="notice"><CircleAlertIcon />{state.activationNotice}</p>
+{/if}
+
+<div class="tiles">
+	<a class="panel tile" href="/plugins">
+		<span class="tile-label"><PuzzleIcon />Plugins</span>
+		<strong>{enabledCount}<small>&nbsp;/ {state.plugins.length}</small></strong>
+		<span class="tile-note">enabled</span>
+	</a>
+
+	<div class="panel tile">
+		<span class="tile-label"><ActivityIcon />Client loads</span>
+		<strong>{state.nativeCore?.renderer_preload_executes ?? 0}</strong>
+		<span class="tile-note">pages maoloader ran in</span>
+	</div>
+
+	<button class="panel tile" type="button" disabled={state.updateBusy} onclick={() => state.checkAndInstallUpdate()}>
+		<span class="tile-label"><DownloadIcon />Version</span>
+		<strong>v{state.status?.version ?? "…"}</strong>
+		<span class="tile-note">
+			{state.updateMessage || (state.updateBusy ? "Checking…" : "Check for updates")}
+		</span>
+		{#if state.updateProgress > 0}
+			<span class="tile-progress" aria-label="Update progress"><span style={`width: ${state.updateProgress}%`}></span></span>
+		{/if}
+	</button>
+</div>
+
+<h3 class="section-title">Quick actions</h3>
+<div class="quick-actions">
+	<button class="panel quick-action" type="button" onclick={() => state.openPluginsFolder()}>
+		<span><FolderOpenIcon /></span>Plugins folder
+	</button>
+	<button class="panel quick-action" type="button" onclick={() => state.reveal(state.status?.paths.base_dir)}>
+		<span><FolderOpenIcon /></span>maoloader folder
+	</button>
+	<button class="panel quick-action" type="button" onclick={() => state.reveal(state.status?.paths.config_path)}>
+		<span><FileCogIcon /></span>Config file
+	</button>
+	<button class="panel quick-action" type="button" onclick={() => state.syncRuntime()}>
+		<span><RefreshCwIcon /></span>{state.runtimeMessage === "Syncing..." ? "Syncing…" : "Sync runtime"}
+	</button>
+</div>

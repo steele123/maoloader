@@ -281,9 +281,27 @@ pub fn run() {
     windows::handle_activation_entrypoint();
 
     tauri::Builder::default()
+        // Must be registered first. A second launch (e.g. a maoloader:// link) hands its URL to
+        // this instance through the deep-link plugin, then exits.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            // Installers register maoloader:// too; this also covers dev builds and moved installs.
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                if let Err(error) = app.deep_link().register_all() {
+                    eprintln!("maoloader:// registration failed: {error}");
+                }
+            }
             sync_bundled_core(app)?;
             ensure_loader_layout()?;
             Ok(())

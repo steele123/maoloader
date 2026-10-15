@@ -3,19 +3,35 @@ import { createSubmission } from "$lib/registry/admin";
 import { isGitHubRepository, stringField } from "$lib/registry/forms";
 import { loadListingsFromManifest } from "$lib/registry/manifest";
 import type { RegistrySubmission } from "$lib/registry/types";
+import { submitPackageZip } from "$lib/registry/upload";
 import type { Actions, PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ platform }) => {
 	return {
-		canSubmit: Boolean(platform?.env?.PLUGIN_DB)
+		canSubmit: Boolean(platform?.env?.PLUGIN_DB),
+		canUpload: Boolean(platform?.env?.PLUGIN_DB && platform?.env?.PLUGIN_BUCKET)
 	};
 };
 
 export const actions: Actions = {
-	default: async ({ request, platform }) => {
+	upload: async ({ request, platform }) => {
+		const env = platform?.env;
+		if (!env?.PLUGIN_DB || !env.PLUGIN_BUCKET) {
+			return fail(501, { mode: "upload", message: "Uploads are not available in this environment yet." });
+		}
+		try {
+			const result = await submitPackageZip(env, await request.formData(), platform);
+			return { mode: "upload", ...result };
+		} catch (error) {
+			return fail(400, { mode: "upload", message: String(error instanceof Error ? error.message : error) });
+		}
+	},
+
+	repo: async ({ request, platform }) => {
 		const env = platform?.env;
 		if (!env?.PLUGIN_DB) {
 			return fail(501, {
+				mode: "repo",
 				message: "Submissions are not available in this environment yet."
 			});
 		}
@@ -23,7 +39,7 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const repository = stringField(form, "repository");
 		if (!repository || !isGitHubRepository(repository)) {
-			return fail(400, { message: "Repository must be a GitHub URL." });
+			return fail(400, { mode: "repo", message: "Repository must be a GitHub URL." });
 		}
 
 		const now = new Date().toISOString();
@@ -36,7 +52,7 @@ export const actions: Actions = {
 				stringField(form, "manifestPath")
 			);
 		} catch (error) {
-			return fail(400, { message: String(error instanceof Error ? error.message : error) });
+			return fail(400, { mode: "repo", message: String(error instanceof Error ? error.message : error) });
 		}
 
 		const submission: RegistrySubmission = {
@@ -53,6 +69,7 @@ export const actions: Actions = {
 
 		await createSubmission(env, submission);
 		return {
+			mode: "repo",
 			message: `Submission received with ${manifest.listings.length} listing${manifest.listings.length === 1 ? "" : "s"}. It will appear after review and mirroring.`,
 			submissionId: submission.id
 		};

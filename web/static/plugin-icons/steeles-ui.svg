@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="steelesui-title">
+  <title id="steelesui-title">Steele's UI</title>
+  <defs>
+    <linearGradient id="steelesui-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#132636"/>
+      <stop offset="1" stop-color="#07111b"/>
+    </linearGradient>
+    <radialGradient id="steelesui-glow" cx="0.5" cy="0.38" r="0.62">
+      <stop offset="0" stop-color="#c8aa6e" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#c8aa6e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="steelesui-rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8aa6e" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#c8aa6e" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#steelesui-bg)"/>
+  <rect width="64" height="64" rx="14" fill="url(#steelesui-glow)"/>
+  <rect x="1" y="1" width="62" height="62" rx="13" fill="none" stroke="url(#steelesui-rim)" stroke-width="2"/>
+  <rect x="15" y="17" width="34" height="30" rx="4" fill="#c8aa6e" fill-opacity="0.12" stroke="#f0e6d2" stroke-width="3.5"/>
+  <path d="M15 24.5h34" stroke="#f0e6d2" stroke-width="3"/>
+  <rect x="20" y="29" width="13" height="6" rx="1.5" fill="#c8aa6e"/>
+  <rect x="20" y="37.5" width="13" height="4.5" rx="1.5" fill="#f0e6d2" fill-opacity="0.45"/>
+  <rect x="37" y="29" width="7" height="13" rx="1.5" fill="#f0e6d2" fill-opacity="0.7"/>
+</svg>

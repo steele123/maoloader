@@ -6,7 +6,7 @@ use std::process;
 
 #[cfg(windows)]
 use winreg::{
-    enums::{HKEY_LOCAL_MACHINE, KEY_CREATE_SUB_KEY, KEY_READ, KEY_SET_VALUE},
+    enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_CREATE_SUB_KEY, KEY_READ, KEY_SET_VALUE},
     RegKey,
 };
 
@@ -214,20 +214,27 @@ fn is_developer_mode() -> bool {
     false
 }
 
+/// Follows Microsoft's documented runtime detection: the Evergreen runtime is installed when
+/// its EdgeUpdate client key has a `pv` version that is not empty or `0.0.0.0`. The key lives
+/// under WOW6432Node on 64-bit Windows, outside it on 32-bit Windows, and in HKCU for per-user
+/// installs.
 #[cfg(windows)]
 fn is_webview2_installed() -> bool {
-    const REG_PATH: &str =
-        r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
+    const CLIENT_KEY: &str = r"Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
 
-    hklm.open_subkey_with_flags(REG_PATH, KEY_READ)
-        .ok()
-        .and_then(|key| {
-            let location = key.get_value::<String, _>("location").ok()?;
-            let version = key.get_value::<String, _>("pv").ok()?;
-            Some(webview2_exe_path(&location, &version))
-        })
-        .is_some_and(|path| path.exists())
+    [
+        (&hklm, format!(r"SOFTWARE\WOW6432Node\{CLIENT_KEY}")),
+        (&hklm, format!(r"SOFTWARE\{CLIENT_KEY}")),
+        (&hkcu, format!(r"Software\{CLIENT_KEY}")),
+    ]
+    .iter()
+    .any(|(root, path)| {
+        root.open_subkey_with_flags(path, KEY_READ)
+            .and_then(|key| key.get_value::<String, _>("pv"))
+            .is_ok_and(|version| is_webview2_version_installed(&version))
+    })
 }
 
 #[cfg(not(windows))]
@@ -236,10 +243,9 @@ fn is_webview2_installed() -> bool {
 }
 
 #[cfg(windows)]
-fn webview2_exe_path(location: &str, version: &str) -> std::path::PathBuf {
-    std::path::PathBuf::from(location)
-        .join(version)
-        .join("msedge.exe")
+fn is_webview2_version_installed(version: &str) -> bool {
+    let version = version.trim();
+    !version.is_empty() && version != "0.0.0.0"
 }
 
 #[cfg(windows)]
@@ -465,15 +471,16 @@ fn stage_from_code(code: i32) -> ActivationStage {
 mod tests {
     #[cfg(windows)]
     #[test]
-    fn webview2_path_matches_upstream_registry_shape() {
-        assert_eq!(
-            super::webview2_exe_path(
-                r"C:\Program Files (x86)\Microsoft\EdgeWebView\Application",
-                "123.0.0.1"
-            ),
-            std::path::PathBuf::from(
-                r"C:\Program Files (x86)\Microsoft\EdgeWebView\Application\123.0.0.1\msedge.exe"
-            )
-        );
+    fn webview2_version_detection_matches_microsoft_guidance() {
+        assert!(super::is_webview2_version_installed("155.0.4283.45"));
+        assert!(!super::is_webview2_version_installed(""));
+        assert!(!super::is_webview2_version_installed("0.0.0.0"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn webview2_is_detected_on_this_machine() {
+        // Development machines need WebView2 to run the app at all.
+        assert!(super::is_webview2_installed());
     }
 }

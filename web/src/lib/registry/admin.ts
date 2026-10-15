@@ -1,10 +1,19 @@
+import { eq } from "drizzle-orm";
 import { getDb } from "$lib/db/client";
 import { registryListings, registrySubmissions } from "$lib/db/schema";
 import { fetchGitHubArchive } from "./github";
 import type { RegistryListing, RegistrySubmission } from "./types";
 
-export async function publishListing(env: Env, listing: RegistryListing) {
+export async function publishListing(env: Env, incoming: RegistryListing) {
 	const db = requireDb(env);
+	const previous = await db
+		.select({ listingJson: registryListings.listingJson, downloads: registryListings.downloads })
+		.from(registryListings)
+		.where(eq(registryListings.slug, incoming.slug))
+		.get();
+	const listing = previous
+		? withHistory(incoming, JSON.parse(previous.listingJson), previous.downloads)
+		: incoming;
 	await db
 		.insert(registryListings)
 		.values(listingRow(listing))
@@ -36,6 +45,26 @@ export async function approveAndMirrorSubmission(env: Env, submission: RegistryS
 		throw new Error("PLUGIN_BUCKET R2 binding is not configured");
 	}
 	const listings = submissionListings(submission);
+
+	// Uploaded zips are already stored; publish them without fetching anything.
+	if (
+		!submission.repository &&
+		listings.length &&
+		listings.every((listing) => listing.assets.package?.key)
+	) {
+		const now = new Date().toISOString();
+		const published = listings.map((listing) => ({ ...listing, updated_at: now }));
+		for (const listing of published) await publishListing(env, listing);
+		await updateSubmission(env, {
+			...submission,
+			status: "approved",
+			updated_at: now,
+			listing: published[0],
+			listings: published
+		});
+		return published;
+	}
+
 	const repository = submission.repository || listings[0]?.repository;
 	if (!repository) {
 		throw new Error("Submission does not have a GitHub repository URL");
@@ -83,6 +112,27 @@ export async function approveAndMirrorSubmission(env: Env, submission: RegistryS
 
 export function submissionListings(submission: RegistrySubmission) {
 	return submission.listings?.length ? submission.listings : submission.listing ? [submission.listing] : [];
+}
+
+const HISTORY_LIMIT = 20;
+
+function withHistory(
+	listing: RegistryListing,
+	previous: RegistryListing,
+	downloads: number
+): RegistryListing {
+	const history = previous.history ?? [];
+	return {
+		...listing,
+		downloads,
+		history:
+			previous.version === listing.version
+				? history
+				: [{ version: previous.version, published_at: previous.updated_at }, ...history].slice(
+						0,
+						HISTORY_LIMIT
+					)
+	};
 }
 
 function requireDb(env: Env) {

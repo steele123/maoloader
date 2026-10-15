@@ -1,0 +1,370 @@
+:host {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color-scheme: light;
+  pointer-events: none;
+}
+
+.sheet-backdrop,
+.sheet-backdrop * {
+  box-sizing: border-box;
+}
+
+.sheet-backdrop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 24px;
+  background: rgba(12, 17, 22, 0.44);
+  color: #17202a;
+  font: 13px/1.45 Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  pointer-events: auto;
+}
+
+.sheet {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(460px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  border: 1px solid rgba(23, 32, 42, 0.16);
+  border-radius: 8px;
+  background: #f7f8fa;
+  box-shadow: 0 28px 80px rgba(5, 10, 15, 0.32);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  letter-spacing: 0;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #3f6f9f;
+  outline-offset: 2px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.sheet-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 10px 12px 10px 14px;
+  border-bottom: 1px solid #dfe3e8;
+  background: #ffffff;
+}
+
+.sheet-header img {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.sheet-title {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sheet-title h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.sheet-title span {
+  color: #617082;
+  font-size: 12px;
+}
+
+.sheet-close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: transparent;
+  color: #6a7888;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.sheet-close:hover {
+  background: #eef1f4;
+  color: #17202a;
+}
+
+.sheet-body {
+  display: grid;
+  gap: 1px;
+  overflow: auto;
+  background: #dfe3e8;
+}
+
+.field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 12px 14px;
+  background: #ffffff;
+}
+
+.field.is-stacked {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.field-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.field-copy strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.field-copy small {
+  color: #617082;
+  font-size: 12px;
+}
+
+.field-value {
+  min-width: 34px;
+  color: #3e4c5b;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: right;
+}
+
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+input[type="range"] {
+  width: 160px;
+  accent-color: #3f6f9f;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 22px;
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.switch span {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #c9d0d8;
+  pointer-events: none;
+}
+
+.switch span::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(20, 29, 38, 0.3);
+}
+
+:host([data-ready]) .switch span {
+  transition: background 0.14s ease;
+}
+
+:host([data-ready]) .switch span::after {
+  transition: transform 0.14s ease;
+}
+
+.switch input:checked + span {
+  background: #2f7d55;
+}
+
+.switch input:checked + span::after {
+  transform: translateX(16px);
+}
+
+.switch input:focus-visible + span {
+  outline: 2px solid #3f6f9f;
+  outline-offset: 2px;
+}
+
+.text-input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid #cfd6de;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #17202a;
+  padding: 7px 9px;
+}
+
+textarea {
+  min-height: 92px;
+  resize: vertical;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+}
+
+.field-note {
+  margin: 0;
+  color: #617082;
+  font-size: 12px;
+}
+
+.field-note.is-error {
+  color: #9c3838;
+}
+
+.sheet-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-top: 1px solid #dfe3e8;
+  background: #ffffff;
+  color: #617082;
+  font-size: 12px;
+}
+
+.button {
+  border: 1px solid #cfd6de;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #17202a;
+  padding: 6px 10px;
+  font-weight: 700;
+}
+
+.button:hover:not(:disabled) {
+  background: #eef1f4;
+}
+
+.button.is-primary {
+  border-color: #17202a;
+  background: #17202a;
+  color: #ffffff;
+}
+
+.button.is-primary:hover:not(:disabled) {
+  background: #2a3744;
+}
+
+kbd {
+  border: 1px solid #cfd6de;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: #f7f8fa;
+  padding: 0 5px;
+  font: 11px/1.6 "Cascadia Code", Consolas, monospace;
+}
+
+.sheet {
+  width: min(520px, 100%);
+}
+
+.save-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.preset-list {
+  display: grid;
+  gap: 6px;
+}
+
+.preset-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e1e5ea;
+  border-radius: 6px;
+  padding: 6px 6px 6px 10px;
+}
+
+.preset-copy {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.preset-copy strong,
+.preset-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-copy small {
+  color: #617082;
+  font-size: 12px;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  color: #6a7888;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.icon-button:hover {
+  background: #eef1f4;
+  color: #9c3838;
+}
+
+code {
+  border-radius: 4px;
+  background: #eef1f4;
+  padding: 0 4px;
+  font: 11px/1.6 "Cascadia Code", Consolas, monospace;
+}

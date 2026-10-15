@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$Source = Join-Path $RepoRoot "maoloader-testkit"
+$Source = Join-Path $RepoRoot "plugins\maoloader-testkit"
 $PluginsDir = Join-Path $RepoRoot "app\bin\plugins"
 $Target = Join-Path $PluginsDir "maoloader-testkit"
 

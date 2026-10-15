@@ -44,6 +44,7 @@ export type PluginEntry = {
 	description?: string;
 	author?: string;
 	link?: string;
+	icon?: string;
 };
 
 export type StorePlugin = {
@@ -164,6 +165,20 @@ export class AppState {
 	updateProgress = $state(0);
 	updateAvailableVersion = $state("");
 	diagnosticsMessage = $state("");
+	// The config as last loaded or saved, so the settings page can tell when there are unsaved changes.
+	savedConfigJson = $state("");
+
+	get configDirty() {
+		return Boolean(this.config) && JSON.stringify(this.config) !== this.savedConfigJson;
+	}
+
+	discardConfigChanges() {
+		if (this.savedConfigJson) {
+			this.config = JSON.parse(this.savedConfigJson);
+		}
+		this.saveState = "";
+		this.leagueDirState = "";
+	}
 
 	async initialize() {
 		const { invoke } = await import("@tauri-apps/api/core");
@@ -172,6 +187,7 @@ export class AppState {
 			await invoke<LoaderPaths>("ensure_base_layout");
 			this.status = await invoke<AppStatus>("app_status");
 			this.config = await invoke<LoaderConfig>("read_loader_config");
+			this.savedConfigJson = JSON.stringify(this.config);
 			this.plugins = await invoke<PluginEntry[]>("list_plugins");
 			this.runtime = await invoke<RuntimeStatus>("runtime_status");
 			this.nativeCore = await invoke<NativeCoreStatus>("native_core_status");
@@ -227,6 +243,7 @@ export class AppState {
 			this.activation = await invoke<ActivationStatus>("activation_status");
 			this.runtime = await invoke<RuntimeStatus>("runtime_status");
 			this.nativeCore = await invoke<NativeCoreStatus>("native_core_status");
+			this.savedConfigJson = JSON.stringify(this.config);
 			this.saveState = "Saved";
 		} catch (error) {
 			this.saveState = String(error);

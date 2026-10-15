@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="lobbytools-title">
+  <title id="lobbytools-title">Lobby Tools</title>
+  <defs>
+    <linearGradient id="lobbytools-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#132636"/>
+      <stop offset="1" stop-color="#07111b"/>
+    </linearGradient>
+    <radialGradient id="lobbytools-glow" cx="0.5" cy="0.38" r="0.62">
+      <stop offset="0" stop-color="#ff9f5a" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#ff9f5a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lobbytools-rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8aa6e" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#c8aa6e" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#lobbytools-bg)"/>
+  <rect width="64" height="64" rx="14" fill="url(#lobbytools-glow)"/>
+  <rect x="1" y="1" width="62" height="62" rx="13" fill="none" stroke="url(#lobbytools-rim)" stroke-width="2"/>
+  <circle cx="26" cy="25" r="6" fill="none" stroke="#f0e6d2" stroke-width="3.5"/>
+  <path d="M15.5 44c.8-6.2 5-10 10.5-10s9.7 3.8 10.5 10" fill="none" stroke="#f0e6d2" stroke-width="3.5" stroke-linecap="round"/>
+  <circle cx="40.5" cy="27" r="5" fill="#ff9f5a" fill-opacity="0.25" stroke="#ff9f5a" stroke-width="3.5"/>
+  <path d="M39 35.5c5.2.2 8.6 3.6 9.5 8.5" fill="none" stroke="#ff9f5a" stroke-width="3.5" stroke-linecap="round"/>
+</svg>
