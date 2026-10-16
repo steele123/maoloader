@@ -164,6 +164,11 @@ export class AppState {
 	updateMessage = $state("");
 	updateProgress = $state(0);
 	updateAvailableVersion = $state("");
+	/** The release notes (CHANGELOG.md section) of the update found by the last check. */
+	updateNotes = $state("");
+	updatePromptOpen = $state(false);
+	// The updater's handle; not reactive, only kept until Install is pressed.
+	pendingUpdate: import("@tauri-apps/plugin-updater").Update | undefined;
 	diagnosticsMessage = $state("");
 	// The config as last loaded or saved, so the settings page can tell when there are unsaved changes.
 	savedConfigJson = $state("");
@@ -310,7 +315,12 @@ export class AppState {
 		}
 	}
 
+	// Checking shows what's new first; nothing downloads until Install is pressed.
 	async checkAndInstallUpdate() {
+		if (this.pendingUpdate) {
+			this.updatePromptOpen = true;
+			return;
+		}
 		this.updateBusy = true;
 		this.updateProgress = 0;
 		this.updateAvailableVersion = "";
@@ -325,9 +335,32 @@ export class AppState {
 				return;
 			}
 
+			this.pendingUpdate = update;
+			this.updateAvailableVersion = update.version;
+			this.updateNotes = update.body?.trim() ?? "";
+			this.updateMessage = `v${update.version} is ready to install`;
+			this.updatePromptOpen = true;
+		} catch (error) {
+			this.updateMessage = String(error);
+		} finally {
+			this.updateBusy = false;
+		}
+	}
+
+	dismissUpdatePrompt() {
+		this.updatePromptOpen = false;
+	}
+
+	async installUpdate() {
+		const update = this.pendingUpdate;
+		if (!update) return;
+		this.updatePromptOpen = false;
+		this.updateBusy = true;
+		this.updateProgress = 0;
+
+		try {
 			let downloaded = 0;
 			let total = 0;
-			this.updateAvailableVersion = update.version;
 			this.updateMessage = `Downloading v${update.version}...`;
 
 			await update.downloadAndInstall((event) => {

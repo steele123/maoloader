@@ -5,9 +5,9 @@ Save rune pages as named presets, apply one in a click, and have a champion's pr
 ## Usage
 
 - Set up a rune page in the client the normal way.
-- Open the command bar (`Ctrl+K`), run `Rune presets`, give it a name and optionally a champion, and press `Save`. `Save current rune page as preset` in the command bar does the same in one step, named after the page.
+- Open Ctrl+K → **Plugin settings** → Rune Presets (or run `Rune presets`), give it a name and optionally a champion, and press `Save`. `Save current rune page as preset` in the command bar does the same in one step, named after the page.
 - Press `Apply` on a preset to load it. `×` deletes it.
-- **Apply in champ select**: when you lock in a champion that has a tagged preset, it's applied for you.
+- **Apply in champ select** (same tab): when you lock in a champion that has a tagged preset, it's applied for you.
 
 ## Which page it writes to
 

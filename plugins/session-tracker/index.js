@@ -16,42 +16,96 @@
   const queues = { RANKED_SOLO_5x5: "Solo/Duo", RANKED_FLEX_SR: "Flex" };
   const tiers = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND"];
   const divisions = { IV: 0, III: 1, II: 2, I: 3 };
-  const defaults = {
-    visible: true,
-    position: null,
-    autoDaily: true,
-    rankedOnly: false,
-    toastAfterGame: true,
-    sessionStart: 0,
-    startRanks: null,
-    knownGameIds: [],
-  };
+  // Options the user changes in the settings window.
+  const defaults = { visible: true, autoDaily: true, rankedOnly: false, toastAfterGame: true };
   let pluginRoot = pluginName;
-  let settings = loadSettings();
+  let settings;
+  // Tracker state, saved under the same key next to the options.
+  let state = loadState();
   let championNames = new Map();
   let summary;
   let refreshing = false;
   let commandBound = false;
 
-  function loadSettings() {
+  function storedObject() {
     const stored = window.DataStore?.get?.(settingsKey, {});
-    const merged = { ...defaults, ...(stored && typeof stored === "object" ? stored : {}) };
-    merged.visible = Boolean(merged.visible);
-    const position = merged.position;
-    merged.position = position && Number.isFinite(position.x) && Number.isFinite(position.y) ? position : null;
-    merged.autoDaily = Boolean(merged.autoDaily);
-    merged.rankedOnly = Boolean(merged.rankedOnly);
-    merged.toastAfterGame = Boolean(merged.toastAfterGame);
-    merged.sessionStart = Number(merged.sessionStart) || 0;
-    merged.startRanks = merged.startRanks && typeof merged.startRanks === "object" ? merged.startRanks : null;
-    merged.knownGameIds = Array.isArray(merged.knownGameIds) ? merged.knownGameIds.slice(-60) : [];
-    return merged;
+    return stored && typeof stored === "object" ? stored : {};
   }
 
-  function saveSettings(patch) {
-    settings = { ...settings, ...patch };
-    window.DataStore?.set?.(settingsKey, settings);
-    window.CommandBar?.update?.();
+  function loadState() {
+    const stored = storedObject();
+    const position = stored.position;
+    return {
+      position: position && Number.isFinite(position.x) && Number.isFinite(position.y) ? position : null,
+      sessionStart: Number(stored.sessionStart) || 0,
+      startRanks: stored.startRanks && typeof stored.startRanks === "object" ? stored.startRanks : null,
+      knownGameIds: Array.isArray(stored.knownGameIds) ? stored.knownGameIds.slice(-60) : [],
+    };
+  }
+
+  // Merges into what's stored, so the options next to the state stay as they are.
+  function saveState(patch) {
+    state = { ...state, ...patch };
+    window.DataStore?.set?.(settingsKey, { ...storedObject(), ...state });
+  }
+
+  // Settings live in maoloader's shared settings window (Ctrl+K → Plugin settings). On a runtime
+  // older than 0.1.7 there is no such window; the plugin then keeps working with what's saved.
+  function defineSettings() {
+    if (typeof window.PluginSettings?.define === "function") {
+      return window.PluginSettings.define({
+        id: pluginName,
+        title: "Session Tracker",
+        description: "A small card with today's wins, losses, streak and LP change, and a summary after each game.",
+        icon: `https://plugins/${pluginRoot}/assets/icon.svg`,
+        storageKey: settingsKey,
+        fields: [
+          { key: "visible", type: "toggle", label: "Show the card", description: "The tracker card in the client. Drag it by its header to move it.", default: defaults.visible },
+          {
+            key: "toastAfterGame",
+            type: "toggle",
+            label: "Summary after each game",
+            description: "A toast with the result, your K/D/A and today's record.",
+            default: defaults.toastAfterGame,
+          },
+          { type: "heading", label: "What counts" },
+          {
+            key: "autoDaily",
+            type: "toggle",
+            label: "Reset daily at midnight",
+            description: "Counts games from midnight each day. Off keeps counting from when the session started.",
+            default: defaults.autoDaily,
+          },
+          { key: "rankedOnly", type: "toggle", label: "Ranked games only", description: "Leaves out normals, ARAM and other queues.", default: defaults.rankedOnly },
+          {
+            type: "button",
+            label: "Start a new session",
+            description: "Counts from now instead of midnight, and turns off the daily reset.",
+            buttonLabel: "Start now",
+            action: () => startNewSession(),
+          },
+        ],
+      });
+    }
+    const stored = storedObject();
+    const values = { ...defaults };
+    for (const key of Object.keys(defaults)) {
+      if (typeof stored[key] === "boolean") values[key] = stored[key];
+    }
+    const listeners = new Set();
+    return {
+      get: (key) => (key ? values[key] : { ...values }),
+      set(key, value) {
+        values[key] = value;
+        window.DataStore?.set?.(settingsKey, { ...storedObject(), [key]: value });
+        for (const listener of listeners) listener({ ...values }, [key]);
+      },
+      onChange(listener) {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      open: () => toast("info", "Update maoloader to 0.1.7 or newer to change plugin settings."),
+    };
   }
 
   function toast(kind, message, options) {
@@ -108,8 +162,9 @@
   }
 
   function ensureSessionStart() {
-    if (!settings.sessionStart || (settings.autoDaily && settings.sessionStart < todayStart())) {
-      saveSettings({ sessionStart: settings.autoDaily ? todayStart() : Date.now(), startRanks: null });
+    const autoDaily = settings.get("autoDaily");
+    if (!state.sessionStart || (autoDaily && state.sessionStart < todayStart())) {
+      saveState({ sessionStart: autoDaily ? todayStart() : Date.now(), startRanks: null });
     }
   }
 
@@ -130,7 +185,8 @@
   }
 
   function summarize(games, ranks) {
-    const counted = games.filter((game) => !game.remake && (!settings.rankedOnly || game.ranked));
+    const rankedOnly = settings.get("rankedOnly");
+    const counted = games.filter((game) => !game.remake && (!rankedOnly || game.ranked));
     const wins = counted.filter((game) => game.win).length;
     let streak = 0;
     for (const game of counted) {
@@ -139,7 +195,7 @@
     }
     const lp = Object.keys(queues)
       .map((queue) => {
-        const start = rankValue(settings.startRanks?.[queue]);
+        const start = rankValue(state.startRanks?.[queue]);
         const now = rankValue(ranks?.[queue]);
         return { queue, label: queues[queue], now: ranks?.[queue], delta: start !== undefined && now !== undefined ? now - start : undefined };
       })
@@ -162,19 +218,19 @@
       }
       const [history, rankedStats] = await Promise.all([lcu(historyApi), lcu(rankedApi).catch(() => undefined)]);
       const ranks = pickRanks(rankedStats);
-      if (!settings.startRanks && rankedStats) saveSettings({ startRanks: ranks });
+      if (!state.startRanks && rankedStats) saveState({ startRanks: ranks });
 
       const games = (history?.games?.games || [])
         .map(gameResult)
-        .filter((game) => game.at >= settings.sessionStart)
+        .filter((game) => game.at >= state.sessionStart)
         .sort((a, b) => b.at - a.at);
-      const previous = new Set(settings.knownGameIds);
+      const previous = new Set(state.knownGameIds);
       const fresh = games.filter((game) => !previous.has(game.id));
-      saveSettings({ knownGameIds: [...previous, ...fresh.map((game) => game.id)].slice(-60) });
+      saveState({ knownGameIds: [...previous, ...fresh.map((game) => game.id)].slice(-60) });
       summary = summarize(games, ranks);
       render();
 
-      if (afterGame && settings.toastAfterGame && fresh.length) announce(fresh[0]);
+      if (afterGame && settings.get("toastAfterGame") && fresh.length) announce(fresh[0]);
       return fresh.length;
     } catch (error) {
       console.warn("[session-tracker] Refresh failed.", error);
@@ -225,9 +281,9 @@
   }
 
   function placeHost(element) {
-    if (settings.position) {
-      const x = Math.min(Math.max(0, settings.position.x), Math.max(0, window.innerWidth - 120));
-      const y = Math.min(Math.max(0, settings.position.y), Math.max(0, window.innerHeight - 48));
+    if (state.position) {
+      const x = Math.min(Math.max(0, state.position.x), Math.max(0, window.innerWidth - 120));
+      const y = Math.min(Math.max(0, state.position.y), Math.max(0, window.innerHeight - 48));
       Object.assign(element.style, { left: `${x}px`, top: `${y}px`, right: "auto", bottom: "auto" });
     } else {
       Object.assign(element.style, { left: "16px", top: "auto", right: "auto", bottom: "16px" });
@@ -242,21 +298,21 @@
       const offsetY = event.clientY - rect.top;
       handle.setPointerCapture(event.pointerId);
       const move = (moveEvent) => {
-        settings.position = { x: moveEvent.clientX - offsetX, y: moveEvent.clientY - offsetY };
+        state.position = { x: moveEvent.clientX - offsetX, y: moveEvent.clientY - offsetY };
         placeHost(element);
       };
       const end = () => {
         handle.removeEventListener("pointermove", move);
         handle.removeEventListener("pointerup", end);
         handle.removeEventListener("pointercancel", end);
-        saveSettings({ position: settings.position });
+        saveState({ position: state.position });
       };
       handle.addEventListener("pointermove", move);
       handle.addEventListener("pointerup", end);
       handle.addEventListener("pointercancel", end);
     });
     handle.addEventListener("dblclick", () => {
-      saveSettings({ position: null });
+      saveState({ position: null });
       placeHost(element);
     });
   }
@@ -288,12 +344,12 @@
   }
 
   function render() {
-    if (!settings.visible) {
+    if (!settings.get("visible")) {
       host()?.remove();
       return;
     }
     const root = mount().shadowRoot;
-    root.querySelector("[data-title]").textContent = settings.autoDaily ? "Today" : "This session";
+    root.querySelector("[data-title]").textContent = settings.get("autoDaily") ? "Today" : "This session";
     const body = root.querySelector("[data-body]");
     if (!summary) {
       body.innerHTML = '<p class="card-empty">Loading…</p>';
@@ -328,64 +384,72 @@
         <div class="record"><strong>${summary.wins}W ${summary.losses}L</strong><span>${rate}%</span>${streak}</div>
         <div class="dots" aria-label="Recent results, oldest first">${dots}</div>
         ${lp}`
-      : `<p class="card-empty">No games yet${settings.rankedOnly ? " in ranked" : ""}.</p>${lp}`;
+      : `<p class="card-empty">No games yet${settings.get("rankedOnly") ? " in ranked" : ""}.</p>${lp}`;
   }
 
+  // The card itself is shown or removed in onSettingsChange.
   function setVisible(visible) {
-    saveSettings({ visible });
-    if (visible) {
+    settings.set("visible", visible);
+    if (!visible) toast("info", "Session tracker hidden. Run Show session tracker from Ctrl+K to bring it back.", { duration: 3500 });
+  }
+
+  function startNewSession() {
+    saveState({ sessionStart: Date.now(), startRanks: null });
+    summary = undefined;
+    settings.set("autoDaily", false);
+    refresh();
+    toast("success", "New session started. Daily reset is off until you turn it back on.", { duration: 3500 });
+  }
+
+  function onSettingsChange(values, changed) {
+    if (changed.includes("autoDaily") && values.autoDaily) saveState({ sessionStart: todayStart(), startRanks: null });
+    if (changed.some((key) => key === "visible" || key === "autoDaily" || key === "rankedOnly")) {
       render();
-      refresh();
-    } else {
-      host()?.remove();
-      toast("info", "Session tracker hidden. Run Show session tracker from Ctrl+K to bring it back.", { duration: 3500 });
+      if (values.visible) refresh();
     }
+    window.CommandBar?.update?.();
   }
 
   function bindCommandBar() {
     if (commandBound || typeof window.CommandBar?.addAction !== "function") return;
     commandBound = true;
     window.CommandBar.addAction({
-      name: () => (settings.visible ? "Hide session tracker" : "Show session tracker"),
+      name: () => (settings.get("visible") ? "Hide session tracker" : "Show session tracker"),
       group: "session",
       tags: ["session", "lp", "wins", "losses", "tracker", "stats"],
-      perform: () => setVisible(!settings.visible),
+      perform: () => setVisible(!settings.get("visible")),
     });
     window.CommandBar.addAction({
       name: "Start a new session",
       group: "session",
       tags: ["session", "reset", "lp"],
-      perform: () => {
-        saveSettings({ sessionStart: Date.now(), startRanks: null, autoDaily: false });
-        summary = undefined;
-        refresh();
-        toast("success", "New session started. Daily reset is off until you turn it back on.", { duration: 3500 });
-      },
+      perform: startNewSession,
     });
     window.CommandBar.addAction({
-      name: () => (settings.autoDaily ? "Session tracker: stop resetting daily" : "Session tracker: reset daily at midnight"),
+      name: () => (settings.get("autoDaily") ? "Session tracker: stop resetting daily" : "Session tracker: reset daily at midnight"),
       group: "session",
       tags: ["session", "daily", "reset"],
-      perform: () => {
-        saveSettings({ autoDaily: !settings.autoDaily });
-        if (settings.autoDaily) saveSettings({ sessionStart: todayStart(), startRanks: null });
-        refresh();
-      },
+      perform: () => settings.set("autoDaily", !settings.get("autoDaily")),
     });
     window.CommandBar.addAction({
-      name: () => (settings.rankedOnly ? "Session tracker: count all games" : "Session tracker: count ranked only"),
+      name: () => (settings.get("rankedOnly") ? "Session tracker: count all games" : "Session tracker: count ranked only"),
       group: "session",
       tags: ["session", "ranked"],
-      perform: () => {
-        saveSettings({ rankedOnly: !settings.rankedOnly });
-        refresh();
-      },
+      perform: () => settings.set("rankedOnly", !settings.get("rankedOnly")),
+    });
+    window.CommandBar.addAction({
+      name: "Session tracker settings",
+      group: "session",
+      tags: ["session", "tracker", "settings"],
+      perform: () => settings.open(),
     });
   }
 
   exports.init = function init(context) {
     if (context?.meta?.name) pluginRoot = context.meta.name;
     const socket = context?.socket || window.socket;
+    settings = defineSettings();
+    settings.onChange(onSettingsChange);
     socket?.observe?.(phaseApi, (event) => {
       if (event?.data === "EndOfGame") window.setTimeout(() => refreshAfterGame(), 4000);
     });

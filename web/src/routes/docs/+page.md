@@ -36,6 +36,8 @@
 	<a href="#shape">Repository shape</a>
 	<a href="#manifest">Plugin fields</a>
 	<a href="#entry">Entry file</a>
+	<a href="#settings">Plugin settings</a>
+	<a href="#events">Live client events</a>
 	<a href="#layout">File layout</a>
 	<a href="#multiple">Multiple plugins</a>
 	<a href="#review">Submitting</a>
@@ -130,9 +132,91 @@ If your plugin imports CSS, include the CSS file in `files` and load it from you
 
 </section>
 
+<section id="settings">
+
+## Plugin settings
+
+Describe your settings once with `PluginSettings.define` and maoloader does the rest: it saves the values, checks each one against its field, and lists your plugin in the shared settings window (Ctrl+K → **Plugin settings**, or **Settings: Your plugin**). Needs maoloader 0.1.7 or newer.
+
+```js
+const settings = PluginSettings.define({
+  id: "auto-accept",
+  title: "Auto Accept",
+  description: "Accepts ready checks for you.",
+  fields: [
+    { key: "enabled", type: "toggle", label: "Accept ready checks", default: true },
+    { key: "delay", type: "range", label: "Delay", min: 0, max: 10, step: 0.5, unit: "s", default: 2 },
+    { key: "mode", type: "choice", label: "Mode", options: ["fast", "safe"], default: "fast" },
+    { key: "note", type: "text", label: "Toast text", showIf: (values) => values.enabled },
+  ],
+});
+
+settings.get("delay"); // 2
+settings.set("delay", 3);
+settings.onChange((values, changed) => console.log(changed, values));
+```
+
+Field types:
+
+| Type | Stores | Options |
+| --- | --- | --- |
+| `toggle` | true or false | |
+| `range` | a number | `min`, `max`, `step`, `unit` |
+| `number` | a number | `min`, `max`, `step` |
+| `choice` | one of `options` | buttons for up to 4 options, a dropdown for more |
+| `color` | a hex colour | |
+| `text` | a string | `placeholder`, `maxLength` |
+| `heading`, `note` | nothing | layout only; a note shows its `text` |
+| `button` | nothing | `buttonLabel`, `action(settings)` |
+
+Every value field also takes `label`, `description`, `default` and an optional `showIf(values)`. Values are saved in DataStore under `your-id.settings` (or `storageKey`). Keys your current version doesn't define are kept, so an update never loses anyone's settings.
+
+Need something fields can't express, like a list people edit or a preset manager? Give `define` a `page` and draw it yourself, under your fields in the same tab:
+
+```js
+PluginSettings.define({
+  id: "rune-presets",
+  title: "Rune Presets",
+  page: {
+    render(container, context) {
+      container.innerHTML = `<button class="button primary">Save current page</button>`;
+      // context.settings is your settings handle; context.tab is the section asked for in open()
+    },
+    destroy() {
+      // stop timers or listeners you started outside the container
+    },
+  },
+});
+```
+
+Your page sits in maoloader's window, so its classes are available: `.field`, `.copy`, `.switch`, `.segmented`, `.button` and `.button.primary`, `.subtabs`, `.text`, `.note` and `.muted`. Open your tab with `settings.open()`, or `settings.open({ tab: "presets" })` to hand your page a section.
+
+</section>
+
+<section id="events">
+
+## Live client events
+
+The client pushes an event whenever something changes: your status, the lobby, champ select, the friends list. Subscribe with `socket.observe` and the endpoint you care about:
+
+```js
+exports.init = function (context) {
+  context.socket.observe("/lol-gameflow/v1/gameflow-phase", (event) => {
+    // event.eventType is "Create", "Update" or "Delete"
+    console.log("Phase:", event.data);
+  });
+};
+```
+
+Not sure which endpoint to watch? Install the **Event recorder** plugin, press Ctrl+K → **Open the event recorder**, and do whatever your plugin should react to. It lists every event as it arrives, shows its data, and copies a ready-made `socket.observe` snippet for any endpoint.
+
+</section>
+
 <section id="layout">
 
 ## Suggested file layout
+
+Each plugin's `README.md` becomes its store page, and its `CHANGELOG.md` becomes the **What's new** list there and on the [changelog](/changelog).
 
 ```txt
 your-plugin-pack/
@@ -142,9 +226,24 @@ your-plugin-pack/
       index.js
       styles.css
       README.md
+      CHANGELOG.md
   assets/
     icon.png
 ```
+
+Start each release in `CHANGELOG.md` with `## <version> - <date>`, newest first, and write it for players:
+
+```md
+## 1.1.0 - 2026-10-16
+
+### New
+- Pick which friends trigger alerts.
+
+### Fixed
+- Alerts no longer repeat after the client reloads.
+```
+
+Bump `version` in `maoloader.json` to match, then submit the update the same way as the first release.
 
 </section>
 

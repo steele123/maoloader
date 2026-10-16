@@ -22,6 +22,11 @@ export function registerSection(name, { defaults, normalize, migrate }) {
   sections.set(name, { defaults, normalize, migrate });
 }
 
+// A section's defaults, for presets that put an area back to how it started.
+export function getDefaults(name) {
+  return { ...(sections.get(name)?.defaults || {}) };
+}
+
 function loadSettings() {
   const stored = window.DataStore?.get?.(SETTINGS_KEY, undefined);
   const loaded = {};

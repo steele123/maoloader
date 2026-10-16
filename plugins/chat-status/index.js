@@ -5,8 +5,6 @@
  */
 (function () {
   const pluginName = "chat-status";
-  const hostId = "maoloader-chat-status";
-  const stylesheetId = "maoloader-chat-status-styles";
   const settingsKey = "chat-status.settings";
   const meApi = "/lol-chat/v1/me";
   const phaseApi = "/lol-gameflow/v1/gameflow-phase";
@@ -19,31 +17,98 @@
   ];
   // Phases where the client resets you to online, so a kept availability gets re-applied.
   const resetPhases = new Set(["None", "Lobby", "EndOfGame"]);
-  const defaults = { availability: "", keep: true, message: "", presets: [], rotate: false, rotateMinutes: 10, rotateIndex: 0 };
+  const defaults = { keep: true, rotate: false, rotateMinutes: 10 };
   let pluginRoot = pluginName;
-  let settings = loadSettings();
+  let settings;
+  let status = loadStatus();
   let rotateTimer = 0;
   let commandBound = false;
+  // The status page while it's open in the settings window.
+  let openPage;
 
-  function loadSettings() {
+  function storedSettings() {
     const stored = window.DataStore?.get?.(settingsKey, {});
-    const merged = { ...defaults, ...(stored && typeof stored === "object" ? stored : {}) };
-    merged.availability = availabilities.some((entry) => entry.id === merged.availability) ? merged.availability : "";
-    merged.keep = Boolean(merged.keep);
-    merged.message = String(merged.message || "").slice(0, maxMessageLength);
-    merged.presets = Array.isArray(merged.presets)
-      ? merged.presets.map((preset) => String(preset).slice(0, maxMessageLength)).filter(Boolean)
-      : [];
-    merged.rotate = Boolean(merged.rotate);
-    merged.rotateMinutes = Math.min(60, Math.max(1, Number(merged.rotateMinutes) || 10));
-    merged.rotateIndex = Math.max(0, Number(merged.rotateIndex) || 0);
-    return merged;
+    return stored && typeof stored === "object" ? stored : {};
   }
 
-  function saveSettings(patch) {
-    settings = { ...settings, ...patch };
-    window.DataStore?.set?.(settingsKey, settings);
+  function loadStatus() {
+    const stored = storedSettings();
+    return {
+      availability: availabilities.some((entry) => entry.id === stored.availability) ? stored.availability : "",
+      message: String(stored.message || "").slice(0, maxMessageLength),
+      presets: Array.isArray(stored.presets) ? stored.presets.map((preset) => String(preset).slice(0, maxMessageLength)).filter(Boolean) : [],
+      rotateIndex: Math.max(0, Number(stored.rotateIndex) || 0),
+    };
+  }
+
+  // Availability, message, saved messages and the rotation position aren't settings fields, so
+  // they're saved by hand next to the fields in the same object.
+  function writeStatus() {
+    window.DataStore?.set?.(settingsKey, { ...storedSettings(), ...status });
+  }
+
+  function saveStatus(patch) {
+    status = { ...status, ...patch };
+    writeStatus();
     window.CommandBar?.update?.();
+  }
+
+  // Settings live in maoloader's shared settings window (Ctrl+K → Plugin settings). On a runtime
+  // older than 0.1.7 there is no such window; the plugin then keeps working with what's saved.
+  function defineSettings() {
+    if (typeof window.PluginSettings?.define === "function") {
+      return window.PluginSettings.define({
+        id: pluginName,
+        title: "Chat Status",
+        description: "Choose how friends see you and set, save or rotate a status message.",
+        icon: `https://plugins/${pluginRoot}/assets/icon.svg`,
+        storageKey: settingsKey,
+        fields: [
+          {
+            key: "keep",
+            type: "toggle",
+            label: "Keep it",
+            description: "Re-applies your status after games and client restarts.",
+            default: defaults.keep,
+          },
+          {
+            key: "rotate",
+            type: "toggle",
+            label: "Rotate saved messages",
+            description: "Cycles through your saved messages on a timer. Needs two or more.",
+            default: defaults.rotate,
+          },
+          {
+            key: "rotateMinutes",
+            type: "range",
+            label: "Every",
+            description: "How long each message stays up.",
+            min: 1,
+            max: 60,
+            step: 1,
+            unit: " min",
+            default: defaults.rotateMinutes,
+            showIf: (values) => values.rotate,
+          },
+        ],
+        page: { render: renderPage, destroy: () => (openPage = undefined) },
+      });
+    }
+    const stored = storedSettings();
+    const values = {
+      keep: stored.keep === undefined ? defaults.keep : Boolean(stored.keep),
+      rotate: Boolean(stored.rotate),
+      rotateMinutes: Math.min(60, Math.max(1, Number(stored.rotateMinutes) || defaults.rotateMinutes)),
+    };
+    return {
+      get: (key) => (key ? values[key] : { ...values }),
+      set(key, value) {
+        values[key] = value;
+        window.DataStore?.set?.(settingsKey, { ...storedSettings(), [key]: value });
+      },
+      onChange: () => () => {},
+      open: () => toast("info", "Update maoloader to 0.1.7 or newer to change plugin settings."),
+    };
   }
 
   function toast(kind, message, options) {
@@ -81,7 +146,7 @@
   }
 
   async function setAvailability(id, { quiet = false } = {}) {
-    saveSettings({ availability: id });
+    saveStatus({ availability: id });
     try {
       await putMe({ availability: id });
       if (!quiet) toast("success", `You appear ${availabilityLabel(id).toLowerCase()}.`, { duration: 2500 });
@@ -89,12 +154,12 @@
       console.error("[chat-status]", error);
       if (!quiet) toast("error", "Could not change your availability. Chat may still be connecting.");
     }
-    renderOpenSheet();
+    openPage?.refresh();
   }
 
   async function setMessage(message, { quiet = false } = {}) {
     const text = String(message || "").slice(0, maxMessageLength);
-    saveSettings({ message: text });
+    saveStatus({ message: text });
     try {
       await putMe({ statusMessage: text });
       if (!quiet) toast("success", text ? "Status message set." : "Status message cleared.", { duration: 2500 });
@@ -106,14 +171,15 @@
 
   // Chat connects a little after the client loads, so retry quietly for a while.
   async function applyKeptStatus(attempt = 0) {
-    if (!settings.keep || (!settings.availability && !settings.message)) return;
+    const { availability, message } = status;
+    if (!settings.get("keep") || (!availability && !message)) return;
     try {
       const me = await lcu(meApi);
       const patch = {};
-      if (settings.availability && me?.availability !== settings.availability && me?.availability !== "dnd") {
-        patch.availability = settings.availability;
+      if (availability && me?.availability !== availability && me?.availability !== "dnd") {
+        patch.availability = availability;
       }
-      if (settings.message && me?.statusMessage !== settings.message) patch.statusMessage = settings.message;
+      if (message && me?.statusMessage !== message) patch.statusMessage = message;
       if (Object.keys(patch).length) await putMe(patch);
     } catch {
       if (attempt < 10) window.setTimeout(() => applyKeptStatus(attempt + 1), 3000);
@@ -121,187 +187,111 @@
   }
 
   function rotateNext() {
-    if (!settings.presets.length) return;
-    const index = settings.rotateIndex % settings.presets.length;
-    saveSettings({ rotateIndex: index + 1 });
-    setMessage(settings.presets[index], { quiet: true });
+    if (!status.presets.length) return;
+    const index = status.rotateIndex % status.presets.length;
+    saveStatus({ rotateIndex: index + 1 });
+    setMessage(status.presets[index], { quiet: true });
   }
 
   function restartRotation() {
     window.clearInterval(rotateTimer);
     rotateTimer = 0;
-    if (settings.rotate && settings.presets.length) {
-      rotateTimer = window.setInterval(rotateNext, settings.rotateMinutes * 60 * 1000);
+    if (settings.get("rotate") && status.presets.length) {
+      rotateTimer = window.setInterval(rotateNext, settings.get("rotateMinutes") * 60 * 1000);
     }
   }
 
-  function host() {
-    return document.getElementById(hostId);
-  }
-
-  function closeSettings() {
-    host()?.remove();
-  }
-
-  // Keep the surface hidden until its stylesheet applies, so it never flashes unstyled.
-  function revealWhenStyled(element) {
-    const link = element.shadowRoot.getElementById(stylesheetId);
-    // data-ready turns on transitions two frames later, so styles arriving don't animate in.
-    const show = () => {
-      element.style.visibility = "";
-      requestAnimationFrame(() => requestAnimationFrame(() => element.setAttribute("data-ready", "")));
-    };
-    if (!link || link.sheet) return show();
-    element.style.visibility = "hidden";
-    link.addEventListener("load", show, { once: true });
-    link.addEventListener("error", show, { once: true });
-  }
-
-  function renderOpenSheet() {
-    const root = host()?.shadowRoot;
-    if (!root) return;
-    root.querySelectorAll("[data-availability]").forEach((button) => {
-      button.setAttribute("aria-checked", String(button.getAttribute("data-availability") === settings.availability));
-    });
-    root.querySelector("[data-presets]").innerHTML = presetRows();
-    root.querySelector("[data-rotate]").disabled = settings.presets.length < 2;
-    root.querySelector("[data-rotate]").checked = settings.rotate;
-  }
-
   function presetRows() {
-    if (!settings.presets.length) return '<p class="field-note">No saved messages yet.</p>';
-    return settings.presets
+    if (!status.presets.length) return '<p class="muted">No saved messages yet.</p>';
+    return status.presets
       .map(
         (preset, index) => `
           <div class="preset-row">
             <span class="preset-text" title="${escapeHtml(preset)}">${escapeHtml(preset)}</span>
             <button class="button" type="button" data-use="${index}">Use</button>
-            <button class="icon-button" type="button" data-remove="${index}" aria-label="Delete saved message">×</button>
+            <button class="button remove" type="button" data-remove="${index}" aria-label="Delete saved message">×</button>
           </div>`,
       )
       .join("");
   }
 
-  function openSettings() {
-    let element = host();
-    if (!element) {
-      element = document.createElement("maoloader-chat-status");
-      element.id = hostId;
-      element.style.cssText = "position:fixed;inset:0;z-index:2147483646;display:flex;pointer-events:none;";
-      element.attachShadow({ mode: "open" });
-      document.body.appendChild(element);
-    }
+  const pageStyles = `
+    .stacked { display: grid; gap: 8px; }
+    .message-row { display: flex; gap: 6px; }
+    .message-row .text { flex: 1 1 auto; width: auto; min-width: 0; }
+    .preset-list { display: grid; gap: 6px; padding: 11px 0; }
+    .preset-row { display: flex; align-items: center; gap: 6px; padding: 5px 6px 5px 11px; border: 1px solid rgba(200, 170, 110, 0.14); border-radius: 7px; background: rgba(1, 10, 19, 0.35); }
+    .preset-text { flex: 1 1 auto; min-width: 0; overflow: hidden; color: #f0e6d2; text-overflow: ellipsis; white-space: nowrap; }
+    .preset-row .remove { width: 32px; padding: 7px 0; font-size: 15px; line-height: 1; }
+    .preset-row .remove:hover { color: #e0675c; }
+  `;
 
-    const root = element.shadowRoot;
-    root.innerHTML = `
-      <link id="${stylesheetId}" rel="stylesheet" href="https://plugins/${pluginRoot}/styles.css" />
-      <div class="sheet-backdrop">
-        <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
-          <header class="sheet-header">
-            <img src="https://plugins/${pluginRoot}/assets/icon.svg" alt="" width="32" height="32" />
-            <div class="sheet-title"><h1 id="sheet-title">Status</h1><span>How friends see you</span></div>
-            <button class="sheet-close" type="button" data-close aria-label="Close">×</button>
-          </header>
-          <div class="sheet-body">
-            <div class="field is-stacked">
-              <span class="field-copy"><strong>Appear as</strong><small>Offline hides you from friends' lists; you can still play.</small></span>
-              <div class="segmented" role="radiogroup" aria-label="Availability">
-                ${availabilities
-                  .map(
-                    (entry) =>
-                      `<button type="button" role="radio" data-availability="${entry.id}" aria-checked="${settings.availability === entry.id}">${entry.label}</button>`,
-                  )
-                  .join("")}
-              </div>
-            </div>
-            <label class="field">
-              <span class="field-copy"><strong>Keep it</strong><small>Re-applies your status after games and client restarts.</small></span>
-              <span class="switch"><input type="checkbox" data-keep ${settings.keep ? "checked" : ""} /><span></span></span>
-            </label>
-            <div class="field is-stacked">
-              <span class="field-copy"><strong>Status message</strong><small>Shown under your name in friends' lists.</small></span>
-              <div class="message-row">
-                <input class="text-input" type="text" data-message maxlength="${maxMessageLength}" value="${escapeHtml(settings.message)}" placeholder="What are you up to?" />
-                <button class="button is-primary" type="button" data-set-message>Set</button>
-                <button class="button" type="button" data-save-preset>Save</button>
-              </div>
-            </div>
-            <div class="field is-stacked">
-              <span class="field-copy"><strong>Saved messages</strong></span>
-              <div class="preset-list" data-presets>${presetRows()}</div>
-            </div>
-            <label class="field">
-              <span class="field-copy"><strong>Rotate saved messages</strong><small>Cycles through them on a timer. Needs two or more.</small></span>
-              <span class="switch"><input type="checkbox" data-rotate ${settings.rotate ? "checked" : ""} ${settings.presets.length < 2 ? "disabled" : ""} /><span></span></span>
-            </label>
-            <div class="field">
-              <span class="field-copy"><strong>Every</strong></span>
-              <span class="range-row">
-                <input type="range" min="1" max="60" step="1" value="${settings.rotateMinutes}" data-minutes aria-label="Rotation interval in minutes" />
-                <span class="field-value" data-minutes-value>${settings.rotateMinutes} min</span>
-              </span>
-            </div>
-          </div>
-          <footer class="sheet-footer"><span>Saved automatically</span><span>Open with <kbd>Ctrl</kbd> + <kbd>K</kbd></span></footer>
-        </section>
-      </div>`;
+  // Availability, message and saved messages, drawn under the fields in the shared settings window.
+  function renderPage(container) {
+    container.innerHTML = `
+      <style>${pageStyles}</style>
+      <p class="heading">Status</p>
+      <div class="field">
+        <span class="copy"><strong>Appear as</strong><small>Offline hides you from friends' lists; you can still play.</small></span>
+        <span class="segmented" role="radiogroup" aria-label="Availability">
+          ${availabilities
+            .map((entry) => `<button type="button" role="radio" data-availability="${entry.id}" aria-checked="${status.availability === entry.id}">${entry.label}</button>`)
+            .join("")}
+        </span>
+      </div>
+      <div class="field stacked">
+        <span class="copy"><strong>Status message</strong><small>Shown under your name in friends' lists. Save keeps it in your saved messages.</small></span>
+        <div class="message-row">
+          <input class="text" type="text" data-message maxlength="${maxMessageLength}" value="${escapeHtml(status.message)}" placeholder="What are you up to?" aria-label="Status message" />
+          <button class="button primary" type="button" data-set-message>Set</button>
+          <button class="button" type="button" data-save-preset>Save</button>
+        </div>
+      </div>
+      <p class="heading">Saved messages</p>
+      <div class="preset-list" data-presets>${presetRows()}</div>`;
 
-    revealWhenStyled(element);
-    root.querySelector("[data-close]").addEventListener("click", closeSettings);
-    const backdrop = root.querySelector(".sheet-backdrop");
-    backdrop.addEventListener("click", (event) => {
-      if (event.target === backdrop) closeSettings();
-    });
-    backdrop.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") closeSettings();
-    });
-    root.querySelectorAll("[data-availability]").forEach((button) => {
+    const list = container.querySelector("[data-presets]");
+    openPage = {
+      refresh() {
+        container.querySelectorAll("[data-availability]").forEach((button) => {
+          button.setAttribute("aria-checked", String(button.getAttribute("data-availability") === status.availability));
+        });
+        list.innerHTML = presetRows();
+      },
+    };
+
+    container.querySelectorAll("[data-availability]").forEach((button) => {
       button.addEventListener("click", () => setAvailability(button.getAttribute("data-availability")));
     });
-    root.querySelector("[data-keep]").addEventListener("change", (event) => saveSettings({ keep: event.target.checked }));
 
-    const message = root.querySelector("[data-message]");
-    root.querySelector("[data-set-message]").addEventListener("click", () => setMessage(message.value.trim()));
+    const message = container.querySelector("[data-message]");
+    container.querySelector("[data-set-message]").addEventListener("click", () => setMessage(message.value.trim()));
     message.addEventListener("keydown", (event) => {
       if (event.key === "Enter") setMessage(message.value.trim());
     });
-    root.querySelector("[data-save-preset]").addEventListener("click", () => {
+    container.querySelector("[data-save-preset]").addEventListener("click", () => {
       const text = message.value.trim();
-      if (!text || settings.presets.includes(text)) return;
-      saveSettings({ presets: [...settings.presets, text] });
-      renderOpenSheet();
+      if (!text || status.presets.includes(text)) return;
+      saveStatus({ presets: [...status.presets, text] });
+      openPage?.refresh();
     });
 
-    // Preset rows are re-rendered, so their clicks are delegated from the list.
-    root.querySelector("[data-presets]").addEventListener("click", (event) => {
+    // Rows are re-rendered, so their clicks are delegated from the list.
+    list.addEventListener("click", (event) => {
       const use = event.target.closest("[data-use]");
       const remove = event.target.closest("[data-remove]");
       if (use) {
-        const text = settings.presets[Number(use.getAttribute("data-use"))];
+        const text = status.presets[Number(use.getAttribute("data-use"))];
         message.value = text;
         setMessage(text);
       } else if (remove) {
-        const presets = settings.presets.filter((_, index) => index !== Number(remove.getAttribute("data-remove")));
-        saveSettings({ presets, rotate: settings.rotate && presets.length > 1 });
+        saveStatus({ presets: status.presets.filter((_, index) => index !== Number(remove.getAttribute("data-remove"))) });
+        if (settings.get("rotate") && status.presets.length < 2) settings.set("rotate", false);
         restartRotation();
-        renderOpenSheet();
+        openPage?.refresh();
       }
     });
-
-    root.querySelector("[data-rotate]").addEventListener("change", (event) => {
-      saveSettings({ rotate: event.target.checked });
-      restartRotation();
-      if (settings.rotate) rotateNext();
-    });
-    const minutes = root.querySelector("[data-minutes]");
-    minutes.addEventListener("input", () => {
-      root.querySelector("[data-minutes-value]").textContent = `${minutes.value} min`;
-    });
-    minutes.addEventListener("change", () => {
-      saveSettings({ rotateMinutes: Number(minutes.value) });
-      restartRotation();
-    });
-    root.querySelector(`[data-availability="${settings.availability || "chat"}"]`)?.focus();
+    container.querySelector(`[data-availability="${status.availability || "chat"}"]`)?.focus();
   }
 
   function bindCommandBar() {
@@ -318,13 +308,23 @@
     window.CommandBar.addAction({
       name: "Status settings",
       group: "status",
-      tags: ["status", "message", "availability", "offline"],
-      perform: openSettings,
+      tags: ["status", "message", "availability", "offline", "settings"],
+      perform: () => settings.open(),
     });
   }
 
   exports.init = function init(context) {
     if (context?.meta?.name) pluginRoot = context.meta.name;
+    settings = defineSettings();
+    settings.onChange((values, changed) => {
+      if (changed.includes("rotate") && values.rotate && status.presets.length < 2) {
+        toast("info", "Save at least two messages to rotate them.", { duration: 3000 });
+        settings.set("rotate", false);
+        return;
+      }
+      if (changed.includes("rotate") || changed.includes("rotateMinutes")) restartRotation();
+      if (changed.includes("rotate") && values.rotate) rotateNext();
+    });
     const socket = context?.socket || window.socket;
     socket?.observe?.(phaseApi, (event) => {
       if (resetPhases.has(event?.data)) window.setTimeout(() => applyKeptStatus(), 2000);

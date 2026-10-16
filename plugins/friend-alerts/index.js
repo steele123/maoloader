@@ -5,36 +5,80 @@
  */
 (function () {
   const pluginName = "friend-alerts";
-  const hostId = "maoloader-friend-alerts";
-  const stylesheetId = "maoloader-friend-alerts-styles";
   const settingsKey = "friend-alerts.settings";
   const friendsApi = "/lol-chat/v1/friends";
   const phaseApi = "/lol-gameflow/v1/gameflow-phase";
   const pollMs = 15000;
   // More alerts than this in one check are merged into one toast.
   const maxSeparateToasts = 3;
-  const defaults = { scope: "chosen", watched: [], onOnline: true, onGameEnd: true };
+  const defaults = { scope: "chosen", onOnline: true, onGameEnd: true };
   let pluginRoot = pluginName;
-  let settings = loadSettings();
+  let settings;
+  // The chosen friends are saved in the same object as the settings, under "watched".
+  let watched = [];
   let previous;
   let friends = [];
   let pollTimer = 0;
   let commandBound = false;
+  // The friends list on this plugin's settings tab, while that tab is open.
+  let page;
 
-  function loadSettings() {
-    const stored = window.DataStore?.get?.(settingsKey, {});
-    const merged = { ...defaults, ...(stored && typeof stored === "object" ? stored : {}) };
-    merged.scope = merged.scope === "all" ? "all" : "chosen";
-    merged.watched = Array.isArray(merged.watched) ? merged.watched.map(String) : [];
-    merged.onOnline = Boolean(merged.onOnline);
-    merged.onGameEnd = Boolean(merged.onGameEnd);
-    return merged;
+  // Settings live in maoloader's shared settings window (Ctrl+K → Plugin settings). On a runtime
+  // older than 0.1.7 there is no such window; the plugin then keeps working with what's saved.
+  function defineSettings() {
+    if (typeof window.PluginSettings?.define === "function") {
+      return window.PluginSettings.define({
+        id: pluginName,
+        title: "Friend Alerts",
+        description: "Toasts when chosen friends come online or finish a game, with a quick invite while you're in a lobby.",
+        icon: `https://plugins/${pluginRoot}/assets/icon.svg`,
+        storageKey: settingsKey,
+        fields: [
+          {
+            key: "scope",
+            type: "choice",
+            label: "Alert me about",
+            description: "Only the friends you tick below, or everyone on your list.",
+            options: [
+              { value: "chosen", label: "Chosen friends" },
+              { value: "all", label: "All friends" },
+            ],
+            default: defaults.scope,
+          },
+          { key: "onOnline", type: "toggle", label: "Comes online", description: "On the client, not the mobile app.", default: defaults.onOnline },
+          { key: "onGameEnd", type: "toggle", label: "Finishes a game", default: defaults.onGameEnd },
+          { type: "note", text: "Friends are checked every 15 seconds. While you're in a lobby, the toast has an Invite button." },
+        ],
+        page: { render: renderPage, destroy: destroyPage },
+      });
+    }
+    const values = { ...defaults, ...readStored() };
+    return {
+      get: (key) => (key ? values[key] : { ...values }),
+      set(key, value) {
+        values[key] = value;
+        window.DataStore?.set?.(settingsKey, { ...readStored(), ...values });
+      },
+      onChange: () => () => {},
+      open: () => toast("info", "Update maoloader to 0.1.7 or newer to change plugin settings."),
+    };
   }
 
-  function saveSettings(patch) {
-    settings = { ...settings, ...patch };
-    window.DataStore?.set?.(settingsKey, settings);
-    window.CommandBar?.update?.();
+  function readStored() {
+    const stored = window.DataStore?.get?.(settingsKey, {});
+    return stored && typeof stored === "object" ? stored : {};
+  }
+
+  function loadWatched() {
+    const stored = readStored().watched;
+    return Array.isArray(stored) ? stored.map(String) : [];
+  }
+
+  // Saves the chosen friends next to the settings, keeping the other saved values.
+  function saveWatched() {
+    const stored = readStored();
+    if (JSON.stringify(stored.watched) === JSON.stringify(watched)) return;
+    window.DataStore?.set?.(settingsKey, { ...stored, watched: [...watched] });
   }
 
   function toast(kind, message, options) {
@@ -77,7 +121,7 @@
   }
 
   function isWatched(friend) {
-    return settings.scope === "all" || settings.watched.includes(friendKey(friend));
+    return settings.get("scope") === "all" || watched.includes(friendKey(friend));
   }
 
   async function invite(friend) {
@@ -137,34 +181,13 @@
       for (const [key, friend] of now) {
         const before = previous.get(key);
         if (!before || !isWatched(friend)) continue;
-        if (settings.onOnline && !isOnline(before) && isOnline(friend)) alerts.push({ kind: "online", friend });
-        else if (settings.onGameEnd && inGame(before) && !inGame(friend) && isOnline(friend)) alerts.push({ kind: "game", friend });
+        if (settings.get("onOnline") && !isOnline(before) && isOnline(friend)) alerts.push({ kind: "online", friend });
+        else if (settings.get("onGameEnd") && inGame(before) && !inGame(friend) && isOnline(friend)) alerts.push({ kind: "game", friend });
       }
       await announce(alerts);
     }
     previous = now;
     renderList();
-  }
-
-  // Keep the surface hidden until its stylesheet applies, so it never flashes unstyled.
-  function revealWhenStyled(element) {
-    const link = element.shadowRoot.getElementById(stylesheetId);
-    const show = () => {
-      element.style.visibility = "";
-      requestAnimationFrame(() => requestAnimationFrame(() => element.setAttribute("data-ready", "")));
-    };
-    if (!link || link.sheet) return show();
-    element.style.visibility = "hidden";
-    link.addEventListener("load", show, { once: true });
-    link.addEventListener("error", show, { once: true });
-  }
-
-  function host() {
-    return document.getElementById(hostId);
-  }
-
-  function closeSettings() {
-    host()?.remove();
   }
 
   function statusLabel(friend) {
@@ -174,110 +197,86 @@
     return { chat: "Online", away: "Away", dnd: "Busy" }[friend.availability] || "Online";
   }
 
+  // Only what the shared window doesn't already style: the friend rows and their checkboxes.
+  const pageStyles = `
+    .friend-search { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 0 8px; }
+    .friend-list { display: grid; gap: 2px; max-height: 300px; overflow: auto; }
+    .friend-list.is-disabled { opacity: 0.5; }
+    .friend-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+    .friend-row:hover { background: rgba(200, 170, 110, 0.08); }
+    .friend-row input { appearance: none; -webkit-appearance: none; width: 16px; height: 16px; margin: 0; border: 1px solid rgba(200, 170, 110, 0.45); border-radius: 4px; background: #06111c; cursor: pointer; }
+    .friend-row input:checked { border-color: #c8aa6e; background: #c8aa6e url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.6 8.4l2.9 2.9 5.9-6.6' fill='none' stroke='%23061018' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px 12px no-repeat; }
+    .friend-row input:focus-visible { outline: 2px solid #c8aa6e; outline-offset: 2px; }
+    .friend-name { overflow: hidden; color: #f0e6d2; text-overflow: ellipsis; white-space: nowrap; }
+    .friend-name small { margin-left: 4px; color: #8a949c; }
+    .friend-status { color: #8a949c; font-size: 12px; }
+    .friend-status.is-online { color: #5fbf8a; font-weight: 700; }
+  `;
+
+  function renderPage(container, ctx) {
+    container.innerHTML = `
+      <style>${pageStyles}</style>
+      <p class="heading">Friends</p>
+      <div class="friend-search">
+        <span class="copy"><strong>Chosen friends</strong><small data-count></small></span>
+        <input class="text" type="search" data-search placeholder="Search friends" aria-label="Search friends" spellcheck="false" />
+      </div>
+      <div class="friend-list" data-friends></div>`;
+    const unsubscribe = ctx.settings.onChange((values, changed) => {
+      if (changed.includes("scope")) renderList();
+    });
+    page = { container, unsubscribe };
+    container.querySelector("[data-search]").addEventListener("input", renderList);
+    container.querySelector("[data-friends]").addEventListener("change", (event) => {
+      const key = event.target.getAttribute?.("data-friend");
+      if (!key) return;
+      watched = watched.filter((entry) => entry !== key);
+      if (event.target.checked) watched.push(key);
+      saveWatched();
+      renderCount();
+    });
+    renderList();
+  }
+
+  function destroyPage() {
+    page?.unsubscribe();
+    page = undefined;
+  }
+
+  function renderCount() {
+    const count = page?.container.querySelector("[data-count]");
+    if (!count) return;
+    count.textContent =
+      settings.get("scope") === "all" ? `${watched.length} ticked. Alerts are on for all friends right now.` : `${watched.length} ticked`;
+  }
+
   function renderList() {
-    const root = host()?.shadowRoot;
-    if (!root) return;
-    const query = root.querySelector("[data-search]").value.trim().toLowerCase();
+    const container = page?.container;
+    if (!container) return;
+    const query = container.querySelector("[data-search]").value.trim().toLowerCase();
     const sorted = [...friends]
       .filter((friend) => !query || friendName(friend).toLowerCase().includes(query))
       .sort(
         (a, b) =>
-          Number(settings.watched.includes(friendKey(b))) - Number(settings.watched.includes(friendKey(a))) ||
+          Number(watched.includes(friendKey(b))) - Number(watched.includes(friendKey(a))) ||
           Number(isOnline(b)) - Number(isOnline(a)) ||
           friendName(a).localeCompare(friendName(b)),
       );
-    root.querySelector("[data-friends]").innerHTML = sorted.length
+    const list = container.querySelector("[data-friends]");
+    list.innerHTML = sorted.length
       ? sorted
           .map(
             (friend) => `
               <label class="friend-row">
-                <input type="checkbox" data-friend="${escapeHtml(friendKey(friend))}" ${settings.watched.includes(friendKey(friend)) ? "checked" : ""} />
+                <input type="checkbox" data-friend="${escapeHtml(friendKey(friend))}" ${watched.includes(friendKey(friend)) ? "checked" : ""} />
                 <span class="friend-name">${escapeHtml(friendName(friend))}${friend.gameTag ? `<small>#${escapeHtml(friend.gameTag)}</small>` : ""}</span>
                 <span class="friend-status ${isOnline(friend) ? "is-online" : ""}">${statusLabel(friend)}</span>
               </label>`,
           )
           .join("")
-      : `<p class="field-note">${friends.length ? "No friends match." : "Your friends list hasn't loaded yet."}</p>`;
-    root.querySelector("[data-friends]").classList.toggle("is-disabled", settings.scope === "all");
-    root.querySelector("[data-count]").textContent = `${settings.watched.length} chosen`;
-  }
-
-  function openSettings() {
-    let element = host();
-    if (!element) {
-      element = document.createElement("maoloader-friend-alerts");
-      element.id = hostId;
-      element.style.cssText = "position:fixed;inset:0;z-index:2147483646;display:flex;pointer-events:none;";
-      element.attachShadow({ mode: "open" });
-      document.body.appendChild(element);
-    }
-
-    const root = element.shadowRoot;
-    root.innerHTML = `
-      <link id="${stylesheetId}" rel="stylesheet" href="https://plugins/${pluginRoot}/styles.css" />
-      <div class="sheet-backdrop">
-        <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
-          <header class="sheet-header">
-            <img src="https://plugins/${pluginRoot}/assets/icon.svg" alt="" width="32" height="32" />
-            <div class="sheet-title"><h1 id="sheet-title">Friend alerts</h1><span>Know when your duo is around</span></div>
-            <button class="sheet-close" type="button" data-close aria-label="Close">×</button>
-          </header>
-          <div class="sheet-body">
-            <div class="field is-stacked">
-              <span class="field-copy"><strong>Alert me about</strong></span>
-              <div class="segmented" role="radiogroup" aria-label="Which friends">
-                <button type="button" role="radio" data-scope="chosen" aria-checked="${settings.scope === "chosen"}">Chosen friends</button>
-                <button type="button" role="radio" data-scope="all" aria-checked="${settings.scope === "all"}">All friends</button>
-              </div>
-            </div>
-            <label class="field">
-              <span class="field-copy"><strong>Comes online</strong><small>On the client, not the mobile app.</small></span>
-              <span class="switch"><input type="checkbox" data-toggle="onOnline" ${settings.onOnline ? "checked" : ""} /><span></span></span>
-            </label>
-            <label class="field">
-              <span class="field-copy"><strong>Finishes a game</strong></span>
-              <span class="switch"><input type="checkbox" data-toggle="onGameEnd" ${settings.onGameEnd ? "checked" : ""} /><span></span></span>
-            </label>
-            <div class="field is-stacked">
-              <span class="field-copy"><strong>Friends</strong><small data-count></small></span>
-              <input class="text-input" type="search" data-search placeholder="Search friends" />
-              <div class="friend-list" data-friends></div>
-            </div>
-          </div>
-          <footer class="sheet-footer"><span>Checks every 15 seconds</span><span>Invite appears while you're in a lobby</span></footer>
-        </section>
-      </div>`;
-
-    revealWhenStyled(element);
-    renderList();
-    root.querySelector("[data-close]").addEventListener("click", closeSettings);
-    const backdrop = root.querySelector(".sheet-backdrop");
-    backdrop.addEventListener("click", (event) => {
-      if (event.target === backdrop) closeSettings();
-    });
-    backdrop.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") closeSettings();
-    });
-    root.querySelectorAll("[data-scope]").forEach((button) => {
-      button.addEventListener("click", () => {
-        saveSettings({ scope: button.getAttribute("data-scope") });
-        root.querySelectorAll("[data-scope]").forEach((other) => other.setAttribute("aria-checked", String(other === button)));
-        renderList();
-      });
-    });
-    root.querySelectorAll("[data-toggle]").forEach((input) => {
-      input.addEventListener("change", () => saveSettings({ [input.getAttribute("data-toggle")]: input.checked }));
-    });
-    root.querySelector("[data-search]").addEventListener("input", renderList);
-    root.querySelector("[data-friends]").addEventListener("change", (event) => {
-      const key = event.target.getAttribute?.("data-friend");
-      if (!key) return;
-      const watched = settings.watched.filter((entry) => entry !== key);
-      if (event.target.checked) watched.push(key);
-      saveSettings({ watched });
-      root.querySelector("[data-count]").textContent = `${settings.watched.length} chosen`;
-    });
-    root.querySelector("[data-search]").focus();
+      : `<p class="muted">${friends.length ? "No friends match." : "Your friends list hasn't loaded yet."}</p>`;
+    list.classList.toggle("is-disabled", settings.get("scope") === "all");
+    renderCount();
   }
 
   function bindCommandBar() {
@@ -286,9 +285,9 @@
     window.CommandBar.addAction({
       name: "Friend alerts",
       group: "friends",
-      tags: ["friends", "online", "alerts", "notifications", "duo"],
+      tags: ["friends", "online", "alerts", "notifications", "duo", "settings"],
       perform: () => {
-        openSettings();
+        settings.open();
         poll();
       },
     });
@@ -296,6 +295,10 @@
 
   exports.init = function init(context) {
     if (context?.meta?.name) pluginRoot = context.meta.name;
+    watched = loadWatched();
+    settings = defineSettings();
+    // The shared window saves only its own fields, from a copy read at start-up; put "watched" back after each save.
+    settings.onChange(saveWatched);
   };
 
   exports.load = function load() {

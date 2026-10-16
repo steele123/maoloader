@@ -2092,6 +2092,577 @@
     }
   }
 
+  // ---- Plugin settings ----
+  // A plugin describes its settings once with PluginSettings.define(). maoloader keeps the values
+  // in DataStore, checks every value against its field, and draws one settings window shared by
+  // all plugins, opened from Ctrl+K.
+
+  const SETTINGS_SURFACE_ID = "maoloader-plugin-settings";
+  const SETTINGS_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+  const SETTINGS_VALUE_TYPES = new Set(["toggle", "range", "number", "choice", "color", "text"]);
+  const SETTINGS_LAYOUT_TYPES = new Set(["heading", "note", "button"]);
+  const settingsRegistry = new Map();
+  let settingsWindowCommandAdded = false;
+  let settingsShownId = "";
+
+  function settingsEscape(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+  }
+
+  function settingsOptions(field) {
+    return (Array.isArray(field.options) ? field.options : [])
+      .map((option) => (typeof option === "object" && option !== null ? option : { value: option, label: String(option) }))
+      .filter((option) => option.value !== undefined)
+      .map((option) => ({ value: option.value, label: String(option.label ?? option.value) }));
+  }
+
+  function settingsDefault(field) {
+    if (field.default !== undefined) {
+      return field.default;
+    }
+    switch (field.type) {
+      case "toggle":
+        return false;
+      case "range":
+      case "number":
+        return Number.isFinite(field.min) ? field.min : 0;
+      case "choice":
+        return settingsOptions(field)[0]?.value;
+      case "color":
+        return "#c8aa6e";
+      default:
+        return "";
+    }
+  }
+
+  // Coerces a stored or entered value into something the field accepts, or its default.
+  function normalizeSettingValue(field, value) {
+    const fallback = () => (value === settingsDefault(field) ? value : normalizeSettingValue(field, settingsDefault(field)));
+    switch (field.type) {
+      case "toggle":
+        return typeof value === "boolean" ? value : Boolean(settingsDefault(field));
+      case "range":
+      case "number": {
+        const number = typeof value === "string" && value.trim() === "" ? NaN : Number(value);
+        if (!Number.isFinite(number)) {
+          const base = Number(settingsDefault(field));
+          return Number.isFinite(base) ? base : 0;
+        }
+        const min = Number.isFinite(field.min) ? field.min : -Infinity;
+        const max = Number.isFinite(field.max) ? field.max : Infinity;
+        let result = Math.min(max, Math.max(min, number));
+        if (Number.isFinite(field.step) && field.step > 0) {
+          const origin = Number.isFinite(min) ? min : 0;
+          result = origin + Math.round((result - origin) / field.step) * field.step;
+          result = Math.min(max, Math.max(min, Number(result.toFixed(10))));
+        }
+        return result;
+      }
+      case "choice": {
+        const options = settingsOptions(field);
+        if (options.some((option) => option.value === value)) {
+          return value;
+        }
+        const base = settingsDefault(field);
+        return options.some((option) => option.value === base) ? base : options[0]?.value;
+      }
+      case "color":
+        return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim().toLowerCase() : fallback();
+      case "text": {
+        const limit = Number.isFinite(field.maxLength) && field.maxLength > 0 ? field.maxLength : 500;
+        return typeof value === "string" ? value.slice(0, limit) : String(settingsDefault(field) ?? "").slice(0, limit);
+      }
+      default:
+        return value;
+    }
+  }
+
+  function normalizeSettingsFields(fields) {
+    const seen = new Set();
+    return (Array.isArray(fields) ? fields : []).filter((field) => {
+      if (typeof field !== "object" || field === null) {
+        return false;
+      }
+      if (SETTINGS_LAYOUT_TYPES.has(field.type)) {
+        return true;
+      }
+      if (!SETTINGS_VALUE_TYPES.has(field.type) || typeof field.key !== "string" || !field.key || seen.has(field.key)) {
+        console.warn("[PluginSettings] Skipping a field without a known type or a unique key.", field);
+        return false;
+      }
+      seen.add(field.key);
+      return true;
+    });
+  }
+
+  function settingsValueFields(entry) {
+    return entry.fields.filter((field) => SETTINGS_VALUE_TYPES.has(field.type));
+  }
+
+  function readSettingsValues(entry) {
+    const stored = window.DataStore?.get?.(entry.storageKey, undefined);
+    const source = typeof stored === "object" && stored !== null ? stored : {};
+    const values = {};
+    for (const field of settingsValueFields(entry)) {
+      values[field.key] = normalizeSettingValue(field, source[field.key]);
+    }
+    // Keys this version doesn't define are kept, so an older or newer plugin version loses nothing.
+    entry.extras = Object.fromEntries(Object.entries(source).filter(([key]) => !(key in values)));
+    return values;
+  }
+
+  function writeSettingsValues(entry) {
+    // Re-read what's stored first: a plugin may keep its own data (lists, presets) in the same
+    // object and change it after define(), and a save must never roll that back.
+    const stored = window.DataStore?.get?.(entry.storageKey, undefined);
+    if (typeof stored === "object" && stored !== null) {
+      entry.extras = Object.fromEntries(Object.entries(stored).filter(([key]) => !(key in entry.values)));
+    }
+    window.DataStore?.set?.(entry.storageKey, { ...entry.extras, ...entry.values });
+  }
+
+  function notifySettings(entry, changed) {
+    const snapshot = { ...entry.values };
+    for (const listener of [...entry.listeners]) {
+      try {
+        listener(snapshot, changed);
+      } catch (error) {
+        console.warn(`[PluginSettings] A change listener for ${entry.id} failed.`, error);
+      }
+    }
+  }
+
+  function applySettingsChanges(entry, changes, { fromWindow = false } = {}) {
+    const changed = [];
+    for (const field of settingsValueFields(entry)) {
+      if (!(field.key in changes)) {
+        continue;
+      }
+      const next = normalizeSettingValue(field, changes[field.key]);
+      if (!Object.is(next, entry.values[field.key])) {
+        entry.values[field.key] = next;
+        changed.push(field.key);
+      }
+    }
+    if (!changed.length) {
+      return changed;
+    }
+    writeSettingsValues(entry);
+    notifySettings(entry, changed);
+    if (settingsShownId === entry.id) {
+      // Changes made in the window are already on screen; only visibility rules need a refresh.
+      // Changes from code redraw the fields only, so a plugin's own page keeps its state.
+      fromWindow ? refreshSettingsVisibility(entry) : renderSettingsFields(entry);
+    }
+    return changed;
+  }
+
+  function settingsHandle(entry) {
+    return {
+      id: entry.id,
+      get(key) {
+        return key === undefined ? { ...entry.values } : entry.values[key];
+      },
+      set(keyOrValues, value) {
+        const changes = typeof keyOrValues === "object" && keyOrValues !== null ? keyOrValues : { [keyOrValues]: value };
+        return applySettingsChanges(entry, changes);
+      },
+      reset() {
+        const defaults = {};
+        for (const field of settingsValueFields(entry)) {
+          defaults[field.key] = settingsDefault(field);
+        }
+        return applySettingsChanges(entry, defaults);
+      },
+      onChange(listener) {
+        if (typeof listener !== "function") {
+          return () => {};
+        }
+        entry.listeners.add(listener);
+        return () => entry.listeners.delete(listener);
+      },
+      open(options) {
+        openSettingsWindow(entry.id, options);
+      },
+    };
+  }
+
+  function definePluginSettings(definition) {
+    if (typeof definition !== "object" || definition === null || !SETTINGS_ID_PATTERN.test(String(definition.id ?? ""))) {
+      throw new TypeError("PluginSettings.define needs an id made of letters, numbers, dots, dashes or underscores.");
+    }
+    const id = String(definition.id);
+    const existing = settingsRegistry.get(id);
+    const entry = existing ?? { id, listeners: new Set(), values: {}, extras: {} };
+    entry.title = String(definition.title || id);
+    entry.description = definition.description ? String(definition.description) : "";
+    entry.icon = typeof definition.icon === "string" ? definition.icon : "";
+    entry.storageKey = typeof definition.storageKey === "string" && definition.storageKey ? definition.storageKey : `${id}.settings`;
+    entry.fields = normalizeSettingsFields(definition.fields);
+    // A plugin can draw its own page under its fields: page.render(container, context), with an
+    // optional page.destroy() when the page is left.
+    entry.page = typeof definition.page?.render === "function" ? definition.page : undefined;
+    entry.values = readSettingsValues(entry);
+    settingsRegistry.set(id, entry);
+
+    if (!existing) {
+      window.CommandBar?.addAction?.({
+        name: () => `Settings: ${entry.title}`,
+        group: "plugin settings",
+        tags: ["settings", "options", "preferences", id],
+        perform: () => openSettingsWindow(id),
+      });
+    }
+    if (!settingsWindowCommandAdded) {
+      settingsWindowCommandAdded = true;
+      window.CommandBar?.addAction?.({
+        name: "Plugin settings",
+        group: "maoloader",
+        tags: ["settings", "options", "preferences", "plugins"],
+        perform: () => openSettingsWindow(),
+      });
+    }
+    if (settingsShownId) {
+      renderSettingsWindow();
+    }
+    return settingsHandle(entry);
+  }
+
+  // ---- Plugin settings window ----
+
+  const SETTINGS_CSS = `
+    :host { all: initial; }
+    *, *::before, *::after { box-sizing: border-box; }
+    .backdrop { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(1, 10, 19, 0.62); font: 13px/1.45 Inter, "Segoe UI", system-ui, sans-serif; color: #c8c3b4; }
+    .sheet { display: grid; grid-template-columns: 196px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; width: min(860px, calc(100vw - 48px)); height: min(600px, calc(100vh - 56px)); border: 1px solid rgba(200, 170, 110, 0.4); border-radius: 12px; background: linear-gradient(180deg, #0b1925, #050f18); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); overflow: hidden; }
+    header { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid rgba(200, 170, 110, 0.16); }
+    header h1 { margin: 0; color: #f0e6d2; font-size: 15px; font-weight: 800; letter-spacing: 0.02em; }
+    header span { color: #8a949c; font-size: 12px; }
+    .close { margin-left: auto; width: 30px; height: 30px; border: 0; border-radius: 7px; background: transparent; color: #a09b8c; font-size: 20px; cursor: pointer; }
+    .close:hover { background: rgba(200, 170, 110, 0.12); color: #f0e6d2; }
+    .sheet > nav { overflow-y: auto; padding: 10px 8px; border-right: 1px solid rgba(200, 170, 110, 0.12); background: rgba(1, 10, 19, 0.35); }
+    .sheet > nav button { display: flex; width: 100%; align-items: center; gap: 9px; margin-bottom: 2px; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: #a09b8c; font: inherit; font-weight: 650; text-align: left; cursor: pointer; }
+    .sheet > nav button img { width: 20px; height: 20px; border-radius: 5px; flex: none; }
+    .sheet > nav button:hover { background: rgba(200, 170, 110, 0.08); color: #f0e6d2; }
+    .sheet > nav button[aria-current="true"] { background: rgba(200, 170, 110, 0.14); color: #f0e6d2; }
+    .body { overflow-y: auto; padding: 18px 20px; }
+    .intro { margin: 0 0 14px; color: #8a949c; }
+    .field { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 0; border-bottom: 1px solid rgba(200, 170, 110, 0.08); }
+    .field[hidden] { display: none; }
+    .copy { display: grid; gap: 2px; min-width: 0; }
+    .copy strong { color: #f0e6d2; font-weight: 650; }
+    .copy small { color: #8a949c; font-size: 12px; }
+    .heading { margin: 18px 0 2px; color: #c8aa6e; font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+    .heading:first-child { margin-top: 0; }
+    .note { margin: 10px 0; padding: 9px 11px; border-left: 3px solid #785a28; border-radius: 5px; background: rgba(200, 170, 110, 0.06); color: #a09b8c; font-size: 12px; }
+    .switch { position: relative; flex: none; width: 38px; height: 22px; }
+    .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+    .switch span { position: absolute; inset: 0; border: 1px solid rgba(200, 170, 110, 0.4); border-radius: 999px; background: #0a1824; transition: background 0.15s ease; pointer-events: none; }
+    .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #5d6872; transition: transform 0.15s ease, background 0.15s ease; }
+    .switch input:checked + span { background: rgba(200, 170, 110, 0.25); border-color: #c8aa6e; }
+    .switch input:checked + span::after { transform: translateX(16px); background: #f0e6d2; }
+    .switch input:focus-visible + span { outline: 2px solid #c8aa6e; outline-offset: 2px; }
+    .range { display: flex; align-items: center; gap: 10px; flex: none; }
+    .range input { width: 160px; accent-color: #c8aa6e; }
+    .range output { min-width: 44px; color: #f0e6d2; font-variant-numeric: tabular-nums; text-align: right; }
+    .segmented { display: inline-flex; flex: none; gap: 2px; padding: 3px; border: 1px solid rgba(200, 170, 110, 0.22); border-radius: 8px; background: #06111c; }
+    .segmented button { padding: 6px 11px; border: 0; border-radius: 6px; background: transparent; color: #a09b8c; font: inherit; font-weight: 650; cursor: pointer; }
+    .segmented button[aria-checked="true"] { background: rgba(200, 170, 110, 0.18); color: #f0e6d2; }
+    select, .text, .number { flex: none; height: 32px; padding: 0 10px; border: 1px solid rgba(200, 170, 110, 0.24); border-radius: 7px; background: #06111c; color: #f0e6d2; font: inherit; }
+    .text { width: 220px; }
+    .number { width: 96px; }
+    select:focus, .text:focus, .number:focus { border-color: #c8aa6e; outline: none; }
+    .color { flex: none; width: 44px; height: 30px; padding: 2px; border: 1px solid rgba(200, 170, 110, 0.3); border-radius: 7px; background: #06111c; cursor: pointer; }
+    .action { flex: none; padding: 7px 14px; border: 1px solid #c8aa6e; border-radius: 7px; background: linear-gradient(180deg, #1e2328, #0a1428); color: #f0e6d2; font: inherit; font-weight: 700; cursor: pointer; }
+    .action:hover { border-color: #f0e6d2; }
+    .empty { display: grid; place-items: center; height: 100%; color: #8a949c; text-align: center; }
+    footer { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-top: 1px solid rgba(200, 170, 110, 0.12); color: #5d6872; font-size: 12px; }
+    footer button { border: 0; background: none; color: #a09b8c; font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+    footer button:hover { color: #f0e6d2; }
+    /* Shared pieces for plugins that draw their own page (PluginSettings.define({ page })). */
+    .page { display: block; }
+    .button { padding: 7px 12px; border: 1px solid rgba(200, 170, 110, 0.3); border-radius: 7px; background: #06111c; color: #ddd8cc; font: inherit; font-weight: 650; cursor: pointer; }
+    .button:hover:not(:disabled) { border-color: #c8aa6e; color: #f0e6d2; }
+    .button:disabled { opacity: 0.5; cursor: default; }
+    .button.primary { border-color: #c8aa6e; background: linear-gradient(180deg, #1e2328, #0a1428); color: #f0e6d2; font-weight: 700; }
+    .subtabs { display: flex; flex-wrap: wrap; gap: 2px; margin: 0 0 14px; border-bottom: 1px solid rgba(200, 170, 110, 0.14); }
+    .subtabs button { margin-bottom: -1px; padding: 8px 12px; border: 0; border-bottom: 2px solid transparent; background: none; color: #8a949c; font: inherit; font-weight: 650; cursor: pointer; }
+    .subtabs button:hover { color: #f0e6d2; }
+    .subtabs button[aria-selected="true"] { border-bottom-color: #c8aa6e; color: #f0e6d2; }
+    .muted { color: #8a949c; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+    ::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: rgba(200, 170, 110, 0.35) padding-box; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(200, 170, 110, 0.6) padding-box; }
+  `;
+
+  function settingsFieldMarkup(field, value, index) {
+    const label = settingsEscape(field.label || field.key || "");
+    const copy = `<span class="copy"><strong>${label}</strong>${field.description ? `<small>${settingsEscape(field.description)}</small>` : ""}</span>`;
+    const key = settingsEscape(field.key ?? "");
+    switch (field.type) {
+      case "heading":
+        return `<p class="heading">${label}</p>`;
+      case "note":
+        return `<p class="note">${settingsEscape(field.text ?? field.label ?? "")}</p>`;
+      case "button":
+        return `<div class="field">${copy}<button class="action" type="button" data-action="${index}">${settingsEscape(field.buttonLabel || field.label || "Run")}</button></div>`;
+      case "toggle":
+        return `<label class="field" data-field="${key}">${copy}<span class="switch"><input type="checkbox" data-key="${key}" ${value ? "checked" : ""} /><span></span></span></label>`;
+      case "range": {
+        const unit = settingsEscape(field.unit ?? "");
+        return `<div class="field" data-field="${key}">${copy}<span class="range"><input type="range" data-key="${key}" min="${field.min ?? 0}" max="${field.max ?? 100}" step="${field.step ?? 1}" value="${value}" aria-label="${label}" /><output>${settingsEscape(value)}${unit}</output></span></div>`;
+      }
+      case "number":
+        return `<div class="field" data-field="${key}">${copy}<input class="number" type="number" data-key="${key}" ${Number.isFinite(field.min) ? `min="${field.min}"` : ""} ${Number.isFinite(field.max) ? `max="${field.max}"` : ""} step="${field.step ?? "any"}" value="${value}" aria-label="${label}" /></div>`;
+      case "choice": {
+        const options = settingsOptions(field);
+        if (options.length <= 4) {
+          return `<div class="field" data-field="${key}">${copy}<span class="segmented" role="radiogroup" aria-label="${label}">${options
+            .map((option, optionIndex) => `<button type="button" role="radio" data-choice="${key}" data-option="${optionIndex}" aria-checked="${Object.is(option.value, value)}">${settingsEscape(option.label)}</button>`)
+            .join("")}</span></div>`;
+        }
+        return `<div class="field" data-field="${key}">${copy}<select data-key="${key}" aria-label="${label}">${options
+          .map((option, optionIndex) => `<option value="${optionIndex}" ${Object.is(option.value, value) ? "selected" : ""}>${settingsEscape(option.label)}</option>`)
+          .join("")}</select></div>`;
+      }
+      case "color":
+        return `<div class="field" data-field="${key}">${copy}<input class="color" type="color" data-key="${key}" value="${settingsEscape(value)}" aria-label="${label}" /></div>`;
+      case "text":
+        return `<div class="field" data-field="${key}">${copy}<input class="text" type="text" data-key="${key}" value="${settingsEscape(value)}" ${field.placeholder ? `placeholder="${settingsEscape(field.placeholder)}"` : ""} maxlength="${field.maxLength ?? 500}" aria-label="${label}" spellcheck="false" /></div>`;
+      default:
+        return "";
+    }
+  }
+
+  function settingsRoot() {
+    return document.getElementById?.(SETTINGS_SURFACE_ID)?.shadowRoot;
+  }
+
+  function refreshSettingsVisibility(entry) {
+    const root = settingsRoot();
+    if (!root) {
+      return;
+    }
+    for (const field of entry.fields) {
+      if (typeof field.showIf !== "function" || !field.key) {
+        continue;
+      }
+      let visible = true;
+      try {
+        visible = Boolean(field.showIf({ ...entry.values }));
+      } catch {
+        visible = true;
+      }
+      const element = root.querySelector(`[data-field="${CSS.escape(field.key)}"]`);
+      if (element) {
+        element.hidden = !visible;
+      }
+    }
+  }
+
+  let settingsActivePage;
+
+  function leaveSettingsPage() {
+    const page = settingsActivePage;
+    settingsActivePage = undefined;
+    try {
+      page?.destroy?.();
+    } catch (error) {
+      console.warn("[PluginSettings] A settings page failed to clean up.", error);
+    }
+  }
+
+  function closeSettingsWindow() {
+    leaveSettingsPage();
+    settingsShownId = "";
+    document.getElementById?.(SETTINGS_SURFACE_ID)?.remove?.();
+  }
+
+  function settingsFieldsMarkup(entry) {
+    return entry.fields.map((field, index) => settingsFieldMarkup(field, field.key ? entry.values[field.key] : undefined, index)).join("");
+  }
+
+  function renderSettingsFields(entry) {
+    const container = settingsRoot()?.querySelector?.("[data-fields]");
+    if (container) {
+      container.innerHTML = settingsFieldsMarkup(entry);
+      refreshSettingsVisibility(entry);
+    }
+  }
+
+  function renderSettingsWindow(options = {}) {
+    const root = settingsRoot();
+    if (!root) {
+      return;
+    }
+    leaveSettingsPage();
+    const entries = [...settingsRegistry.values()].sort((left, right) => left.title.localeCompare(right.title));
+    const entry = settingsRegistry.get(settingsShownId) ?? entries[0];
+    settingsShownId = entry?.id ?? "__none__";
+    const hasValues = Boolean(entry && settingsValueFields(entry).length);
+    const body = entry
+      ? `${entry.description ? `<p class="intro">${settingsEscape(entry.description)}</p>` : ""}<div data-fields>${settingsFieldsMarkup(entry)}</div>${
+          entry.page ? `<div class="page" data-page></div>` : ""
+        }`
+      : `<div class="empty">No plugin has settings yet.</div>`;
+    root.innerHTML = `
+      <style>${SETTINGS_CSS}</style>
+      <div class="backdrop" data-backdrop>
+        <section class="sheet" role="dialog" aria-modal="true" aria-label="Plugin settings">
+          <header><h1>Plugin settings</h1><span>${entries.length} plugin${entries.length === 1 ? "" : "s"}</span><button class="close" type="button" data-close aria-label="Close">×</button></header>
+          <nav aria-label="Plugins">${entries
+            .map((item) => `<button type="button" data-plugin="${settingsEscape(item.id)}" aria-current="${item === entry}">${item.icon ? `<img src="${settingsEscape(item.icon)}" alt="" />` : ""}${settingsEscape(item.title)}</button>`)
+            .join("")}</nav>
+          <div class="body">${body}</div>
+          <footer><span>Saved automatically</span>${hasValues ? `<button type="button" data-reset>Reset ${settingsEscape(entry.title)} to defaults</button>` : ""}</footer>
+        </section>
+      </div>`;
+    if (!entry) {
+      return;
+    }
+    refreshSettingsVisibility(entry);
+    const pageContainer = root.querySelector("[data-page]");
+    if (entry.page && pageContainer) {
+      settingsActivePage = entry.page;
+      try {
+        entry.page.render(pageContainer, { settings: settingsHandle(entry), tab: options.tab, close: closeSettingsWindow });
+      } catch (error) {
+        console.warn(`[PluginSettings] The settings page of ${entry.id} failed to draw.`, error);
+        pageContainer.innerHTML = `<p class="note">This plugin's settings page failed to load. Check its console logs.</p>`;
+      }
+    }
+  }
+
+  function settingsFieldFor(key) {
+    return settingsRegistry.get(settingsShownId)?.fields.find((field) => field.key === key);
+  }
+
+  function bindSettingsWindow(root) {
+    root.addEventListener("click", (event) => {
+      const target = event.target;
+      if (target.closest?.("[data-close]") || target.matches?.("[data-backdrop]")) {
+        closeSettingsWindow();
+        return;
+      }
+      const pluginButton = target.closest?.("[data-plugin]");
+      if (pluginButton) {
+        settingsShownId = pluginButton.getAttribute("data-plugin");
+        renderSettingsWindow();
+        return;
+      }
+      const entry = settingsRegistry.get(settingsShownId);
+      if (!entry) {
+        return;
+      }
+      if (target.closest?.("[data-reset]")) {
+        settingsHandle(entry).reset();
+        renderSettingsFields(entry);
+        return;
+      }
+      // Everything below belongs to declared fields; a plugin's own page handles its own clicks.
+      if (!target.closest?.("[data-fields]")) {
+        return;
+      }
+      const choice = target.closest?.("[data-choice]");
+      if (choice) {
+        const field = settingsFieldFor(choice.getAttribute("data-choice"));
+        const option = field && settingsOptions(field)[Number(choice.getAttribute("data-option"))];
+        if (option) {
+          applySettingsChanges(entry, { [field.key]: option.value }, { fromWindow: true });
+          choice.parentElement?.querySelectorAll("[data-choice]").forEach((button) => button.setAttribute("aria-checked", String(button === choice)));
+        }
+        return;
+      }
+      const action = target.closest?.("[data-action]");
+      if (action) {
+        const field = entry.fields[Number(action.getAttribute("data-action"))];
+        try {
+          field?.action?.(settingsHandle(entry));
+        } catch (error) {
+          console.warn(`[PluginSettings] The "${field?.label}" button of ${entry.id} failed.`, error);
+        }
+      }
+    });
+
+    const onInput = (event) => {
+      const input = event.target;
+      if (!input.closest?.("[data-fields]")) {
+        return;
+      }
+      const key = input.getAttribute?.("data-key");
+      const entry = settingsRegistry.get(settingsShownId);
+      const field = key && settingsFieldFor(key);
+      if (!entry || !field) {
+        return;
+      }
+      let value;
+      if (field.type === "toggle") {
+        value = input.checked;
+      } else if (field.type === "choice") {
+        value = settingsOptions(field)[Number(input.value)]?.value;
+      } else if (field.type === "range" || field.type === "number") {
+        // Let a number box be empty while typing; only commit when the field is left.
+        if (field.type === "number" && event.type === "input") {
+          return;
+        }
+        value = input.value;
+      } else {
+        value = input.value;
+      }
+      applySettingsChanges(entry, { [key]: value }, { fromWindow: true });
+      if (field.type === "range") {
+        const output = input.parentElement?.querySelector("output");
+        if (output) {
+          output.textContent = `${entry.values[key]}${field.unit ?? ""}`;
+        }
+      }
+      if (field.type === "number" && event.type === "change") {
+        input.value = entry.values[key];
+      }
+    };
+    root.addEventListener("input", onInput);
+    root.addEventListener("change", onInput);
+    root.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        closeSettingsWindow();
+      }
+    });
+  }
+
+  // options.tab is handed to a plugin's page, so it can open on one of its own sections.
+  function openSettingsWindow(id, options = {}) {
+    if (typeof document === "undefined") {
+      return;
+    }
+    const existing = document.getElementById?.(SETTINGS_SURFACE_ID);
+    const surface = existing ?? createShadowSurface(SETTINGS_SURFACE_ID, "position:fixed;inset:0;z-index:2147483646;display:block;");
+    const root = surface?.shadowRoot;
+    if (!root) {
+      return;
+    }
+    if (!existing) {
+      bindSettingsWindow(root);
+    }
+    settingsShownId = id && settingsRegistry.has(id) ? id : settingsShownId && settingsRegistry.has(settingsShownId) ? settingsShownId : "";
+    renderSettingsWindow(options && typeof options === "object" ? options : {});
+    root.querySelector?.("[data-close]")?.focus?.();
+  }
+
+  window.PluginSettings = {
+    define: definePluginSettings,
+    get(id) {
+      const entry = settingsRegistry.get(id);
+      return entry ? settingsHandle(entry) : undefined;
+    },
+    list() {
+      return [...settingsRegistry.values()].map((entry) => ({ id: entry.id, title: entry.title }));
+    },
+    open: openSettingsWindow,
+    close: closeSettingsWindow,
+  };
+
   function createRcp() {
     const callbackLength = Symbol("length");
     const prefix = "riotPlugin.announce:";

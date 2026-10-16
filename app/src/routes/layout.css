@@ -1376,3 +1376,51 @@ label.setting {
 .sidebar-discord:hover {
 	color: #aab4ff;
 }
+
+/* ---- Update dialog ---- */
+
+.update-modal {
+	width: min(520px, 100%);
+}
+
+.update-modal .release-notes {
+	max-height: 320px;
+	margin-top: 12px;
+	overflow-y: auto;
+	color: var(--text);
+	font-size: 13px;
+	line-height: 1.55;
+}
+
+.update-modal .release-notes h4 {
+	margin: 12px 0 6px;
+	color: var(--gold);
+	font-size: 11px;
+	font-weight: 800;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+.update-modal .release-notes h4:first-child {
+	margin-top: 0;
+}
+
+.update-modal .release-notes ul {
+	margin: 0;
+	padding-left: 18px;
+}
+
+.update-modal .release-notes li + li {
+	margin-top: 4px;
+}
+
+.update-modal .release-notes strong {
+	color: var(--text-strong);
+}
+
+.update-modal .release-notes code {
+	padding: 1px 5px;
+	border-radius: 4px;
+	background: var(--navy-1);
+	font-size: 12px;
+}

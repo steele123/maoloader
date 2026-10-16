@@ -6,6 +6,7 @@
 	import ExternalLinkIcon from "@lucide/svelte/icons/external-link";
 	import FileCodeIcon from "@lucide/svelte/icons/file-code";
 	import BookOpenIcon from "@lucide/svelte/icons/book-open";
+	import SparklesIcon from "@lucide/svelte/icons/sparkles";
 	import LinkIcon from "@lucide/svelte/icons/link-2";
 	import MonitorDownIcon from "@lucide/svelte/icons/monitor-down";
 	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
@@ -214,6 +215,26 @@
 		</div>
 		<!-- Rendered on the server with raw HTML escaped and unsafe links dropped. -->
 		<div class="readme">{@html data.readme_html}</div>
+	</section>
+{/if}
+
+{#if data.releases.length}
+	<section class="readme-panel changelog-panel">
+		<div class="article-heading">
+			<SparklesIcon />
+			<h2>What's new</h2>
+		</div>
+		{#each data.releases as release}
+			<article class="release">
+				<header>
+					<strong>v{release.version}</strong>
+					{#if release.version === listing.version}<Badge variant="secondary">current</Badge>{/if}
+					{#if release.date}<span>{release.date}</span>{/if}
+				</header>
+				<!-- Rendered on the server with raw HTML escaped and unsafe links dropped. -->
+				<div class="readme">{@html release.html}</div>
+			</article>
+		{/each}
 	</section>
 {/if}
 

@@ -40,6 +40,8 @@ export type RegistryListing = {
 	downloads?: number;
 	/** README.md from the package, shown on the plugin page. */
 	readme?: string;
+	/** CHANGELOG.md from the package: one "## <version>" section per release. */
+	changelog?: string;
 	/** Earlier published versions, newest first. */
 	history?: RegistryVersion[];
 	updated_at: string;

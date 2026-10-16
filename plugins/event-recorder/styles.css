@@ -1,0 +1,342 @@
+:host {
+  all: initial;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.panel {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  width: 680px;
+  height: 460px;
+  overflow: hidden;
+  border: 1px solid rgba(200, 170, 110, 0.4);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #0b1925, #050f18);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  color: #c8c3b4;
+  font: 12px/1.4 Inter, "Segoe UI", system-ui, sans-serif;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 12px;
+  border-bottom: 1px solid rgba(200, 170, 110, 0.16);
+  cursor: grab;
+  user-select: none;
+}
+
+header strong {
+  color: #f0e6d2;
+  font-size: 13px;
+}
+
+.status {
+  color: #8a949c;
+  font-variant-numeric: tabular-nums;
+}
+
+.spacer {
+  flex: 1;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.record {
+  padding: 5px 12px;
+  border: 1px solid #c8aa6e;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #1e2328, #0a1428);
+  color: #f0e6d2;
+  font-weight: 700;
+}
+
+.record.is-on {
+  border-color: #e0584b;
+  color: #ffb3aa;
+}
+
+.record.is-on::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #e0584b;
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.icon {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #a09b8c;
+  font-size: 15px;
+}
+
+.icon:hover {
+  background: rgba(200, 170, 110, 0.12);
+  color: #f0e6d2;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(200, 170, 110, 0.1);
+}
+
+.toolbar input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(200, 170, 110, 0.24);
+  border-radius: 6px;
+  background: #06111c;
+  color: #f0e6d2;
+  font: inherit;
+}
+
+.toolbar input:focus {
+  border-color: #c8aa6e;
+  outline: none;
+}
+
+.chips,
+.views {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.chip,
+.views button {
+  padding: 4px 8px;
+  border: 1px solid rgba(200, 170, 110, 0.2);
+  border-radius: 5px;
+  background: transparent;
+  color: #5d6872;
+  font-weight: 650;
+}
+
+.chip[aria-pressed="true"].is-create {
+  border-color: rgba(63, 191, 143, 0.5);
+  color: #7fe0b4;
+}
+
+.chip[aria-pressed="true"].is-update {
+  border-color: rgba(90, 179, 255, 0.5);
+  color: #8cc8ff;
+}
+
+.chip[aria-pressed="true"].is-delete {
+  border-color: rgba(224, 88, 75, 0.5);
+  color: #ff9a8f;
+}
+
+.views button[aria-selected="true"] {
+  background: rgba(200, 170, 110, 0.16);
+  color: #f0e6d2;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.rows {
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  border-right: 1px solid rgba(200, 170, 110, 0.1);
+  list-style: none;
+}
+
+.rows li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.rows li:hover {
+  background: rgba(200, 170, 110, 0.06);
+}
+
+.rows li.is-selected {
+  background: rgba(200, 170, 110, 0.14);
+}
+
+.rows li.empty {
+  display: block;
+  padding: 24px 14px;
+  color: #8a949c;
+  text-align: center;
+  cursor: default;
+}
+
+.uri {
+  overflow: hidden;
+  color: #ddd8cc;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+time {
+  color: #5d6872;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  place-items: center;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.badge.is-create {
+  background: rgba(63, 191, 143, 0.18);
+  color: #7fe0b4;
+}
+
+.badge.is-update {
+  background: rgba(90, 179, 255, 0.16);
+  color: #8cc8ff;
+}
+
+.badge.is-delete {
+  background: rgba(224, 88, 75, 0.18);
+  color: #ff9a8f;
+}
+
+.count {
+  min-width: 34px;
+  color: #c8aa6e;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 10px 12px;
+}
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.detail-uri {
+  overflow: hidden;
+  color: #f0e6d2;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta,
+.hint {
+  margin: 6px 0;
+  color: #8a949c;
+}
+
+.hint code {
+  color: #f0e6d2;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.actions button {
+  padding: 4px 9px;
+  border: 1px solid rgba(200, 170, 110, 0.3);
+  border-radius: 5px;
+  background: #06111c;
+  color: #ddd8cc;
+}
+
+.actions button:hover {
+  border-color: #c8aa6e;
+  color: #f0e6d2;
+}
+
+pre {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid rgba(200, 170, 110, 0.12);
+  border-radius: 6px;
+  background: #030b13;
+  color: #cfe3d8;
+  font: 11px/1.5 ui-monospace, Consolas, monospace;
+  white-space: pre;
+}
+
+.detail-head .badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+}
+
+/* Thin gold scrollbars, like the rest of maoloader. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(200, 170, 110, 0.35) padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(200, 170, 110, 0.6) padding-box;
+}

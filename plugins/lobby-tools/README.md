@@ -9,9 +9,11 @@ Lobby shortcuts in the command bar, a **Play again** button after games, and an 
 - `Leave lobby`
 - `Play again`: back to the lobby from the post-game screen.
 - `Turn on auto re-queue` / `Turn off auto re-queue`
-- `Lobby tools settings`
+- `Lobby tools settings`: opens this plugin's settings.
 
 ## After games
+
+Change these in Ctrl+K → **Plugin settings** → Lobby Tools, or run `Lobby tools settings`.
 
 - **Play again button** (on by default): a toast after each game with a `Play again` button.
 - **Auto re-queue** (off by default): after each game, goes back to the lobby and starts the same queue after a 3 to 30 second delay. The toast has a `Don't re-queue` button, and going back to the lobby yourself cancels it too.

@@ -11,6 +11,8 @@
 	import { onMount, setContext } from "svelte";
 	import { APP_STATE_KEY, AppState } from "$lib/app-state.svelte";
 	import { listenForInstallLinks } from "$lib/deep-link";
+	import { Button } from "$lib/components/ui/button/index.js";
+	import { releaseNotesHtml } from "$lib/release-notes";
 	import { DISCORD_URL } from "$lib/links";
 	import "./layout.css";
 
@@ -134,3 +136,22 @@
 		</section>
 	</main>
 </div>
+
+{#if state.updatePromptOpen && state.updateAvailableVersion}
+	<div class="modal-backdrop" role="presentation" onclick={(event) => event.target === event.currentTarget && state.dismissUpdatePrompt()}>
+		<div class="panel modal update-modal" role="dialog" aria-modal="true" aria-label={`maoloader v${state.updateAvailableVersion}`}>
+			<p class="eyebrow">Update available</p>
+			<h2>maoloader v{state.updateAvailableVersion}</h2>
+			{#if state.updateNotes}
+				<!-- Notes are escaped by releaseNotesHtml before any markup is added. -->
+				<div class="release-notes">{@html releaseNotesHtml(state.updateNotes)}</div>
+			{:else}
+				<p class="muted">A new version is ready.</p>
+			{/if}
+			<div class="modal-actions">
+				<Button variant="outline" onclick={() => state.dismissUpdatePrompt()}>Later</Button>
+				<Button onclick={() => state.installUpdate()}>Install update</Button>
+			</div>
+		</div>
+	</div>
+{/if}

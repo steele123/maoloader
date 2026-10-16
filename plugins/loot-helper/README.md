@@ -4,7 +4,7 @@ Turns champion shards into Blue Essence in one go, after showing you exactly wha
 
 ## Usage
 
-1. Open the command bar (`Ctrl+K`) and run `Disenchant champion shards`.
+1. Open `Ctrl+K` → **Plugin settings** → **Loot Helper** (running `Disenchant champion shards` from the command bar opens the same tab).
 2. Check the list: each champion, how many shards, and the Blue Essence they give. The total is at the top.
 3. Adjust if needed:
    - **Only champions I own** (on by default): leaves shards for champions you could still unlock.
@@ -13,7 +13,7 @@ Turns champion shards into Blue Essence in one go, after showing you exactly wha
 
 Disenchanting can't be undone. Only champion shards are ever included; skins, skin shards, permanent champions, chests and keys are never touched.
 
-Settings are saved in the maoloader DataStore under `loot-helper.settings`.
+Settings are saved in the maoloader DataStore under `loot-helper.settings`. The settings tab, and with it the disenchant button, needs maoloader 0.1.7 or newer.
 
 ## Endpoints
 

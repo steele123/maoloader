@@ -2797,3 +2797,112 @@ dd {
 		display: none;
 	}
 }
+
+/* ---- Changelogs ---- */
+
+.release + .release {
+	margin-top: 18px;
+	padding-top: 18px;
+	border-top: 1px solid var(--line);
+}
+
+.release header {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 8px;
+}
+
+.release header strong {
+	color: var(--text-strong);
+	font-size: 1.05rem;
+}
+
+.release header span {
+	color: var(--muted-text);
+	font-size: 0.86rem;
+}
+
+.release .readme h3 {
+	margin: 12px 0 6px;
+	color: var(--gold);
+	font-size: 0.78rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+.release .readme > :last-child {
+	margin-bottom: 0;
+}
+
+.changelog-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+	gap: 16px;
+	align-items: start;
+}
+
+.latest-pill {
+	padding: 1px 8px;
+	border: 1px solid rgba(63, 191, 143, 0.45);
+	border-radius: 999px;
+	color: #7fe0b4 !important;
+	font-size: 0.74rem !important;
+	font-weight: 700;
+}
+
+.plugin-update header {
+	justify-content: space-between;
+}
+
+.plugin-update-name {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	text-decoration: none;
+}
+
+.plugin-update-name:hover strong {
+	color: var(--gold-bright);
+}
+
+.plugin-update .listing-icon {
+	width: 30px;
+	height: 30px;
+	border-radius: 8px;
+}
+
+.plugin-update .listing-icon img {
+	border-radius: 8px;
+}
+
+.plugin-update .listing-icon svg {
+	width: 16px;
+	height: 16px;
+}
+
+@media (max-width: 780px) {
+	.changelog-layout {
+		grid-template-columns: 1fr;
+	}
+}
+
+.release-notes .readme h3 {
+	margin: 12px 0 6px;
+	color: var(--gold);
+	font-size: 0.78rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+.release-notes-more {
+	display: inline-block;
+	margin-top: 8px;
+	color: var(--gold-bright);
+	font-weight: 650;
+	text-decoration: none;
+}
+
+.release-notes-more:hover {
+	text-decoration: underline;
+}

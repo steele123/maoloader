@@ -1,6 +1,6 @@
 # Steele's UI
 
-One plugin for the client's look: a backdrop behind everything, your own home tab, a custom or hidden top bar, and control over the friends panel on the right. It replaces the separate Backdrop and Clean Home plugins, and picks up their settings the first time it runs.
+One plugin for the client's look: a backdrop behind everything, your own home tab, a custom or hidden top bar, control over the friends panel on the right, themes you can share, and a profile background and banner picker. It replaces the separate Backdrop and Clean Home plugins, and picks up their settings the first time it runs.
 
 Open the settings with `Ctrl+K` → `Steele's UI settings`, the gear in the home dashboard's greeting card, or the gear on the custom top bar. Each opens the window on its own tab.
 
@@ -57,3 +57,17 @@ With **Collapse until hover**, opening a menu from the panel (like a friend's ri
 Riot's own elements are only hidden with CSS, never removed, so the client keeps working underneath. Everything on the dashboard comes from the client itself (friends, match history, ranked stats, region), except the apex cutoffs, which come from `https://maoloader.com/api/cutoffs`, a proxy for LadderEye's ladder data. Everything shares one stylesheet of rules and one watcher for page changes, batched to once per frame. Settings are saved in the maoloader DataStore under `steeles-ui.settings`; on the first run they're carried over from `client-backdrop.settings` and `clean-home.settings`.
 
 The plugin is an ES module split by area: `src/backdrop.js`, `src/home.js`, `src/topbar.js`, `src/panel.js`, the tabbed window in `src/settings.js`, and shared helpers in `src/core.js`.
+
+## Theme
+
+- **Presets**: Hextech, Midnight, Focus, Ember, or back to Steele's default. Each sets the accent, font, backdrop, top bar and panel at once; the toast that follows has **Undo**.
+- **Share your look**: **Copy my code** puts your whole look on the clipboard as a `SUI1-` code. Paste a friend's code and press **Apply** to try theirs (also undoable). Codes never include your home cards, notes, or images from your own `backgrounds` folder.
+- **Accent colour**: recolours the client's gold (buttons, borders, highlights, text) and Steele's UI's own windows. A few parts Riot draws inside sealed components, like the top menu icons, keep their gold.
+- **Font**: **League** (Riot's fonts), **Clean** (Segoe UI), **Serif** (League's title font everywhere), or **Custom** with the name of any font installed on your PC.
+
+## Profile
+
+- **Profile background**: search the skins you own and click one to make it your profile background.
+- **Banner**: pick any banner you've earned; the equipped one is marked.
+
+Both change your real profile through the client, exactly like the profile screen does.

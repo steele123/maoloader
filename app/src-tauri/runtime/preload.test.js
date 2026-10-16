@@ -1317,3 +1317,100 @@ describe("preload loading screen", () => {
     expect(loadingRoot(document)).toBeUndefined();
   });
 });
+
+describe("plugin settings", () => {
+  const fields = [
+    { type: "heading", label: "General" },
+    { key: "enabled", type: "toggle", label: "Enabled", default: true },
+    { key: "delay", type: "range", label: "Delay", min: 0, max: 10, step: 0.5, unit: "s", default: 2 },
+    { key: "mode", type: "choice", label: "Mode", options: [{ value: "fast", label: "Fast" }, "slow"], default: "fast" },
+    { key: "accent", type: "color", label: "Accent", default: "#C8AA6E" },
+    { key: "name", type: "text", label: "Name", maxLength: 5 },
+    { key: "count", type: "number", label: "Count", min: 1 },
+    { type: "button", label: "Do it", action: () => {} },
+    { type: "mystery", key: "nope" },
+  ];
+
+  test("defines settings with defaults and checks every stored value", () => {
+    const datastore = JSON.stringify({
+      "demo.settings": { enabled: "yes", delay: 12.3, mode: "warp", accent: "#123ABC", name: "abcdefgh", count: -4, legacy: 7 },
+    });
+    const { window } = createPreloadWindow({ datastore });
+
+    const settings = window.PluginSettings.define({ id: "demo", title: "Demo", fields });
+    expect(settings.get()).toEqual({ enabled: true, delay: 10, mode: "fast", accent: "#123abc", name: "abcde", count: 1 });
+    expect(window.PluginSettings.list()).toEqual([{ id: "demo", title: "Demo" }]);
+  });
+
+  test("set saves, keeps unknown stored keys and tells listeners what changed", () => {
+    const datastore = JSON.stringify({ "demo.settings": { legacy: 7 } });
+    const { window, calls } = createPreloadWindow({ datastore });
+    const settings = window.PluginSettings.define({ id: "demo", fields });
+    const seen = [];
+    const stop = settings.onChange((values, changed) => seen.push([values.delay, changed]));
+
+    expect(settings.set("delay", 3.26)).toEqual(["delay"]);
+    expect(settings.get("delay")).toBe(3.5);
+    expect(settings.set("delay", 3.5)).toEqual([]);
+    expect(settings.set({ mode: "slow", enabled: false })).toEqual(["enabled", "mode"]);
+    stop();
+    settings.set("delay", 1);
+
+    expect(seen).toEqual([
+      [3.5, ["delay"]],
+      [3.5, ["enabled", "mode"]],
+    ]);
+    const saved = JSON.parse(calls.filter(([name]) => name === "SaveDataStore").at(-1)[1]);
+    expect(saved["demo.settings"]).toEqual({ legacy: 7, enabled: false, delay: 1, mode: "slow", accent: "#c8aa6e", name: "", count: 1 });
+  });
+
+  test("reset returns every field to its default", () => {
+    const { window } = createPreloadWindow();
+    const settings = window.PluginSettings.define({ id: "demo", fields });
+    settings.set({ delay: 7, mode: "slow" });
+    expect(settings.reset().sort()).toEqual(["delay", "mode"]);
+    expect(settings.get("delay")).toBe(2);
+  });
+
+  test("a failing listener doesn't stop the others", () => {
+    const { window } = createPreloadWindow();
+    const settings = window.PluginSettings.define({ id: "demo", fields });
+    const seen = [];
+    settings.onChange(() => {
+      throw new Error("boom");
+    });
+    settings.onChange((values) => seen.push(values.enabled));
+    settings.set("enabled", false);
+    expect(seen).toEqual([false]);
+  });
+
+  test("adds a command per plugin and one for the settings window", () => {
+    const { window } = createPreloadWindow();
+    window.PluginSettings.define({ id: "demo", title: "Demo", fields });
+    window.PluginSettings.define({ id: "other", title: "Other", fields: [] });
+    window.PluginSettings.define({ id: "demo", title: "Demo again", fields });
+    const names = window.__maoloaderCommandBarActions.map((action) => (typeof action.name === "function" ? action.name() : action.name));
+    expect(names.filter((name) => name === "Plugin settings")).toHaveLength(1);
+    expect(names).toContain("Settings: Demo again");
+    expect(names).toContain("Settings: Other");
+    expect(names.filter((name) => String(name).startsWith("Settings: "))).toHaveLength(2);
+  });
+
+  test("rejects ids that aren't safe storage keys", () => {
+    const { window } = createPreloadWindow();
+    expect(() => window.PluginSettings.define({ id: "../evil", fields })).toThrow();
+    expect(() => window.PluginSettings.define({ fields })).toThrow();
+  });
+});
+
+describe("plugin settings and plugin-owned data", () => {
+  test("a save keeps data the plugin stored in the same object after define()", () => {
+    const { window, calls } = createPreloadWindow({ datastore: JSON.stringify({ "lists.settings": { enabled: true, watched: ["a"] } }) });
+    const settings = window.PluginSettings.define({ id: "lists", fields: [{ key: "enabled", type: "toggle", default: true }] });
+    // The plugin updates its own list directly, then a field changes.
+    window.DataStore.set("lists.settings", { ...window.DataStore.get("lists.settings"), watched: ["a", "b"] });
+    settings.set("enabled", false);
+    const saved = JSON.parse(calls.filter(([name]) => name === "SaveDataStore").at(-1)[1]);
+    expect(saved["lists.settings"]).toEqual({ enabled: false, watched: ["a", "b"] });
+  });
+});

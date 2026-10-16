@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="eventrecorder-title">
+  <title id="eventrecorder-title">Event Recorder</title>
+  <defs>
+    <linearGradient id="eventrecorder-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#132636"/>
+      <stop offset="1" stop-color="#07111b"/>
+    </linearGradient>
+    <radialGradient id="eventrecorder-glow" cx="0.5" cy="0.38" r="0.62">
+      <stop offset="0" stop-color="#ff5a6e" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#ff5a6e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="eventrecorder-rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8aa6e" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#c8aa6e" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#eventrecorder-bg)"/>
+  <rect width="64" height="64" rx="14" fill="url(#eventrecorder-glow)"/>
+  <rect x="1" y="1" width="62" height="62" rx="13" fill="none" stroke="url(#eventrecorder-rim)" stroke-width="2"/>
+  <path d="M15 33h5l3-8 5 16 4-12 3 6h5" fill="none" stroke="#f0e6d2" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="45" cy="33" r="6" fill="#ff5a6e"/>
+  <circle cx="45" cy="33" r="10" fill="none" stroke="#ff5a6e" stroke-opacity="0.35" stroke-width="2.5"/>
+</svg>

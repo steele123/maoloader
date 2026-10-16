@@ -16,7 +16,7 @@ A small HUD that shows up in champ select and goes away when it ends.
 
 ## Auto pick and ban
 
-Off by default. Open it with the ⚙ button on the HUD, or `Auto pick and ban settings` in the command bar (`Ctrl+K`).
+Off by default. Set it up in Ctrl+K → **Plugin settings** → Champ Select Tools. The ⚙ button on the HUD and `Auto pick and ban settings` in the command bar open the same page.
 
 - Set two picks and a ban for each role, plus an **Any role** row used for blind pick and as a fallback. Type a champion name; the box suggests names as you type.
 - **Hover my pick** shows your first available pick to the team as soon as champ select opens.

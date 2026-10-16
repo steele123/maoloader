@@ -5,32 +5,58 @@
  */
 (function () {
   const pluginName = "loot-helper";
-  const hostId = "maoloader-loot-helper";
-  const stylesheetId = "maoloader-loot-helper-styles";
   const settingsKey = "loot-helper.settings";
   const lootApi = "/lol-loot/v1/player-loot";
   const disenchantRecipe = "CHAMPION_RENTAL_disenchant";
   const confirmMs = 4000;
   const defaults = { ownedOnly: true, keepOne: false };
   let pluginRoot = pluginName;
-  let settings = loadSettings();
+  let settings;
   let plan = [];
+  // "loading", "ready" or "error": what the settings tab shows above the list.
+  let planState = "loading";
   let armedUntil = 0;
   let armTimer = 0;
   let working = false;
+  let progress = "";
   let commandBound = false;
+  // The disenchant section of this plugin's settings tab, while that tab is open.
+  let page;
 
-  function loadSettings() {
+  // Settings live in maoloader's shared settings window (Ctrl+K → Plugin settings). On a runtime
+  // older than 0.1.7 there is no such window; the plugin then keeps working with what's saved.
+  function defineSettings() {
+    if (typeof window.PluginSettings?.define === "function") {
+      return window.PluginSettings.define({
+        id: pluginName,
+        title: "Loot Helper",
+        description: "Turns champion shards into Blue Essence in one go, after showing you exactly what will be disenchanted.",
+        icon: `https://plugins/${pluginRoot}/assets/icon.svg`,
+        storageKey: settingsKey,
+        fields: [
+          {
+            key: "ownedOnly",
+            type: "toggle",
+            label: "Only champions I own",
+            description: "Leaves shards you could still use to unlock a champion.",
+            default: defaults.ownedOnly,
+          },
+          { key: "keepOne", type: "toggle", label: "Keep one of each", description: "Leaves one shard per champion.", default: defaults.keepOne },
+        ],
+        page: { render: renderPage, destroy: destroyPage },
+      });
+    }
     const stored = window.DataStore?.get?.(settingsKey, {});
-    const merged = { ...defaults, ...(stored && typeof stored === "object" ? stored : {}) };
-    merged.ownedOnly = Boolean(merged.ownedOnly);
-    merged.keepOne = Boolean(merged.keepOne);
-    return merged;
-  }
-
-  function saveSettings(patch) {
-    settings = { ...settings, ...patch };
-    window.DataStore?.set?.(settingsKey, settings);
+    const values = { ...defaults, ...(stored && typeof stored === "object" ? stored : {}) };
+    return {
+      get: (key) => (key ? values[key] : { ...values }),
+      set(key, value) {
+        values[key] = value;
+        window.DataStore?.set?.(settingsKey, values);
+      },
+      onChange: () => () => {},
+      open: () => toast("info", "Update maoloader to 0.1.7 or newer to change plugin settings."),
+    };
   }
 
   function toast(kind, message, options) {
@@ -61,11 +87,13 @@
 
   // Champion shards only: permanent champions, skins and other loot are never included.
   function buildPlan(loot) {
+    const ownedOnly = settings.get("ownedOnly");
+    const keepOne = settings.get("keepOne");
     return (Array.isArray(loot) ? loot : [])
       .filter((item) => item.type === "CHAMPION_RENTAL" && item.displayCategories === "CHAMPION" && Number(item.count) > 0)
-      .filter((item) => !settings.ownedOnly || item.itemStatus === "OWNED")
+      .filter((item) => !ownedOnly || item.itemStatus === "OWNED")
       .map((item) => {
-        const count = Number(item.count) - (settings.keepOne ? 1 : 0);
+        const count = Number(item.count) - (keepOne ? 1 : 0);
         return {
           lootId: item.lootId,
           name: item.itemDesc || item.localizedName || item.lootName || item.lootId,
@@ -90,6 +118,20 @@
     return plan;
   }
 
+  // Reads the loot again and redraws the tab. Skipped mid-disenchant, which refreshes at the end.
+  async function refreshPlan() {
+    if (working) return;
+    try {
+      await loadPlan();
+      planState = "ready";
+    } catch (error) {
+      console.error("[loot-helper]", error);
+      plan = [];
+      planState = "error";
+    }
+    renderPlan();
+  }
+
   async function disenchantAll() {
     if (working || !plan.length) return;
     working = true;
@@ -98,7 +140,8 @@
     let done = 0;
     let failed = 0;
     for (const entry of plan) {
-      renderButton(`Disenchanting ${done + 1} of ${plan.length}…`);
+      progress = `Disenchanting ${done + failed + 1} of ${plan.length}…`;
+      renderButton();
       try {
         await lcu(`/lol-loot/v1/recipes/${disenchantRecipe}/craft?repeat=${entry.count}`, {
           method: "POST",
@@ -112,17 +155,13 @@
       }
     }
     working = false;
+    progress = "";
     if (failed) {
       toast("warning", `Disenchanted ${done} of ${done + failed} champions. Open the loot tab to check the rest.`, { duration: 5000 });
     } else {
       toast("success", `Disenchanted ${done} champion${done === 1 ? "" : "s"} for ${formatNumber(essence)} Blue Essence.`, { duration: 4000 });
     }
-    try {
-      await loadPlan();
-    } catch {
-      plan = [];
-    }
-    renderSheet();
+    await refreshPlan();
   }
 
   function disarm() {
@@ -131,6 +170,7 @@
     armTimer = 0;
   }
 
+  // The first click arms the button; only a second click within a few seconds disenchants.
   function onDisenchantClick() {
     if (working || !plan.length) return;
     if (Date.now() < armedUntil) {
@@ -145,52 +185,79 @@
     renderButton();
   }
 
-  // Keep the surface hidden until its stylesheet applies, so it never flashes unstyled.
-  function revealWhenStyled(element) {
-    const link = element.shadowRoot.getElementById(stylesheetId);
-    const show = () => {
-      element.style.visibility = "";
-      requestAnimationFrame(() => requestAnimationFrame(() => element.setAttribute("data-ready", "")));
-    };
-    if (!link || link.sheet) return show();
-    element.style.visibility = "hidden";
-    link.addEventListener("load", show, { once: true });
-    link.addEventListener("error", show, { once: true });
+  // Only what the shared window doesn't already style: the shard list and the red button.
+  const pageStyles = `
+    .loot-list { display: grid; gap: 2px; max-height: 300px; margin: 4px 0 0; padding: 0; overflow: auto; list-style: none; }
+    .loot-list:empty { display: none; }
+    .loot-list li { display: grid; grid-template-columns: minmax(0, 1fr) 44px 80px; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-variant-numeric: tabular-nums; }
+    .loot-list li:nth-child(odd) { background: rgba(200, 170, 110, 0.06); }
+    .loot-name { overflow: hidden; color: #f0e6d2; text-overflow: ellipsis; white-space: nowrap; }
+    .loot-count { color: #8a949c; text-align: right; }
+    .loot-value { color: #f0e6d2; font-weight: 700; text-align: right; }
+    .tag { padding: 0 5px; border-radius: 4px; background: rgba(200, 170, 110, 0.16); color: #c8aa6e; font-size: 11px; font-weight: 700; }
+    .button.danger { flex: none; border-color: rgba(224, 96, 90, 0.6); color: #f08a84; }
+    .button.danger:hover:not(:disabled) { border-color: #e0605a; color: #ffb3ae; }
+    .button.danger.is-armed { border-color: #e0605a; background: #a8332d; color: #ffffff; }
+  `;
+
+  function renderPage(container, ctx) {
+    container.innerHTML = `
+      <style>${pageStyles}</style>
+      <p class="heading">Disenchant</p>
+      <div class="field">
+        <span class="copy"><strong data-summary></strong><small>Skins, permanent champions and other loot are never touched. This can't be undone.</small></span>
+        <button class="button danger" type="button" data-disenchant></button>
+      </div>
+      <ul class="loot-list" data-list></ul>`;
+    // Changing a setting cancels a half-made confirm and rebuilds the list.
+    const unsubscribe = ctx.settings.onChange(() => {
+      disarm();
+      refreshPlan();
+    });
+    page = { container, unsubscribe };
+    container.querySelector("[data-disenchant]").addEventListener("click", onDisenchantClick);
+    if (!working) planState = "loading";
+    renderPlan();
+    refreshPlan();
   }
 
-  function host() {
-    return document.getElementById(hostId);
-  }
-
-  function closeSheet() {
+  function destroyPage() {
     disarm();
-    host()?.remove();
+    page?.unsubscribe();
+    page = undefined;
   }
 
-  function renderButton(label) {
-    const button = host()?.shadowRoot?.querySelector("[data-disenchant]");
+  function renderButton() {
+    const button = page?.container.querySelector("[data-disenchant]");
     if (!button) return;
     const { shards, essence } = totals();
     const armed = Date.now() < armedUntil;
     button.disabled = working || !plan.length;
     button.classList.toggle("is-armed", armed);
     button.textContent =
-      label ||
-      (!plan.length
-        ? "Nothing to disenchant"
-        : armed
-          ? `Click again to disenchant ${formatNumber(shards)} shards`
-          : `Disenchant ${formatNumber(shards)} shard${shards === 1 ? "" : "s"} for ${formatNumber(essence)} BE`);
+      progress ||
+      (planState === "loading"
+        ? "Reading your loot…"
+        : !plan.length
+          ? "Nothing to disenchant"
+          : armed
+            ? `Click again to disenchant ${formatNumber(shards)} shards`
+            : `Disenchant ${formatNumber(shards)} shard${shards === 1 ? "" : "s"} for ${formatNumber(essence)} BE`);
   }
 
-  function renderSheet() {
-    const root = host()?.shadowRoot;
-    if (!root) return;
+  function renderPlan() {
+    const container = page?.container;
+    if (!container) return;
     const { shards, essence } = totals();
-    root.querySelector("[data-summary]").textContent = plan.length
-      ? `${formatNumber(shards)} shards from ${plan.length} champion${plan.length === 1 ? "" : "s"} · ${formatNumber(essence)} Blue Essence`
-      : "No champion shards match these settings.";
-    root.querySelector("[data-list]").innerHTML = plan
+    container.querySelector("[data-summary]").textContent =
+      planState === "loading"
+        ? "Reading your loot…"
+        : planState === "error"
+          ? "Could not read your loot. Open the loot tab once and try again."
+          : plan.length
+            ? `${formatNumber(shards)} shards from ${plan.length} champion${plan.length === 1 ? "" : "s"} · ${formatNumber(essence)} Blue Essence`
+            : "No champion shards match these settings.";
+    container.querySelector("[data-list]").innerHTML = plan
       .map(
         (entry) => `
           <li>
@@ -203,93 +270,20 @@
     renderButton();
   }
 
-  async function openSheet() {
-    try {
-      await loadPlan();
-    } catch (error) {
-      console.error("[loot-helper]", error);
-      toast("error", "Could not read your loot. Open the loot tab once and try again.");
-      return;
-    }
-
-    let element = host();
-    if (!element) {
-      element = document.createElement("maoloader-loot-helper");
-      element.id = hostId;
-      element.style.cssText = "position:fixed;inset:0;z-index:2147483646;display:flex;pointer-events:none;";
-      element.attachShadow({ mode: "open" });
-      document.body.appendChild(element);
-    }
-
-    const root = element.shadowRoot;
-    root.innerHTML = `
-      <link id="${stylesheetId}" rel="stylesheet" href="https://plugins/${pluginRoot}/styles.css" />
-      <div class="sheet-backdrop">
-        <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
-          <header class="sheet-header">
-            <img src="https://plugins/${pluginRoot}/assets/icon.svg" alt="" width="32" height="32" />
-            <div class="sheet-title"><h1 id="sheet-title">Disenchant shards</h1><span>Champion shards to Blue Essence</span></div>
-            <button class="sheet-close" type="button" data-close aria-label="Close">×</button>
-          </header>
-          <div class="sheet-body">
-            <label class="field">
-              <span class="field-copy"><strong>Only champions I own</strong><small>Leaves shards you could still use to unlock a champion.</small></span>
-              <span class="switch"><input type="checkbox" data-owned ${settings.ownedOnly ? "checked" : ""} /><span></span></span>
-            </label>
-            <label class="field">
-              <span class="field-copy"><strong>Keep one of each</strong><small>Leaves one shard per champion.</small></span>
-              <span class="switch"><input type="checkbox" data-keep ${settings.keepOne ? "checked" : ""} /><span></span></span>
-            </label>
-            <div class="field is-stacked">
-              <span class="field-copy"><strong data-summary></strong><small>Skins, permanent champions and other loot are never touched.</small></span>
-              <ul class="loot-list" data-list></ul>
-            </div>
-          </div>
-          <footer class="sheet-footer">
-            <span>This can't be undone</span>
-            <button class="button is-danger" type="button" data-disenchant></button>
-          </footer>
-        </section>
-      </div>`;
-
-    revealWhenStyled(element);
-    renderSheet();
-    root.querySelector("[data-close]").addEventListener("click", closeSheet);
-    const backdrop = root.querySelector(".sheet-backdrop");
-    backdrop.addEventListener("click", (event) => {
-      if (event.target === backdrop && !working) closeSheet();
-    });
-    backdrop.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && !working) closeSheet();
-    });
-    for (const [selector, key] of [
-      ["[data-owned]", "ownedOnly"],
-      ["[data-keep]", "keepOne"],
-    ]) {
-      root.querySelector(selector).addEventListener("change", async (event) => {
-        saveSettings({ [key]: event.target.checked });
-        disarm();
-        await loadPlan().catch(() => {});
-        renderSheet();
-      });
-    }
-    root.querySelector("[data-disenchant]").addEventListener("click", onDisenchantClick);
-    root.querySelector("[data-owned]").focus();
-  }
-
   function bindCommandBar() {
     if (commandBound || typeof window.CommandBar?.addAction !== "function") return;
     commandBound = true;
     window.CommandBar.addAction({
       name: "Disenchant champion shards",
       group: "loot",
-      tags: ["loot", "hextech", "blue essence", "shards", "disenchant", "crafting"],
-      perform: openSheet,
+      tags: ["loot", "hextech", "blue essence", "shards", "disenchant", "crafting", "settings"],
+      perform: () => settings.open(),
     });
   }
 
   exports.init = function init(context) {
     if (context?.meta?.name) pluginRoot = context.meta.name;
+    settings = defineSettings();
   };
 
   exports.load = function load() {

@@ -4,7 +4,7 @@ Hides parts of the League client you don't use. Nothing is hidden until you swit
 
 ## Usage
 
-- Open the command bar (`Ctrl+K`) and run `Declutter settings`.
+- Open Ctrl+K → **Plugin settings** → Declutter, or run `Declutter settings` in the command bar.
 - Switch on the presets you want hidden. Changes apply right away.
 - Add your own selectors under **Custom selectors**, one per line. Lines starting with `//` are ignored. The DOM Inspector plugin (`maoloader-devtools`) can copy a selector for any element you click.
 - Run `Pause declutter` to show everything again for a moment, and `Resume declutter` to bring the rules back.

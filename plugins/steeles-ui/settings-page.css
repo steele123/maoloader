@@ -1,0 +1,498 @@
+/* Steele's UI's tabs inside maoloader's shared Plugin settings window (dark navy and gold).
+   Everything is scoped to .sui-page so it can't leak into other plugins' pages.
+   styles.css still styles the standalone window used on maoloader 0.1.6 and older. */
+
+.sui-page {
+  display: block;
+  color: #c8c3b4;
+}
+
+.sui-page button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.sui-page [data-tab-body] {
+  display: grid;
+  align-content: start;
+}
+
+/* Rows */
+.sui-page .field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(200, 170, 110, 0.08);
+}
+
+.sui-page .field.is-stacked {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sui-page .field-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sui-page .field-copy strong {
+  color: #f0e6d2;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.sui-page .field-copy small,
+.sui-page .field-note {
+  margin: 0;
+  color: #8a949c;
+  font-size: 12px;
+}
+
+.sui-page .field-note.is-error {
+  color: #ff9a8f;
+}
+
+.sui-page .field-value {
+  min-width: 40px;
+  color: #f0e6d2;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  text-align: right;
+}
+
+.sui-page .mode-section {
+  display: contents;
+}
+
+.sui-page .mode-section[hidden] {
+  display: none;
+}
+
+.sui-page .section-start {
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(200, 170, 110, 0.22);
+}
+
+/* Controls */
+.sui-page .range-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sui-page input[type="range"] {
+  width: 160px;
+  accent-color: #c8aa6e;
+}
+
+.sui-page .switch {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 38px;
+  height: 22px;
+}
+
+.sui-page .switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.sui-page .switch span {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(200, 170, 110, 0.4);
+  border-radius: 999px;
+  background: #0a1824;
+  pointer-events: none;
+  transition: background 0.15s ease;
+}
+
+.sui-page .switch span::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #5d6872;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.sui-page .switch input:checked + span {
+  border-color: #c8aa6e;
+  background: rgba(200, 170, 110, 0.25);
+}
+
+.sui-page .switch input:checked + span::after {
+  transform: translateX(16px);
+  background: #f0e6d2;
+}
+
+.sui-page .switch input:focus-visible + span {
+  outline: 2px solid #c8aa6e;
+  outline-offset: 2px;
+}
+
+.sui-page .text-input,
+.sui-page select,
+.sui-page textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid rgba(200, 170, 110, 0.24);
+  border-radius: 7px;
+  background: #06111c;
+  color: #f0e6d2;
+  font: inherit;
+}
+
+.sui-page .text-input::placeholder,
+.sui-page textarea::placeholder {
+  color: #5d6872;
+}
+
+.sui-page .text-input:focus,
+.sui-page select:focus,
+.sui-page textarea:focus {
+  border-color: #c8aa6e;
+  outline: none;
+}
+
+.sui-page .text-input.is-invalid {
+  border-color: #e0584b;
+}
+
+.sui-page .text-input[hidden] {
+  display: none;
+}
+
+.sui-page textarea {
+  min-height: 92px;
+  resize: vertical;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+}
+
+.sui-page .button {
+  padding: 7px 12px;
+  border: 1px solid rgba(200, 170, 110, 0.3);
+  border-radius: 7px;
+  background: #06111c;
+  color: #ddd8cc;
+  font-weight: 650;
+}
+
+.sui-page .button:hover:not(:disabled) {
+  border-color: #c8aa6e;
+  color: #f0e6d2;
+}
+
+.sui-page .button.is-primary {
+  border-color: #c8aa6e;
+  background: linear-gradient(180deg, #1e2328, #0a1428);
+  color: #f0e6d2;
+  font-weight: 700;
+}
+
+.sui-page .segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid rgba(200, 170, 110, 0.22);
+  border-radius: 8px;
+  background: #06111c;
+}
+
+.sui-page .segmented button {
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #a09b8c;
+  font-weight: 650;
+}
+
+.sui-page .segmented button:hover {
+  color: #f0e6d2;
+}
+
+.sui-page .segmented button[aria-checked="true"] {
+  background: rgba(200, 170, 110, 0.18);
+  color: #f0e6d2;
+}
+
+.sui-page .check-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.sui-page .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #ddd8cc;
+  cursor: pointer;
+}
+
+.sui-page .check input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid rgba(200, 170, 110, 0.45);
+  border-radius: 4px;
+  background-color: #06111c;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.sui-page .check:hover input {
+  border-color: #c8aa6e;
+}
+
+.sui-page .check input:checked {
+  border-color: #c8aa6e;
+  background: #c8aa6e url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.6 8.4l2.9 2.9 5.9-6.6' fill='none' stroke='%23010a13' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px 12px no-repeat;
+}
+
+.sui-page .check input:focus-visible {
+  outline: 2px solid #c8aa6e;
+  outline-offset: 2px;
+}
+
+.sui-page .name-input {
+  width: 180px;
+}
+
+.sui-page .link-list {
+  display: grid;
+  gap: 6px;
+}
+
+.sui-page .link-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr) auto;
+  gap: 6px;
+}
+
+.sui-page .add-link {
+  justify-self: start;
+}
+
+.sui-page .icon-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #8a949c;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.sui-page .icon-button:hover {
+  background: rgba(224, 88, 75, 0.12);
+  color: #ff9a8f;
+}
+
+.sui-page .source-row {
+  display: flex;
+  gap: 8px;
+}
+
+.sui-page .source-row select {
+  flex: 1 1 auto;
+}
+
+.sui-page .source-row .button {
+  flex: none;
+}
+
+.sui-page .effect-select {
+  width: 170px;
+}
+
+.sui-page .color-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sui-page input[type="color"] {
+  width: 36px;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid rgba(200, 170, 110, 0.3);
+  border-radius: 7px;
+  background: #06111c;
+  cursor: pointer;
+}
+
+.sui-page .hex-input {
+  width: 92px;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+}
+
+.sui-page .presets {
+  display: flex;
+  gap: 8px;
+}
+
+.sui-page .preset {
+  width: 40px;
+  height: 28px;
+  border: 1px solid rgba(200, 170, 110, 0.3);
+  border-radius: 6px;
+}
+
+.sui-page .preset:hover {
+  outline: 2px solid #c8aa6e;
+  outline-offset: 1px;
+}
+
+.sui-page code,
+.sui-page kbd {
+  padding: 0 5px;
+  border: 1px solid rgba(200, 170, 110, 0.2);
+  border-radius: 4px;
+  background: #06111c;
+  color: #f0e6d2;
+  font: 11px/1.6 "Cascadia Code", Consolas, monospace;
+}
+
+/* Theme tab */
+.sui-page .look-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+}
+
+.sui-page .look-card {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(200, 170, 110, 0.2);
+  border-radius: 9px;
+  background: #06111c;
+  color: #f0e6d2;
+  font-weight: 650;
+  text-align: left;
+}
+
+.sui-page .look-card:hover {
+  border-color: #c8aa6e;
+}
+
+.sui-page .look-swatches {
+  display: flex;
+  height: 30px;
+  overflow: hidden;
+  border-radius: 5px;
+}
+
+.sui-page .look-swatches span {
+  flex: 1;
+}
+
+.sui-page .look-swatches span:first-child {
+  flex: 0 0 34%;
+}
+
+.sui-page .share-row {
+  display: flex;
+  gap: 8px;
+}
+
+.sui-page .share-row .text-input {
+  flex: 1;
+}
+
+/* Profile tab */
+.sui-page .skin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.sui-page .skin-tile,
+.sui-page .flag-row {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #06111c;
+  color: #ddd8cc;
+}
+
+.sui-page .skin-tile {
+  display: grid;
+  gap: 4px;
+  padding: 4px;
+  font-size: 11px;
+  text-align: center;
+}
+
+.sui-page .skin-tile img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 5px;
+  background: #0a1824;
+  object-fit: cover;
+}
+
+.sui-page .skin-tile span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sui-page .skin-tile:hover,
+.sui-page .flag-row:hover {
+  border-color: rgba(200, 170, 110, 0.5);
+}
+
+.sui-page .skin-tile.is-current,
+.sui-page .flag-row.is-current {
+  border-color: #c8aa6e;
+  background: rgba(200, 170, 110, 0.12);
+}
+
+.sui-page .flag-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.sui-page .flag-row {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.sui-page .flag-row strong {
+  color: #f0e6d2;
+}
+
+.sui-page .flag-row small {
+  color: #8a949c;
+}

@@ -16,6 +16,11 @@ Drag the card by its header; double-click the header to put it back in the botto
 - `Start a new session`: counts from now instead of midnight, and turns off the daily reset.
 - `Session tracker: reset daily at midnight` / `stop resetting daily`
 - `Session tracker: count ranked only` / `count all games`
+- `Session tracker settings`: opens this plugin's settings.
+
+## Settings
+
+In Ctrl+K → **Plugin settings** → Session Tracker: show or hide the card, turn the after-game summary on or off, reset daily at midnight, count ranked games only, and start a new session.
 
 ## Details
 

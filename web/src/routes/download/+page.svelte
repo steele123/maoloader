@@ -92,9 +92,11 @@
 	</article>
 </section>
 
-{#if release?.notes}
+{#if release && data.notes_html}
 	<section class="home-section surface release-notes">
 		<p class="eyebrow">What's new in v{release.version}</p>
-		<p>{release.notes}</p>
+		<!-- Rendered on the server with raw HTML escaped and unsafe links dropped. -->
+		<div class="readme">{@html data.notes_html}</div>
+		<a class="release-notes-more" href="/changelog">Full changelog →</a>
 	</section>
 {/if}

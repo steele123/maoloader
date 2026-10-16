@@ -5,7 +5,7 @@ Choose how friends see you (online, away, mobile or offline) and set, save or ro
 ## Usage
 
 - From the command bar (`Ctrl+K`): `Appear online`, `Appear away`, `Appear on mobile`, `Appear offline`.
-- `Status settings` opens the full window:
+- Ctrl+K → **Plugin settings** → Chat Status (or run `Status settings`) has the rest:
   - **Appear as**: the same four choices.
   - **Keep it**: re-applies your availability and message after games and after a client restart. The client resets you to online when a game ends; this puts your choice back.
   - **Status message**: type a message and press `Set` (or Enter). `Save` adds it to your saved messages.

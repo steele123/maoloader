@@ -13,6 +13,7 @@
       "image": "plugins/maoloader-testkit/assets/icon.svg",
       "entry": "plugins/maoloader-testkit/index.js",
       "files": [
+        "plugins/maoloader-testkit/CHANGELOG.md",
         "plugins/maoloader-testkit/README.md",
         "plugins/maoloader-testkit/assets/icon.svg",
         "plugins/maoloader-testkit/index.js",
@@ -33,6 +34,7 @@
       "image": "plugins/plugin-health-overlay/assets/icon.svg",
       "entry": "plugins/plugin-health-overlay/index.js",
       "files": [
+        "plugins/plugin-health-overlay/CHANGELOG.md",
         "plugins/plugin-health-overlay/README.md",
         "plugins/plugin-health-overlay/assets/icon.svg",
         "plugins/plugin-health-overlay/index.js",
@@ -54,6 +56,7 @@
       "image": "plugins/maoloader-devtools/assets/icon.svg",
       "entry": "plugins/maoloader-devtools/index.js",
       "files": [
+        "plugins/maoloader-devtools/CHANGELOG.md",
         "plugins/maoloader-devtools/README.md",
         "plugins/maoloader-devtools/assets/icon.svg",
         "plugins/maoloader-devtools/index.js",
@@ -70,15 +73,15 @@
     {
       "slug": "auto-accept",
       "title": "Auto-accept",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "Accept ready checks automatically after a short delay you can cancel from a toast.",
       "image": "plugins/auto-accept/assets/icon.svg",
       "entry": "plugins/auto-accept/index.js",
       "files": [
+        "plugins/auto-accept/CHANGELOG.md",
         "plugins/auto-accept/README.md",
         "plugins/auto-accept/assets/icon.svg",
-        "plugins/auto-accept/index.js",
-        "plugins/auto-accept/styles.css"
+        "plugins/auto-accept/index.js"
       ],
       "tags": [
         "queue",
@@ -91,15 +94,15 @@
     {
       "slug": "client-declutter",
       "title": "Declutter",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "Hide League client clutter with toggleable presets and your own CSS selectors.",
       "image": "plugins/client-declutter/assets/icon.svg",
       "entry": "plugins/client-declutter/index.js",
       "files": [
+        "plugins/client-declutter/CHANGELOG.md",
         "plugins/client-declutter/README.md",
         "plugins/client-declutter/assets/icon.svg",
-        "plugins/client-declutter/index.js",
-        "plugins/client-declutter/styles.css"
+        "plugins/client-declutter/index.js"
       ],
       "tags": [
         "ui",
@@ -112,21 +115,25 @@
     {
       "slug": "steeles-ui",
       "title": "Steele's UI",
-      "version": "0.1.0",
-      "description": "Backdrop, custom home, custom or hidden top bar, and right panel controls for the League client, with one tabbed settings window.",
+      "version": "0.2.0",
+      "description": "Backdrop, custom home, top bar and right panel controls, themes with share codes, and a profile background and banner picker, in one plugin.",
       "image": "plugins/steeles-ui/assets/icon.svg",
       "entry": "plugins/steeles-ui/index.js",
       "files": [
+        "plugins/steeles-ui/CHANGELOG.md",
         "plugins/steeles-ui/README.md",
         "plugins/steeles-ui/assets/icon.svg",
         "plugins/steeles-ui/backgrounds/README.md",
         "plugins/steeles-ui/home.css",
         "plugins/steeles-ui/index.js",
+        "plugins/steeles-ui/settings-page.css",
         "plugins/steeles-ui/src/backdrop.js",
         "plugins/steeles-ui/src/core.js",
         "plugins/steeles-ui/src/home.js",
         "plugins/steeles-ui/src/panel.js",
+        "plugins/steeles-ui/src/profile.js",
         "plugins/steeles-ui/src/settings.js",
+        "plugins/steeles-ui/src/theme.js",
         "plugins/steeles-ui/src/topbar.js",
         "plugins/steeles-ui/styles.css",
         "plugins/steeles-ui/topbar.css"
@@ -143,15 +150,15 @@
     {
       "slug": "champ-select-tools",
       "title": "Champ Select Tools",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "A champ select HUD with the phase timer, auto pick and ban, random skin, ARAM reroll, and a dodge button that needs a second click.",
       "image": "plugins/champ-select-tools/assets/icon.svg",
       "entry": "plugins/champ-select-tools/index.js",
       "files": [
+        "plugins/champ-select-tools/CHANGELOG.md",
         "plugins/champ-select-tools/README.md",
         "plugins/champ-select-tools/assets/icon.svg",
         "plugins/champ-select-tools/index.js",
-        "plugins/champ-select-tools/settings.css",
         "plugins/champ-select-tools/styles.css"
       ],
       "tags": [
@@ -166,15 +173,15 @@
     {
       "slug": "chat-status",
       "title": "Status",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "Appear online, away, mobile, or offline, and set, save, or rotate a custom status message.",
       "image": "plugins/chat-status/assets/icon.svg",
       "entry": "plugins/chat-status/index.js",
       "files": [
+        "plugins/chat-status/CHANGELOG.md",
         "plugins/chat-status/README.md",
         "plugins/chat-status/assets/icon.svg",
-        "plugins/chat-status/index.js",
-        "plugins/chat-status/styles.css"
+        "plugins/chat-status/index.js"
       ],
       "tags": [
         "chat",
@@ -187,11 +194,12 @@
     {
       "slug": "session-tracker",
       "title": "Session Tracker",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "Track today's wins, losses, streak, and LP change in a small card, with a summary after each game.",
       "image": "plugins/session-tracker/assets/icon.svg",
       "entry": "plugins/session-tracker/index.js",
       "files": [
+        "plugins/session-tracker/CHANGELOG.md",
         "plugins/session-tracker/README.md",
         "plugins/session-tracker/assets/icon.svg",
         "plugins/session-tracker/index.js",
@@ -208,15 +216,15 @@
     {
       "slug": "rune-presets",
       "title": "Rune Presets",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "Save rune pages as named presets, apply them in one click, and auto-apply them per champion.",
       "image": "plugins/rune-presets/assets/icon.svg",
       "entry": "plugins/rune-presets/index.js",
       "files": [
+        "plugins/rune-presets/CHANGELOG.md",
         "plugins/rune-presets/README.md",
         "plugins/rune-presets/assets/icon.svg",
-        "plugins/rune-presets/index.js",
-        "plugins/rune-presets/styles.css"
+        "plugins/rune-presets/index.js"
       ],
       "tags": [
         "runes",
@@ -229,15 +237,15 @@
     {
       "slug": "loot-helper",
       "title": "Loot Helper",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "Preview and bulk-disenchant champion shards for Blue Essence, with a confirm step.",
       "image": "plugins/loot-helper/assets/icon.svg",
       "entry": "plugins/loot-helper/index.js",
       "files": [
+        "plugins/loot-helper/CHANGELOG.md",
         "plugins/loot-helper/README.md",
         "plugins/loot-helper/assets/icon.svg",
-        "plugins/loot-helper/index.js",
-        "plugins/loot-helper/styles.css"
+        "plugins/loot-helper/index.js"
       ],
       "tags": [
         "loot",
@@ -250,15 +258,15 @@
     {
       "slug": "friend-alerts",
       "title": "Friend Alerts",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "Toasts when chosen friends come online or finish a game, with a quick invite while you're in a lobby.",
       "image": "plugins/friend-alerts/assets/icon.svg",
       "entry": "plugins/friend-alerts/index.js",
       "files": [
+        "plugins/friend-alerts/CHANGELOG.md",
         "plugins/friend-alerts/README.md",
         "plugins/friend-alerts/assets/icon.svg",
-        "plugins/friend-alerts/index.js",
-        "plugins/friend-alerts/styles.css"
+        "plugins/friend-alerts/index.js"
       ],
       "tags": [
         "friends",
@@ -271,15 +279,15 @@
     {
       "slug": "lobby-tools",
       "title": "Lobby Tools",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "Create any available queue's lobby from the command bar, start or stop queue, and play again or re-queue after games.",
       "image": "plugins/lobby-tools/assets/icon.svg",
       "entry": "plugins/lobby-tools/index.js",
       "files": [
+        "plugins/lobby-tools/CHANGELOG.md",
         "plugins/lobby-tools/README.md",
         "plugins/lobby-tools/assets/icon.svg",
-        "plugins/lobby-tools/index.js",
-        "plugins/lobby-tools/styles.css"
+        "plugins/lobby-tools/index.js"
       ],
       "tags": [
         "lobby",
@@ -288,6 +296,27 @@
         "utility"
       ],
       "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/lobby-tools"
+    },
+    {
+      "slug": "event-recorder",
+      "title": "Event Recorder",
+      "version": "0.1.0",
+      "description": "See every live event the League client sends, with filters, data, and copy-ready socket.observe snippets for plugin authors.",
+      "image": "plugins/event-recorder/assets/icon.svg",
+      "entry": "plugins/event-recorder/index.js",
+      "files": [
+        "plugins/event-recorder/CHANGELOG.md",
+        "plugins/event-recorder/README.md",
+        "plugins/event-recorder/assets/icon.svg",
+        "plugins/event-recorder/index.js",
+        "plugins/event-recorder/styles.css"
+      ],
+      "tags": [
+        "developer",
+        "events",
+        "debugging"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/event-recorder"
     }
   ]
 }

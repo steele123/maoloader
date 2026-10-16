@@ -541,3 +541,165 @@ code {
   padding: 0 4px;
   font: 11px/1.6 "Cascadia Code", Consolas, monospace;
 }
+
+/* ---- Theme tab ---- */
+
+.look-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.look-card {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #cfd6de;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #17202a;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.look-card:hover {
+  border-color: #3f6f9f;
+  box-shadow: 0 0 0 2px rgba(63, 111, 159, 0.18);
+}
+
+.look-swatches {
+  display: flex;
+  height: 30px;
+  overflow: hidden;
+  border-radius: 5px;
+}
+
+.look-swatches span {
+  flex: 1;
+}
+
+.look-swatches span:first-child {
+  flex: 0 0 34%;
+}
+
+.share-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.share-row .text-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- Profile tab ---- */
+
+.skin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin: 8px 0;
+}
+
+.skin-tile {
+  display: grid;
+  gap: 4px;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #f4f6f8;
+  color: #17202a;
+  font: inherit;
+  font-size: 11px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.skin-tile img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 5px;
+  object-fit: cover;
+  background: #dde3e9;
+}
+
+.skin-tile span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skin-tile:hover {
+  border-color: #3f6f9f;
+}
+
+.skin-tile.is-current,
+.flag-row.is-current {
+  border-color: #c8aa6e;
+  background: #fbf6ea;
+}
+
+.flag-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 6px;
+  width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.flag-row {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 2px solid transparent;
+  border-radius: 7px;
+  background: #f4f6f8;
+  color: #17202a;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.flag-row:hover {
+  border-color: #3f6f9f;
+}
+
+.flag-row small {
+  color: #617082;
+}
+
+/* Slim scrollbars that match the window, instead of the browser's grey default. */
+.sheet-body,
+.flag-list {
+  scrollbar-gutter: stable;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(23, 32, 42, 0.28) padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(23, 32, 42, 0.5) padding-box;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: #c8aa6e padding-box;
+}

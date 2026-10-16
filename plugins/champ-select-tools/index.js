@@ -6,7 +6,6 @@
 (function () {
   const pluginName = "champ-select-tools";
   const hostId = "maoloader-champ-select-tools";
-  const settingsHostId = "maoloader-champ-select-settings";
   const stylesheetId = "maoloader-champ-select-tools-styles";
   const settingsKey = "champ-select-tools.settings";
   const sessionApi = "/lol-champ-select/v1/session";
@@ -14,19 +13,13 @@
   const banDelayMs = 1500;
   const roles = ["top", "jungle", "middle", "bottom", "utility", "any"];
   const roleLabels = { top: "Top", jungle: "Jungle", middle: "Mid", bottom: "Bot", utility: "Support", any: "Any role" };
-  const emptyPicks = () => Object.fromEntries(roles.map((role) => [role, [0, 0]]));
-  const emptyBans = () => Object.fromEntries(roles.map((role) => [role, 0]));
   const defaults = {
     hud: true,
-    collapsed: false,
-    position: null,
     autoEnabled: false,
     autoHover: true,
     autoBan: true,
     autoLock: true,
     lockDelaySeconds: 3,
-    picks: emptyPicks(),
-    bans: emptyBans(),
   };
   const phaseLabels = {
     PLANNING: "Planning",
@@ -36,7 +29,10 @@
   };
   const positionLabels = { top: "Top", jungle: "Jungle", middle: "Mid", bottom: "Bot", utility: "Support" };
   let pluginRoot = pluginName;
-  let settings = loadSettings();
+  let settings;
+  // The HUD layout and the pick and ban lists share the saved object with the settings above, but
+  // the settings window has no field for them, so this plugin keeps and saves them itself.
+  let extras = loadExtras();
   let session;
   let sessionReceivedAt = 0;
   let championNames;
@@ -66,29 +62,88 @@
     return Number.isInteger(id) && id > 0 ? id : 0;
   }
 
-  function loadSettings() {
+  function storedObject() {
     const stored = window.DataStore?.get?.(settingsKey, {});
-    const merged = { ...defaults, ...(stored && typeof stored === "object" ? stored : {}) };
-    merged.hud = Boolean(merged.hud);
-    merged.collapsed = Boolean(merged.collapsed);
-    const position = merged.position;
-    merged.position = position && Number.isFinite(position.x) && Number.isFinite(position.y) ? position : null;
-    merged.autoEnabled = Boolean(merged.autoEnabled);
-    merged.autoHover = Boolean(merged.autoHover);
-    merged.autoBan = Boolean(merged.autoBan);
-    merged.autoLock = Boolean(merged.autoLock);
-    merged.lockDelaySeconds = Math.min(10, Math.max(0, Number(merged.lockDelaySeconds) || 0));
-    const picks = merged.picks && typeof merged.picks === "object" ? merged.picks : {};
-    const bans = merged.bans && typeof merged.bans === "object" ? merged.bans : {};
-    merged.picks = Object.fromEntries(roles.map((role) => [role, [0, 1].map((index) => championId(picks[role]?.[index]))]));
-    merged.bans = Object.fromEntries(roles.map((role) => [role, championId(bans[role])]));
-    return merged;
+    return stored && typeof stored === "object" ? stored : {};
   }
 
-  function saveSettings(patch) {
-    settings = { ...settings, ...patch };
-    window.DataStore?.set?.(settingsKey, settings);
-    window.CommandBar?.update?.();
+  function loadExtras() {
+    const stored = storedObject();
+    const position = stored.position;
+    const picks = stored.picks && typeof stored.picks === "object" ? stored.picks : {};
+    const bans = stored.bans && typeof stored.bans === "object" ? stored.bans : {};
+    return {
+      collapsed: Boolean(stored.collapsed),
+      position: position && Number.isFinite(position.x) && Number.isFinite(position.y) ? position : null,
+      picks: Object.fromEntries(roles.map((role) => [role, [0, 1].map((index) => championId(picks[role]?.[index]))])),
+      bans: Object.fromEntries(roles.map((role) => [role, championId(bans[role])])),
+    };
+  }
+
+  // Saved next to the declared settings, merged into what's stored so nothing else is lost.
+  function saveExtras(patch) {
+    extras = { ...extras, ...patch };
+    window.DataStore?.set?.(settingsKey, { ...storedObject(), ...patch });
+  }
+
+  // Settings live in maoloader's shared settings window (Ctrl+K → Plugin settings). On a runtime
+  // older than 0.1.7 there is no such window; the plugin then keeps working with what's saved.
+  function defineSettings() {
+    if (typeof window.PluginSettings?.define === "function") {
+      return window.PluginSettings.define({
+        id: pluginName,
+        title: "Champ Select Tools",
+        description: "A champ select HUD with the timer, random skin, reroll and dodge, plus auto pick and ban.",
+        icon: `https://plugins/${pluginRoot}/assets/icon.svg`,
+        storageKey: settingsKey,
+        fields: [
+          { type: "heading", label: "HUD" },
+          {
+            key: "hud",
+            type: "toggle",
+            label: "Show the HUD",
+            description: "The timer and buttons that appear in champ select.",
+            default: defaults.hud,
+          },
+          { type: "heading", label: "Auto pick and ban" },
+          { key: "autoEnabled", type: "toggle", label: "Auto pick and ban", description: "Master switch for everything below.", default: defaults.autoEnabled },
+          { key: "autoHover", type: "toggle", label: "Hover my pick", description: "Shows your first available pick to the team early.", default: defaults.autoHover },
+          { key: "autoBan", type: "toggle", label: "Ban for me", description: "Bans your role's ban when it's your turn.", default: defaults.autoBan },
+          { key: "autoLock", type: "toggle", label: "Lock in for me", description: "Locks your hovered champion when it's your turn.", default: defaults.autoLock },
+          {
+            key: "lockDelaySeconds",
+            type: "range",
+            label: "Lock delay",
+            description: "Time to change or cancel before it locks.",
+            min: 0,
+            max: 10,
+            step: 0.5,
+            unit: "s",
+            default: defaults.lockDelaySeconds,
+            showIf: (values) => values.autoLock,
+          },
+        ],
+        page: { render: renderPage, destroy: destroyPage },
+      });
+    }
+    const stored = storedObject();
+    const values = {};
+    for (const key of ["hud", "autoEnabled", "autoHover", "autoBan", "autoLock"]) values[key] = Boolean(stored[key] ?? defaults[key]);
+    values.lockDelaySeconds = Math.min(10, Math.max(0, Number(stored.lockDelaySeconds ?? defaults.lockDelaySeconds) || 0));
+    const listeners = new Set();
+    return {
+      get: (key) => (key ? values[key] : { ...values }),
+      set(key, value) {
+        values[key] = value;
+        window.DataStore?.set?.(settingsKey, { ...storedObject(), ...values });
+        listeners.forEach((listener) => listener({ ...values }, [key]));
+      },
+      onChange(listener) {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      open: () => toast("info", "Update maoloader to 0.1.7 or newer to change plugin settings."),
+    };
   }
 
   function toast(kind, message, options) {
@@ -188,9 +243,9 @@
 
   function rolePreferences() {
     const role = me()?.assignedPosition || "any";
-    const forRole = settings.picks[role] || [0, 0];
-    const picks = [...forRole, ...settings.picks.any].filter(Boolean);
-    const ban = settings.bans[role] || settings.bans.any;
+    const forRole = extras.picks[role] || [0, 0];
+    const picks = [...forRole, ...extras.picks.any].filter(Boolean);
+    const ban = extras.bans[role] || extras.bans.any;
     return { picks: [...new Set(picks)], ban };
   }
 
@@ -262,7 +317,8 @@
   }
 
   function scheduleLock(action) {
-    const delay = Math.round(settings.lockDelaySeconds * 1000);
+    const delaySeconds = settings.get("lockDelaySeconds");
+    const delay = Math.round(delaySeconds * 1000);
     auto.lockScheduled.add(action.id);
     const lockIn = async () => {
       auto.lockTimers.delete(action.id);
@@ -290,7 +346,7 @@
     if (delay > 0) {
       toast("info", {
         title: "Your turn to pick",
-        description: preview ? `Locking ${championName(preview)} in ${settings.lockDelaySeconds}s.` : `Locking in ${settings.lockDelaySeconds}s.`,
+        description: preview ? `Locking ${championName(preview)} in ${delaySeconds}s.` : `Locking in ${delaySeconds}s.`,
         duration: delay,
         action: {
           label: "Don't lock",
@@ -316,19 +372,19 @@
       return;
     }
     if (auto.gameId !== session.gameId) resetAutomation(session.gameId);
-    if (!settings.autoEnabled) return;
+    if (!settings.get("autoEnabled")) return;
 
     const actions = myActions().filter((action) => !action.completed);
     if (!actions.length) return;
     await loadAvailability();
 
     for (const action of actions) {
-      if (action.type === "ban" && action.isInProgress && settings.autoBan && !auto.banned.has(action.id)) {
+      if (action.type === "ban" && action.isInProgress && settings.get("autoBan") && !auto.banned.has(action.id)) {
         autoBanAction(action);
       }
       if (action.type === "pick") {
-        if (settings.autoHover && !action.championId && !auto.hovered.has(action.id)) await autoHover(action);
-        if (action.isInProgress && settings.autoLock && !auto.lockScheduled.has(action.id)) {
+        if (settings.get("autoHover") && !action.championId && !auto.hovered.has(action.id)) await autoHover(action);
+        if (action.isInProgress && settings.get("autoLock") && !auto.lockScheduled.has(action.id)) {
           scheduleLock(action);
         }
       }
@@ -358,9 +414,9 @@
   }
 
   function placeHost(element) {
-    if (settings.position) {
-      const x = Math.min(Math.max(0, settings.position.x), Math.max(0, window.innerWidth - 120));
-      const y = Math.min(Math.max(0, settings.position.y), Math.max(0, window.innerHeight - 48));
+    if (extras.position) {
+      const x = Math.min(Math.max(0, extras.position.x), Math.max(0, window.innerWidth - 120));
+      const y = Math.min(Math.max(0, extras.position.y), Math.max(0, window.innerHeight - 48));
       element.style.left = `${x}px`;
       element.style.top = `${y}px`;
       element.style.right = "auto";
@@ -380,21 +436,21 @@
       handle.setPointerCapture(event.pointerId);
 
       const move = (moveEvent) => {
-        settings.position = { x: moveEvent.clientX - offsetX, y: moveEvent.clientY - offsetY };
+        extras.position = { x: moveEvent.clientX - offsetX, y: moveEvent.clientY - offsetY };
         placeHost(element);
       };
       const end = () => {
         handle.removeEventListener("pointermove", move);
         handle.removeEventListener("pointerup", end);
         handle.removeEventListener("pointercancel", end);
-        saveSettings({ position: settings.position });
+        saveExtras({ position: extras.position });
       };
       handle.addEventListener("pointermove", move);
       handle.addEventListener("pointerup", end);
       handle.addEventListener("pointercancel", end);
     });
     handle.addEventListener("dblclick", () => {
-      saveSettings({ position: null });
+      saveExtras({ position: null });
       placeHost(element);
     });
   }
@@ -431,10 +487,10 @@
 
     bindDrag(element, root.querySelector("[data-handle]"));
     root.querySelector("[data-collapse]").addEventListener("click", () => {
-      saveSettings({ collapsed: !settings.collapsed });
+      saveExtras({ collapsed: !extras.collapsed });
       update();
     });
-    root.querySelector("[data-settings]").addEventListener("click", openSettings);
+    root.querySelector("[data-settings]").addEventListener("click", () => settings.open());
     root.querySelector("[data-skin]").addEventListener("click", randomSkin);
     root.querySelector("[data-reroll]").addEventListener("click", reroll);
     root.querySelector("[data-dodge]").addEventListener("click", dodge);
@@ -448,7 +504,7 @@
   }
 
   function update() {
-    if (!session || !settings.hud) {
+    if (!session || !settings.get("hud")) {
       unmountHud();
       return;
     }
@@ -460,15 +516,15 @@
     const remaining = remainingMs();
     const rerolls = Number(session.rerollsRemaining || 0);
 
-    root.querySelector(".hud").classList.toggle("is-collapsed", settings.collapsed);
+    root.querySelector(".hud").classList.toggle("is-collapsed", extras.collapsed);
     root.querySelector(".hud").classList.toggle("is-urgent", current.urgent);
-    root.querySelector("[data-collapse]").textContent = settings.collapsed ? "+" : "−";
-    root.querySelector("[data-collapse]").setAttribute("aria-label", settings.collapsed ? "Expand" : "Collapse");
-    root.querySelector("[data-phase]").textContent = settings.collapsed
+    root.querySelector("[data-collapse]").textContent = extras.collapsed ? "+" : "−";
+    root.querySelector("[data-collapse]").setAttribute("aria-label", extras.collapsed ? "Expand" : "Collapse");
+    root.querySelector("[data-phase]").textContent = extras.collapsed
       ? `${formatClock(remaining)} · ${phaseLabels[session.timer?.phase] || "Champ select"}`
       : phaseLabels[session.timer?.phase] || "Champ select";
     root.querySelector("[data-position]").textContent = positionLabels[player?.assignedPosition] || "";
-    root.querySelector("[data-auto]").hidden = !settings.autoEnabled;
+    root.querySelector("[data-auto]").hidden = !settings.get("autoEnabled");
     root.querySelector("[data-clock]").textContent = formatClock(remaining);
     root.querySelector("[data-clock]").classList.toggle("is-low", remaining !== undefined && remaining <= 10000);
     root.querySelector("[data-status]").textContent = current.text;
@@ -595,104 +651,64 @@
       .replaceAll("'", "&#039;");
   }
 
-  function closeSettings() {
-    document.getElementById(settingsHostId)?.remove();
-  }
-
-  function switchField(key, label, description) {
-    return `
-      <label class="field">
-        <span class="field-copy"><strong>${label}</strong><small>${description}</small></span>
-        <span class="switch"><input type="checkbox" data-toggle="${key}" ${settings[key] ? "checked" : ""} /><span></span></span>
-      </label>`;
-  }
+  // Bumped when the page goes away, so a slow champion list load doesn't draw into a closed page.
+  let pageToken = 0;
 
   function championInput(role, slot, value, label) {
-    return `<input class="text-input champion-input" list="champion-names" data-role="${role}" data-slot="${slot}" value="${escapeHtml(
+    return `<input class="text" type="text" list="champ-select-tools-names" data-role="${role}" data-slot="${slot}" value="${escapeHtml(
       value ? championName(value) : "",
     )}" placeholder="${slot === "ban" ? "Ban" : "Pick"}" aria-label="${roleLabels[role]} ${label}" spellcheck="false" />`;
   }
 
-  async function openSettings() {
-    await loadChampionNames();
-    let element = document.getElementById(settingsHostId);
-    if (!element) {
-      element = document.createElement("maoloader-champ-select-settings");
-      element.id = settingsHostId;
-      element.style.cssText = "position:fixed;inset:0;z-index:2147483646;display:flex;pointer-events:none;";
-      element.attachShadow({ mode: "open" });
-      document.body.appendChild(element);
+  // The pick and ban lists, drawn under the fields in the shared settings window.
+  function renderPage(container) {
+    const token = ++pageToken;
+    if (championNames?.size) {
+      drawChampions(container);
+      return;
     }
+    container.innerHTML = `<p class="heading">Champions</p><p class="muted">Loading champion names…</p>`;
+    loadChampionNames().then(() => {
+      if (token === pageToken) drawChampions(container);
+    });
+  }
 
-    const root = element.shadowRoot;
+  function destroyPage() {
+    pageToken += 1;
+  }
+
+  function drawChampions(container) {
     const names = [...(championNames?.values() || [])].sort((a, b) => a.localeCompare(b));
-    root.innerHTML = `
-      <link id="${stylesheetId}" rel="stylesheet" href="https://plugins/${pluginRoot}/settings.css" />
-      <datalist id="champion-names">${names.map((name) => `<option value="${escapeHtml(name)}"></option>`).join("")}</datalist>
-      <div class="sheet-backdrop">
-        <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
-          <header class="sheet-header">
-            <img src="https://plugins/${pluginRoot}/assets/icon.svg" alt="" width="32" height="32" />
-            <div class="sheet-title"><h1 id="sheet-title">Auto pick and ban</h1><span>Champ select automation</span></div>
-            <button class="sheet-close" type="button" data-close aria-label="Close">×</button>
-          </header>
-          <div class="sheet-body">
-            ${switchField("autoEnabled", "Auto pick and ban", "Master switch for everything below.")}
-            ${switchField("autoHover", "Hover my pick", "Shows your first available pick to the team early.")}
-            ${switchField("autoBan", "Ban for me", "Bans your role's ban when it's your turn.")}
-            ${switchField("autoLock", "Lock in for me", "Locks your hovered champion when it's your turn.")}
-            <div class="field">
-              <span class="field-copy"><strong>Lock delay</strong><small>Time to change or cancel before it locks.</small></span>
-              <span class="range-row">
-                <input type="range" min="0" max="10" step="0.5" value="${settings.lockDelaySeconds}" data-delay aria-label="Lock delay in seconds" />
-                <span class="field-value" data-delay-value>${settings.lockDelaySeconds}s</span>
-              </span>
-            </div>
-            <div class="field is-stacked">
-              <span class="field-copy"><strong>Champions</strong><small>Your assigned role is used first, then Any role. Leave blank to skip.</small></span>
-              <div class="role-grid">
-                <span></span><span class="grid-head">Pick 1</span><span class="grid-head">Pick 2</span><span class="grid-head">Ban</span>
-                ${roles
-                  .map(
-                    (role) => `
-                      <span class="role-label">${roleLabels[role]}</span>
-                      ${championInput(role, 0, settings.picks[role][0], "first pick")}
-                      ${championInput(role, 1, settings.picks[role][1], "second pick")}
-                      ${championInput(role, "ban", settings.bans[role], "ban")}`,
-                  )
-                  .join("")}
-              </div>
-              <p class="field-note" data-champion-note></p>
-            </div>
-          </div>
-          <footer class="sheet-footer"><span>Saved automatically</span><span>Picks you don't own are skipped</span></footer>
-        </section>
-      </div>`;
+    container.innerHTML = `
+      <style>
+        .cst-intro { margin: 4px 0 10px; font-size: 12px; }
+        .cst-grid { display: grid; grid-template-columns: 76px repeat(3, minmax(0, 1fr)); align-items: center; gap: 6px 8px; }
+        .cst-head { color: #8a949c; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+        .cst-role { color: #f0e6d2; font-weight: 650; }
+        .cst-grid .text { width: 100%; min-width: 0; }
+        .cst-grid .text.is-invalid { border-color: #e0796b; }
+        .cst-note { min-height: 18px; margin: 8px 0 0; font-size: 12px; }
+        .cst-note.is-error { color: #e0796b; }
+      </style>
+      <p class="heading">Champions</p>
+      <p class="muted cst-intro">Your assigned role is used first, then Any role. Leave a box blank to skip it. Picks you don't own are skipped.</p>
+      <datalist id="champ-select-tools-names">${names.map((name) => `<option value="${escapeHtml(name)}"></option>`).join("")}</datalist>
+      <div class="cst-grid">
+        <span></span><span class="cst-head">Pick 1</span><span class="cst-head">Pick 2</span><span class="cst-head">Ban</span>
+        ${roles
+          .map(
+            (role) => `
+              <span class="cst-role">${roleLabels[role]}</span>
+              ${championInput(role, 0, extras.picks[role][0], "first pick")}
+              ${championInput(role, 1, extras.picks[role][1], "second pick")}
+              ${championInput(role, "ban", extras.bans[role], "ban")}`,
+          )
+          .join("")}
+      </div>
+      <p class="cst-note muted" data-champion-note>${names.length ? "" : "Champion names couldn't be loaded. Open this page again once the client has finished loading."}</p>`;
 
-    revealWhenStyled(element);
-    root.querySelector("[data-close]").addEventListener("click", closeSettings);
-    const backdrop = root.querySelector(".sheet-backdrop");
-    backdrop.addEventListener("click", (event) => {
-      if (event.target === backdrop) closeSettings();
-    });
-    backdrop.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") closeSettings();
-    });
-    root.querySelectorAll("[data-toggle]").forEach((input) => {
-      input.addEventListener("change", () => {
-        saveSettings({ [input.getAttribute("data-toggle")]: input.checked });
-        update();
-        runAutomation().catch(() => {});
-      });
-    });
-    const delay = root.querySelector("[data-delay]");
-    delay.addEventListener("input", () => {
-      root.querySelector("[data-delay-value]").textContent = `${delay.value}s`;
-    });
-    delay.addEventListener("change", () => saveSettings({ lockDelaySeconds: Number(delay.value) }));
-
-    const note = root.querySelector("[data-champion-note]");
-    root.querySelectorAll(".champion-input").forEach((input) => {
+    const note = container.querySelector("[data-champion-note]");
+    container.querySelectorAll("[data-role]").forEach((input) => {
       input.addEventListener("change", () => {
         const id = championIdByName(input.value);
         input.classList.toggle("is-invalid", id === undefined);
@@ -707,15 +723,14 @@
         const role = input.getAttribute("data-role");
         const slot = input.getAttribute("data-slot");
         if (slot === "ban") {
-          saveSettings({ bans: { ...settings.bans, [role]: id } });
+          saveExtras({ bans: { ...extras.bans, [role]: id } });
         } else {
-          const picks = [...settings.picks[role]];
+          const picks = [...extras.picks[role]];
           picks[Number(slot)] = id;
-          saveSettings({ picks: { ...settings.picks, [role]: picks } });
+          saveExtras({ picks: { ...extras.picks, [role]: picks } });
         }
       });
     });
-    root.querySelector("[data-toggle]").focus();
   }
 
   function bindCommandBar() {
@@ -724,27 +739,25 @@
     window.CommandBar.addAction({
       name: "Auto pick and ban settings",
       group: "champ select",
-      tags: ["champ select", "pick", "ban", "lock", "auto"],
-      perform: openSettings,
+      tags: ["champ select", "pick", "ban", "lock", "auto", "settings"],
+      perform: () => settings.open(),
     });
     window.CommandBar.addAction({
-      name: () => (settings.autoEnabled ? "Turn off auto pick and ban" : "Turn on auto pick and ban"),
+      name: () => (settings.get("autoEnabled") ? "Turn off auto pick and ban" : "Turn on auto pick and ban"),
       group: "champ select",
       tags: ["champ select", "pick", "ban", "auto"],
       perform: () => {
-        saveSettings({ autoEnabled: !settings.autoEnabled });
-        update();
-        toast("info", settings.autoEnabled ? "Auto pick and ban is on." : "Auto pick and ban is off.", { duration: 2500 });
+        settings.set("autoEnabled", !settings.get("autoEnabled"));
+        toast("info", settings.get("autoEnabled") ? "Auto pick and ban is on." : "Auto pick and ban is off.", { duration: 2500 });
       },
     });
     window.CommandBar.addAction({
-      name: () => (settings.hud ? "Hide champ select HUD" : "Show champ select HUD"),
+      name: () => (settings.get("hud") ? "Hide champ select HUD" : "Show champ select HUD"),
       group: "champ select",
       tags: ["champ select", "dodge", "skin", "timer", "hud"],
       perform: () => {
-        saveSettings({ hud: !settings.hud });
-        update();
-        if (!session) toast("info", settings.hud ? "The HUD will show in champ select." : "Champ select HUD hidden.", { duration: 2500 });
+        settings.set("hud", !settings.get("hud"));
+        if (!session) toast("info", settings.get("hud") ? "The HUD will show in champ select." : "Champ select HUD hidden.", { duration: 2500 });
       },
     });
     window.CommandBar.addAction({
@@ -752,7 +765,7 @@
       group: "champ select",
       tags: ["hud", "move"],
       perform: () => {
-        saveSettings({ position: null });
+        saveExtras({ position: null });
         if (host()) placeHost(host());
       },
     });
@@ -760,6 +773,13 @@
 
   exports.init = function init(context) {
     if (context?.meta?.name) pluginRoot = context.meta.name;
+    settings = defineSettings();
+    // Changes apply at once: the HUD redraws and automation picks up the new switches.
+    settings.onChange(() => {
+      window.CommandBar?.update?.();
+      update();
+      runAutomation().catch((error) => console.error("[champ-select-tools] Automation failed.", error));
+    });
     const socket = context?.socket || window.socket;
     socket?.observe?.(sessionApi, (event) => onSession(event?.eventType === "Delete" ? undefined : event?.data));
   };

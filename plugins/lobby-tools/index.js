@@ -5,8 +5,6 @@
  */
 (function () {
   const pluginName = "lobby-tools";
-  const hostId = "maoloader-lobby-tools";
-  const stylesheetId = "maoloader-lobby-tools-styles";
   const settingsKey = "lobby-tools.settings";
   const phaseApi = "/lol-gameflow/v1/gameflow-phase";
   const lobbyApi = "/lol-lobby/v2/lobby";
@@ -14,24 +12,64 @@
   const queuesApi = "/lol-game-queues/v1/queues";
   const defaults = { playAgainToast: true, autoRequeue: false, requeueDelaySeconds: 8 };
   let pluginRoot = pluginName;
-  let settings = loadSettings();
+  let settings;
   let queuesAdded = false;
   let requeueTimer = 0;
   let commandBound = false;
 
-  function loadSettings() {
+  // Settings live in maoloader's shared settings window (Ctrl+K → Plugin settings). On a runtime
+  // older than 0.1.7 there is no such window; the plugin then keeps working with what's saved.
+  function defineSettings() {
+    if (typeof window.PluginSettings?.define === "function") {
+      return window.PluginSettings.define({
+        id: pluginName,
+        title: "Lobby Tools",
+        description: "Lobby and queue shortcuts in Ctrl+K, plus what happens after each game.",
+        icon: `https://plugins/${pluginRoot}/assets/icon.svg`,
+        storageKey: settingsKey,
+        fields: [
+          { type: "heading", label: "After each game" },
+          {
+            key: "playAgainToast",
+            type: "toggle",
+            label: "Play again button",
+            description: "A toast after each game that takes you back to the lobby.",
+            default: defaults.playAgainToast,
+          },
+          {
+            key: "autoRequeue",
+            type: "toggle",
+            label: "Auto re-queue",
+            description: "Goes back to the lobby and starts the same queue, after a delay you can cancel.",
+            default: defaults.autoRequeue,
+          },
+          {
+            key: "requeueDelaySeconds",
+            type: "range",
+            label: "Re-queue delay",
+            description: "Time to cancel before it queues again.",
+            min: 3,
+            max: 30,
+            step: 1,
+            unit: "s",
+            default: defaults.requeueDelaySeconds,
+            showIf: (values) => values.autoRequeue,
+          },
+          { type: "note", text: "Lobbies, start and stop queue, and leave lobby are in Ctrl+K." },
+        ],
+      });
+    }
     const stored = window.DataStore?.get?.(settingsKey, {});
-    const merged = { ...defaults, ...(stored && typeof stored === "object" ? stored : {}) };
-    merged.playAgainToast = Boolean(merged.playAgainToast);
-    merged.autoRequeue = Boolean(merged.autoRequeue);
-    merged.requeueDelaySeconds = Math.min(30, Math.max(3, Number(merged.requeueDelaySeconds) || 8));
-    return merged;
-  }
-
-  function saveSettings(patch) {
-    settings = { ...settings, ...patch };
-    window.DataStore?.set?.(settingsKey, settings);
-    window.CommandBar?.update?.();
+    const values = { ...defaults, ...(stored && typeof stored === "object" ? stored : {}) };
+    return {
+      get: (key) => (key ? values[key] : { ...values }),
+      set(key, value) {
+        values[key] = value;
+        window.DataStore?.set?.(settingsKey, values);
+      },
+      onChange: () => () => {},
+      open: () => toast("info", "Update maoloader to 0.1.7 or newer to change plugin settings."),
+    };
   }
 
   function toast(kind, message, options) {
@@ -121,20 +159,21 @@
   }
 
   function onEndOfGame() {
-    if (settings.autoRequeue) {
+    if (settings.get("autoRequeue")) {
       cancelRequeue();
-      const delay = settings.requeueDelaySeconds * 1000;
+      const delaySeconds = settings.get("requeueDelaySeconds");
+      const delay = delaySeconds * 1000;
       requeueTimer = window.setTimeout(() => {
         requeueTimer = 0;
         playAgain({ requeue: true });
       }, delay);
       toast("info", {
         title: "Re-queueing",
-        description: `Back in queue in ${settings.requeueDelaySeconds}s.`,
+        description: `Back in queue in ${delaySeconds}s.`,
         duration: delay,
         action: { label: "Don't re-queue", onClick: cancelRequeue },
       });
-    } else if (settings.playAgainToast) {
+    } else if (settings.get("playAgainToast")) {
       toast("info", {
         title: "Game over",
         description: "Head back to the lobby?",
@@ -180,91 +219,6 @@
     }
   }
 
-  // Keep the surface hidden until its stylesheet applies, so it never flashes unstyled.
-  function revealWhenStyled(element) {
-    const link = element.shadowRoot.getElementById(stylesheetId);
-    const show = () => {
-      element.style.visibility = "";
-      requestAnimationFrame(() => requestAnimationFrame(() => element.setAttribute("data-ready", "")));
-    };
-    if (!link || link.sheet) return show();
-    element.style.visibility = "hidden";
-    link.addEventListener("load", show, { once: true });
-    link.addEventListener("error", show, { once: true });
-  }
-
-  function host() {
-    return document.getElementById(hostId);
-  }
-
-  function closeSettings() {
-    host()?.remove();
-  }
-
-  function openSettings() {
-    let element = host();
-    if (!element) {
-      element = document.createElement("maoloader-lobby-tools");
-      element.id = hostId;
-      element.style.cssText = "position:fixed;inset:0;z-index:2147483646;display:flex;pointer-events:none;";
-      element.attachShadow({ mode: "open" });
-      document.body.appendChild(element);
-    }
-
-    const root = element.shadowRoot;
-    root.innerHTML = `
-      <link id="${stylesheetId}" rel="stylesheet" href="https://plugins/${pluginRoot}/styles.css" />
-      <div class="sheet-backdrop">
-        <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
-          <header class="sheet-header">
-            <img src="https://plugins/${pluginRoot}/assets/icon.svg" alt="" width="32" height="32" />
-            <div class="sheet-title"><h1 id="sheet-title">Lobby tools</h1><span>After-game options</span></div>
-            <button class="sheet-close" type="button" data-close aria-label="Close">×</button>
-          </header>
-          <div class="sheet-body">
-            <label class="field">
-              <span class="field-copy"><strong>Play again button</strong><small>A toast after each game that takes you back to the lobby.</small></span>
-              <span class="switch"><input type="checkbox" data-toggle="playAgainToast" ${settings.playAgainToast ? "checked" : ""} /><span></span></span>
-            </label>
-            <label class="field">
-              <span class="field-copy"><strong>Auto re-queue</strong><small>Goes back to the lobby and starts the same queue, after a delay you can cancel.</small></span>
-              <span class="switch"><input type="checkbox" data-toggle="autoRequeue" ${settings.autoRequeue ? "checked" : ""} /><span></span></span>
-            </label>
-            <div class="field">
-              <span class="field-copy"><strong>Re-queue delay</strong></span>
-              <span class="range-row">
-                <input type="range" min="3" max="30" step="1" value="${settings.requeueDelaySeconds}" data-delay aria-label="Re-queue delay in seconds" />
-                <span class="field-value" data-delay-value>${settings.requeueDelaySeconds}s</span>
-              </span>
-            </div>
-          </div>
-          <footer class="sheet-footer"><span>Lobbies, queue and leave are in <kbd>Ctrl</kbd> + <kbd>K</kbd></span><span>Saved automatically</span></footer>
-        </section>
-      </div>`;
-
-    revealWhenStyled(element);
-    root.querySelector("[data-close]").addEventListener("click", closeSettings);
-    const backdrop = root.querySelector(".sheet-backdrop");
-    backdrop.addEventListener("click", (event) => {
-      if (event.target === backdrop) closeSettings();
-    });
-    backdrop.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") closeSettings();
-    });
-    root.querySelectorAll("[data-toggle]").forEach((input) => {
-      input.addEventListener("change", () => {
-        saveSettings({ [input.getAttribute("data-toggle")]: input.checked });
-        if (!settings.autoRequeue) cancelRequeue();
-      });
-    });
-    const delay = root.querySelector("[data-delay]");
-    delay.addEventListener("input", () => {
-      root.querySelector("[data-delay-value]").textContent = `${delay.value}s`;
-    });
-    delay.addEventListener("change", () => saveSettings({ requeueDelaySeconds: Number(delay.value) }));
-    root.querySelector("[data-toggle]").focus();
-  }
-
   function bindCommandBar() {
     if (commandBound || typeof window.CommandBar?.addAction !== "function") return;
     commandBound = true;
@@ -274,15 +228,14 @@
       { name: "Leave lobby", tags: ["lobby", "leave", "quit"], perform: leaveLobby },
       { name: "Play again", tags: ["post game", "lobby", "again"], perform: () => playAgain() },
       {
-        name: () => (settings.autoRequeue ? "Turn off auto re-queue" : "Turn on auto re-queue"),
+        name: () => (settings.get("autoRequeue") ? "Turn off auto re-queue" : "Turn on auto re-queue"),
         tags: ["queue", "requeue", "auto"],
         perform: () => {
-          saveSettings({ autoRequeue: !settings.autoRequeue });
-          if (!settings.autoRequeue) cancelRequeue();
-          toast("info", settings.autoRequeue ? "Auto re-queue is on." : "Auto re-queue is off.", { duration: 2500 });
+          settings.set("autoRequeue", !settings.get("autoRequeue"));
+          toast("info", settings.get("autoRequeue") ? "Auto re-queue is on." : "Auto re-queue is off.", { duration: 2500 });
         },
       },
-      { name: "Lobby tools settings", tags: ["lobby", "settings", "play again"], perform: openSettings },
+      { name: "Lobby tools settings", tags: ["lobby", "settings", "play again"], perform: () => settings.open() },
     ];
     for (const action of actions) window.CommandBar.addAction({ group: "lobby", ...action });
   }
@@ -290,6 +243,12 @@
   exports.init = function init(context) {
     if (context?.meta?.name) pluginRoot = context.meta.name;
     const socket = context?.socket || window.socket;
+    settings = defineSettings();
+    // Turning auto re-queue off cancels a re-queue that's already counting down.
+    settings.onChange((values) => {
+      if (!values.autoRequeue) cancelRequeue();
+      window.CommandBar?.update?.();
+    });
     socket?.observe?.(phaseApi, (event) => {
       if (event?.data === "EndOfGame") onEndOfGame();
       else if (event?.data === "Lobby" || event?.data === "Matchmaking") cancelRequeue();

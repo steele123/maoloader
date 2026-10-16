@@ -75,18 +75,24 @@ export async function loadListingsFromManifest(
 	);
 	assertUniqueSlugs(listings);
 
-	// Each plugin's page shows the README in its own folder. The README next to the manifest
-	// only stands in for a single-plugin repo, where it describes that one plugin.
+	// Each plugin's page shows the README and CHANGELOG in its own folder. The ones next to the
+	// manifest only stand in for a single-plugin repo, where they describe that one plugin.
 	const readText = (path: string) =>
 		fetchGitHubFile(parsedRepo.url, path, manifestFile.ref)
 			.then((file) => file.text.slice(0, 64 * 1024))
 			.catch(() => undefined);
 	const manifestDir = normalizedManifestPath.replace(/[^/]*$/, "");
+	const pluginDoc = async (listing: RegistryListing, name: string) => {
+		const entryDir = listing.entry.replace(/[^/]*$/, "");
+		const own = entryDir !== manifestDir ? await readText(`${entryDir}${name}`) : undefined;
+		return own ?? (listings.length === 1 ? await readText(`${manifestDir}${name}`) : undefined);
+	};
 	await Promise.all(
 		listings.map(async (listing) => {
-			const entryDir = listing.entry.replace(/[^/]*$/, "");
-			const ownReadme = entryDir !== manifestDir ? await readText(`${entryDir}README.md`) : undefined;
-			listing.readme = ownReadme ?? (listings.length === 1 ? await readText(`${manifestDir}README.md`) : undefined);
+			[listing.readme, listing.changelog] = await Promise.all([
+				pluginDoc(listing, "README.md"),
+				pluginDoc(listing, "CHANGELOG.md")
+			]);
 		})
 	);
 
@@ -142,13 +148,22 @@ export function listingsFromPackage(zip: PackageZip, fields: PackageFields, now:
 
 	const declared = stringValue(manifest.repository);
 	const repository = declared ? parseGitHubRepository(declared)?.url : undefined;
+	const single = manifest.plugins.length === 1;
 	const listings = manifest.plugins.map((entry, index) => {
 		const listing = listingFromManifestPlugin(manifest, entry, { repository }, now, index);
 		if (!zip.files.includes(listing.entry)) {
 			throw new Error(`"${listing.name}" loads ${listing.entry}, but the zip doesn't contain it.`);
 		}
 		if (!listValue((entry as ManifestPlugin).files).length) listing.files = zip.files;
-		if (zip.readme) listing.readme = zip.readme;
+		// A plugin's own folder wins; files at the zip's top level describe a single-plugin zip.
+		const entryDir = listing.entry.replace(/[^/]*$/, "");
+		const zipDoc = (name: string) => {
+			const own = entryDir ? zip.readFile(`${entryDir}${name}`, 64 * 1024) : undefined;
+			const data = own ?? (single || !entryDir ? zip.readFile(name, 64 * 1024) : undefined);
+			return data ? new TextDecoder().decode(data) : undefined;
+		};
+		listing.readme = zipDoc("README.md") ?? (single ? zip.readme : undefined);
+		listing.changelog = zipDoc("CHANGELOG.md");
 		return listing;
 	});
 	assertUniqueSlugs(listings);

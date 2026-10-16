@@ -1,6 +1,6 @@
-// The one settings window: a tab per area (Backdrop, Home, Top bar, Right panel).
+// Steele's UI settings: a tab per area (Backdrop, Home, Top bar, Right panel, Theme, Profile).
 
-import { getTabs, setSettingsOpener, pluginUrl, revealWhenStyled } from "./core.js";
+import { getTabs, setSettingsOpener, openSettings, pluginUrl, revealWhenStyled } from "./core.js";
 
 const SHEET_ID = "steeles-ui-settings";
 const SHEET_STYLE_ID = "steeles-ui-settings-styles";
@@ -54,7 +54,7 @@ export const openSettingsWindow = async (tabId) => {
       <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
         <header class="sheet-header">
           <img src="${pluginUrl("assets/icon.svg")}" alt="" width="32" height="32" />
-          <div class="sheet-title"><h1 id="sheet-title">Steele's UI</h1><span>Backdrop, home, top bar and right panel</span></div>
+          <div class="sheet-title"><h1 id="sheet-title">Steele's UI</h1><span>Backdrop, home, top bar, panel, theme and profile</span></div>
           <button class="sheet-close" type="button" data-close aria-label="Close">×</button>
         </header>
         <nav class="tabs" role="tablist" aria-label="Settings sections">
@@ -91,12 +91,45 @@ export const openSettingsWindow = async (tabId) => {
   root.querySelector(`[data-tab="${lastTab}"]`)?.focus();
 };
 
+// maoloader 0.1.7+ has one settings window for every plugin: Steele's UI draws its tabs there as a
+// page. Older runtimes don't, so they keep the standalone window above.
+function renderPage(container, context) {
+  const tabs = getTabs();
+  container.innerHTML = `
+    <link rel="stylesheet" href="${pluginUrl("settings-page.css")}" />
+    <div class="sui-page">
+      <nav class="subtabs" role="tablist" aria-label="Steele's UI sections">
+        ${tabs.map((tab) => `<button type="button" role="tab" data-tab="${tab.id}" aria-selected="false">${tab.label}</button>`).join("")}
+      </nav>
+      <div data-tab-body></div>
+    </div>`;
+  const page = container.querySelector(".sui-page");
+  page.querySelector("[role='tablist']").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-tab]");
+    if (button) showTab(page, button.getAttribute("data-tab"));
+  });
+  showTab(page, context?.tab || lastTab || tabs[0]?.id);
+}
+
 export function startSettings() {
-  setSettingsOpener(openSettingsWindow);
+  if (typeof window.PluginSettings?.define === "function") {
+    const settings = window.PluginSettings.define({
+      id: "steeles-ui",
+      title: "Steele's UI",
+      description: "Backdrop, home, top bar, right panel, theme and profile. Changes apply as you make them.",
+      icon: pluginUrl("assets/icon.svg"),
+      // No declared fields; this key is never written. Steele's UI keeps its own settings.
+      storageKey: "steeles-ui.plugin-settings",
+      page: { render: renderPage },
+    });
+    setSettingsOpener((tabId) => settings.open({ tab: tabId }));
+  } else {
+    setSettingsOpener(openSettingsWindow);
+  }
   window.CommandBar?.addAction?.({
     name: "Steele's UI settings",
     group: "steele's ui",
     tags: ["backdrop", "home", "top bar", "right panel", "theme", "settings", "steele"],
-    perform: () => openSettingsWindow(),
+    perform: () => openSettings(),
   });
 }

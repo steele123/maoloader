@@ -11,6 +11,7 @@
 	const nav = [
 		{ href: "/plugins", label: "Plugins" },
 		{ href: "/docs", label: "Docs" },
+		{ href: "/changelog", label: "Changelog" },
 		{ href: "/submit", label: "Submit" }
 	];
 </script>
@@ -55,6 +56,7 @@
 				<strong>Get started</strong>
 				<a href="/download">Download</a>
 				<a href="/plugins">Browse plugins</a>
+				<a href="/changelog">What's new</a>
 			</div>
 			<div>
 				<strong>Build</strong>

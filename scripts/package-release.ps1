@@ -46,6 +46,17 @@ if ($releaseConfigText -match "REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY") {
     throw "Replace the updater pubkey in app/src-tauri/tauri.release.conf.json before packaging a release."
 }
 
+# The release notes come from this version's section of CHANGELOG.md; checked before building so
+# a missing entry stops the release before any time is spent on it.
+$changelogPath = Join-Path $repo "CHANGELOG.md"
+$changelog = if (Test-Path -LiteralPath $changelogPath) { Get-Content -Raw -Encoding UTF8 -Path $changelogPath } else { "" }
+$sectionPattern = "(?ms)^##\s+$([regex]::Escape($Version))(?:\s+-[^\r\n]*)?\r?\n(.*?)(?=^##\s|\z)"
+$sectionMatch = [regex]::Match($changelog, $sectionPattern)
+$releaseNotes = if ($sectionMatch.Success) { $sectionMatch.Groups[1].Value.Trim() } else { "" }
+if (-not $releaseNotes) {
+    throw "CHANGELOG.md has no notes for $Version. Add a '## $Version - yyyy-mm-dd' section before releasing."
+}
+
 if (-not $SkipBuild) {
     if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
         throw "TAURI_SIGNING_PRIVATE_KEY must be set before building signed updater artifacts."
@@ -104,7 +115,7 @@ New-Item -ItemType Directory -Force -Path $distDir | Out-Null
 
 $manifest = [ordered]@{
     version = $Version
-    notes = "maoloader v$Version"
+    notes = $releaseNotes
     pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     platforms = [ordered]@{
         $platformKey = [ordered]@{
