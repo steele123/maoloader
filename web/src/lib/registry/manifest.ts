@@ -75,12 +75,20 @@ export async function loadListingsFromManifest(
 	);
 	assertUniqueSlugs(listings);
 
-	// The README next to the manifest becomes the plugin page. Repos without one are fine.
-	const readmePath = normalizedManifestPath.replace(/[^/]*$/, "") + "README.md";
-	const readme = await fetchGitHubFile(parsedRepo.url, readmePath, manifestFile.ref)
-		.then((file) => file.text.slice(0, 64 * 1024))
-		.catch(() => undefined);
-	if (readme) for (const listing of listings) listing.readme = readme;
+	// Each plugin's page shows the README in its own folder. The README next to the manifest
+	// only stands in for a single-plugin repo, where it describes that one plugin.
+	const readText = (path: string) =>
+		fetchGitHubFile(parsedRepo.url, path, manifestFile.ref)
+			.then((file) => file.text.slice(0, 64 * 1024))
+			.catch(() => undefined);
+	const manifestDir = normalizedManifestPath.replace(/[^/]*$/, "");
+	await Promise.all(
+		listings.map(async (listing) => {
+			const entryDir = listing.entry.replace(/[^/]*$/, "");
+			const ownReadme = entryDir !== manifestDir ? await readText(`${entryDir}README.md`) : undefined;
+			listing.readme = ownReadme ?? (listings.length === 1 ? await readText(`${manifestDir}README.md`) : undefined);
+		})
+	);
 
 	return {
 		ref: manifestFile.ref,

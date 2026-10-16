@@ -1,6 +1,6 @@
 /**
  * @description Steele's UI: backdrop, custom home, top bar and right panel for the League client, in one plugin.
- * @author steel
+ * @author maoloader developers
  * @link https://github.com/steele123/maoloader
  */
 

@@ -1,6 +1,6 @@
 /**
  * @description Hide League client clutter with toggleable presets and your own selectors.
- * @author steel
+ * @author maoloader developers
  * @link https://github.com/steele123/maoloader
  */
 (function () {

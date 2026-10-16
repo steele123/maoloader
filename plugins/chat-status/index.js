@@ -1,6 +1,6 @@
 /**
  * @description Appear online, away, mobile or offline, and set or rotate a custom status message.
- * @author steel
+ * @author maoloader developers
  * @link https://github.com/steele123/maoloader
  */
 (function () {

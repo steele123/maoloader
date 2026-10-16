@@ -14,6 +14,8 @@ declare global {
 		PLUGIN_BUCKET?: R2Bucket;
 		ADMIN_TOKEN?: string;
 		GITHUB_RELEASE_MANIFEST_URL?: string;
+		/** Read-only GitHub token for reading submitted repos without being rate-limited. */
+		GITHUB_TOKEN?: string;
 	}
 }
 

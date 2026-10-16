@@ -1,6 +1,6 @@
 /**
  * @description Diagnostic plugin for testing maoloader compatibility APIs.
- * @author steel
+ * @author maoloader developers
  * @link https://github.com/steele123/maoloader
  */
 (function () {

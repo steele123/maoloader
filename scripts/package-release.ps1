@@ -54,6 +54,9 @@ if (-not $SkipBuild) {
     Push-Location $appDir
     try {
         bun tauri build --config src-tauri/tauri.release.conf.json
+        if ($LASTEXITCODE) {
+            throw "tauri build failed with exit code $LASTEXITCODE."
+        }
     }
     finally {
         Pop-Location
@@ -71,6 +74,11 @@ $installer = Get-ChildItem -Path $nsisDir,$msiDir -File -ErrorAction SilentlyCon
 
 if (-not $installer) {
     throw "No Windows installer was found under $bundleDir."
+}
+
+# An older build left in the bundle folder must never be published under the new version.
+if ($installer.Name -notmatch "_$([regex]::Escape($Version))_") {
+    throw "Newest installer $($installer.Name) is not version $Version. Rebuild before packaging."
 }
 
 $signaturePath = "$($installer.FullName).sig"
@@ -127,10 +135,20 @@ if ($NoUpload) {
 
 Push-Location (Join-Path $repo "web")
 try {
-    $remoteArgs = if ($Local) { @() } else { @("--remote") }
-    bunx wrangler r2 object put "$BucketName/$objectPrefix/$($installer.Name)" --file "$($installer.FullName)" @remoteArgs
-    bunx wrangler r2 object put "$BucketName/$objectPrefix/$($installer.Name).sig" --file "$signaturePath" @remoteArgs
-    bunx wrangler r2 object put "$BucketName/releases/maoloader/latest.json" --file "$latestPath" @remoteArgs
+    # A plain string here would be splatted one character at a time ("- - r e m o t e").
+    $target = if ($Local) { "--local" } else { "--remote" }
+    # latest.json goes last, so users are never pointed at an installer that isn't uploaded yet.
+    $uploads = @(
+        @{ Key = "$objectPrefix/$($installer.Name)"; File = $installer.FullName },
+        @{ Key = "$objectPrefix/$($installer.Name).sig"; File = $signaturePath },
+        @{ Key = "releases/maoloader/latest.json"; File = $latestPath }
+    )
+    foreach ($upload in $uploads) {
+        bunx wrangler r2 object put "$BucketName/$($upload.Key)" --file "$($upload.File)" $target
+        if ($LASTEXITCODE) {
+            throw "Uploading $($upload.Key) failed with exit code $LASTEXITCODE."
+        }
+    }
 }
 finally {
     Pop-Location

@@ -129,6 +129,21 @@ API checks R2 first, then falls back to
 Set `GITHUB_RELEASE_MANIFEST_URL` if that fallback URL ever needs to point at a
 different repository or channel.
 
+## GitHub token for submissions
+
+GitHub throttles anonymous requests from Cloudflare's shared IPs, so repo submissions need a
+read-only token on the deployed site. Create a fine-grained token with **Public repositories
+(read-only)** access and no extra permissions, then store it as a Pages secret and redeploy:
+
+```powershell
+cd web
+bunx wrangler pages secret put GITHUB_TOKEN --project-name maoloader
+bun run deploy
+```
+
+Without the token the site falls back to anonymous git and raw-file requests, which is fine for
+local development.
+
 For local release testing, publish the same objects into Wrangler's local R2 store:
 
 ```powershell

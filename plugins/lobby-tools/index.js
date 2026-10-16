@@ -1,6 +1,6 @@
 /**
  * @description Create any available queue's lobby from the command bar, start or stop queue, and play again or re-queue after games.
- * @author steel
+ * @author maoloader developers
  * @link https://github.com/steele123/maoloader
  */
 (function () {

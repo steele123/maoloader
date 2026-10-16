@@ -1,6 +1,6 @@
 /**
  * @description Preview and bulk-disenchant champion shards for Blue Essence, with a confirm step.
- * @author steel
+ * @author maoloader developers
  * @link https://github.com/steele123/maoloader
  */
 (function () {

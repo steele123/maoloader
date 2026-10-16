@@ -224,7 +224,8 @@ fn parse_plugin_metadata(path: &Path) -> PluginMetadata {
 
     let description = tag_value(&content, "description");
     let author = tag_value(&content, "author").map(|author| {
-        if author.contains('#') {
+        // Single handles read as usernames; names with spaces ("maoloader developers") don't.
+        if author.contains('#') || author.contains(char::is_whitespace) {
             author
         } else {
             format!("@{author}")

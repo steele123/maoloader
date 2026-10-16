@@ -1,6 +1,6 @@
 /**
  * @description Track today's wins, losses, streak and LP change in a small card, with a summary after each game.
- * @author steel
+ * @author maoloader developers
  * @link https://github.com/steele123/maoloader
  */
 (function () {
