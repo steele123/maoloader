@@ -50,13 +50,21 @@ Minimize, settings and close always stay visible. `Show Riot's top bar` or `Show
 - **See-through** with a **Panel tint**, so the backdrop shows behind the panel.
 - **Divider**: a line between the client and the panel, with its own color and width.
 
-With **Collapse until hover**, opening a menu from the panel (like a friend's right-click menu) and moving onto it can make the panel slide away, since the pointer has left it.
+With **Collapse until hover**, the client uses the panel's space and the panel slides out over the page when you hover the strip. Opening a menu from the panel (like a friend's right-click menu) and moving onto it can make the panel slide away, since the pointer has left it.
+
+## Lobby
+
+- **Lobby styling**: each open seat becomes a card you can click anywhere to invite, and the chat and Progression / Invited panel get the home screen's card look, in your accent colour.
+- **Hide chat when it's off**: the lobby chat is switched off while you're on your own; this hides it until someone joins.
+- **Hide the progression panel**: removes the Progression and Invited tabs in the bottom right.
+
+The styles live in `lobby.css`; `src/lobby.js` turns each part on with a token in `data-sui-lobby` on `<html>`.
 
 ## How it works
 
 Riot's own elements are only hidden with CSS, never removed, so the client keeps working underneath. Everything on the dashboard comes from the client itself (friends, match history, ranked stats, region), except the apex cutoffs, which come from `https://maoloader.com/api/cutoffs`, a proxy for LadderEye's ladder data. Everything shares one stylesheet of rules and one watcher for page changes, batched to once per frame. Settings are saved in the maoloader DataStore under `steeles-ui.settings`; on the first run they're carried over from `client-backdrop.settings` and `clean-home.settings`.
 
-The plugin is an ES module split by area: `src/backdrop.js`, `src/home.js`, `src/topbar.js`, `src/panel.js`, the tabbed window in `src/settings.js`, and shared helpers in `src/core.js`.
+The plugin is an ES module split by area: `src/backdrop.js`, `src/home.js`, `src/topbar.js`, `src/panel.js`, `src/lobby.js`, the tabbed window in `src/settings.js`, and shared helpers in `src/core.js`.
 
 ## Theme
 

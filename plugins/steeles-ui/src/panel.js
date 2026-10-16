@@ -21,13 +21,13 @@ import {
   bindFormHelpers,
   showSections,
   PANEL_SELECTOR,
+  COLLAPSED_PANEL_STRIP,
 } from "./core.js";
 
 const SECTION = "panel";
 const DIVIDER_ID = "steeles-ui-panel-divider";
 const SECTION_ATTRIBUTE = "data-steeles-ui-panel-section";
 const INNER_SELECTORS = [".lol-social-sidebar", ".lol-social-panel"];
-const COLLAPSED_STRIP = 10;
 const MODES = [
   { id: "visible", label: "Visible" },
   { id: "collapsed", label: "Collapse until hover" },
@@ -134,11 +134,26 @@ function applyRules() {
       `#rcp-fe-viewport-root > .rcp-fe-viewport-persistent .activity-center-application { width: 100% !important; }`,
     );
   } else if (current.mode === "collapsed") {
-    // Slides off to the right leaving a strip; hovering the strip brings it back.
-    rules.push(`${PANEL_SELECTOR} { transform: translateX(calc(100% - ${COLLAPSED_STRIP}px)); transition: transform 0.22s ease; }`);
-    rules.push(`${PANEL_SELECTOR}:hover { transform: none; }`);
+    // Slides off to the right leaving a strip; hovering the strip brings it back over the page.
+    // It's taken out of the layout so screens (lobby, profile, collection) use the space it
+    // leaves instead of stopping 223px short.
     rules.push(
-      `${PANEL_SELECTOR}:not(:hover)::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: ${COLLAPSED_STRIP}px; ` +
+      `${PANEL_SELECTOR} { position: absolute !important; top: 0; bottom: 0; right: 0; transform: translateX(calc(100% - ${COLLAPSED_PANEL_STRIP}px)); transition: transform 0.22s ease; }`,
+      `#rcp-fe-viewport-root > .rcp-fe-viewport-main { width: calc(100% - ${COLLAPSED_PANEL_STRIP}px) !important; flex: 0 0 auto !important; }`,
+      `#rcp-fe-viewport-root > .rcp-fe-viewport-persistent { right: ${COLLAPSED_PANEL_STRIP}px !important; }`,
+      `#rcp-fe-viewport-root > .rcp-fe-viewport-persistent > .screen-root.active { width: 100% !important; }`,
+      `#rcp-fe-viewport-root > .rcp-fe-viewport-persistent .activity-center-application { width: 100% !important; }`,
+    );
+    // Open, it sits over the page but under the window controls. The custom top bar trims itself
+    // where the open panel would be (see topbar.js).
+    rules.push(`${PANEL_SELECTOR}:hover { transform: none; z-index: 11; }`);
+    rules.push(`[data-screen-name="window-controls"] { z-index: 12; }`);
+    // Over the page, a see-through panel would show the screen under it; keep it readable.
+    if (current.seeThrough) {
+      rules.push(`${PANEL_SELECTOR}:hover { background: rgba(1, 10, 19, ${Math.max(current.tint, 92) / 100}) !important; backdrop-filter: blur(8px); }`);
+    }
+    rules.push(
+      `${PANEL_SELECTOR}:not(:hover)::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: ${COLLAPSED_PANEL_STRIP}px; ` +
         "background: linear-gradient(90deg, rgba(200,170,110,0.55), rgba(200,170,110,0.08)); z-index: 2147483001; pointer-events: none; }",
     );
   }

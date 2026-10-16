@@ -54,7 +54,7 @@ export const openSettingsWindow = async (tabId) => {
       <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
         <header class="sheet-header">
           <img src="${pluginUrl("assets/icon.svg")}" alt="" width="32" height="32" />
-          <div class="sheet-title"><h1 id="sheet-title">Steele's UI</h1><span>Backdrop, home, top bar, panel, theme and profile</span></div>
+          <div class="sheet-title"><h1 id="sheet-title">Steele's UI</h1><span>Backdrop, home, top bar, panel, lobby, theme and profile</span></div>
           <button class="sheet-close" type="button" data-close aria-label="Close">×</button>
         </header>
         <nav class="tabs" role="tablist" aria-label="Settings sections">
@@ -116,7 +116,7 @@ export function startSettings() {
     const settings = window.PluginSettings.define({
       id: "steeles-ui",
       title: "Steele's UI",
-      description: "Backdrop, home, top bar, right panel, theme and profile. Changes apply as you make them.",
+      description: "Backdrop, home, top bar, right panel, lobby, theme and profile. Changes apply as you make them.",
       icon: pluginUrl("assets/icon.svg"),
       // No declared fields; this key is never written. Steele's UI keeps its own settings.
       storageKey: "steeles-ui.plugin-settings",

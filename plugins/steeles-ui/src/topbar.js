@@ -24,6 +24,7 @@ import {
   windowControls,
   NAV_SCREEN_SELECTOR,
   PANEL_SELECTOR,
+  COLLAPSED_PANEL_STRIP,
   WINDOW_CONTROLS_SELECTOR,
 } from "./core.js";
 
@@ -74,6 +75,13 @@ function applyRules() {
     // window controls inside it opt back in.
     `${NAV_SCREEN_SELECTOR} { visibility: hidden !important; }`,
     `${NAV_SCREEN_SELECTOR} :is(${WINDOW_CONTROLS_SELECTOR}) { visibility: visible !important; }`,
+    // Dialogs, menus and tooltips live in the client's layer manager; keep them above the custom
+    // bar (z-index 10) so a dialog's close button near the top stays clickable. :where() keeps this
+    // weaker than any z-index the client sets itself.
+    `:where(#lol-uikit-layer-manager-wrapper) > * { z-index: 11; }`,
+    // The backdrop isolates the client, so a collapsed panel sliding open can't rise above the bar;
+    // the bar cuts off the part the open panel covers instead.
+    `body:has(${PANEL_SELECTOR}:hover) > #${BAR_ID} { clip-path: inset(0 var(--sui-panel-clip, 0px) 0 0); }`,
   ]);
 }
 
@@ -164,11 +172,23 @@ function barRightEdge(rect) {
   const edges = [rect.right - 8, ...windowControls().map((element) => element.getBoundingClientRect().left)];
   const panel = document.querySelector(PANEL_SELECTOR);
   const box = panel?.getBoundingClientRect();
-  if (box?.width && box.top < rect.bottom && box.bottom > rect.top) {
+  // A collapsed panel slides over the page when hovered, so it only claims its strip.
+  if (box?.width && getComputedStyle(panel).position === "absolute") {
+    const parent = panel.offsetParent?.getBoundingClientRect();
+    if (parent) edges.push(parent.right - COLLAPSED_PANEL_STRIP);
+  } else if (box?.width && box.top < rect.bottom && box.bottom > rect.top) {
     const left = panelLayoutLeft(panel, box);
     if (left > rect.left) edges.push(left);
   }
   return Math.min(...edges);
+}
+
+// How far a collapsed panel reaches over the bar once it slides open.
+function openPanelOverlap(barRight) {
+  const panel = document.querySelector(PANEL_SELECTOR);
+  const parent = panel?.offsetParent?.getBoundingClientRect();
+  if (!parent || getComputedStyle(panel).position !== "absolute") return 0;
+  return Math.max(0, Math.round(barRight - (parent.right - panel.offsetWidth)));
 }
 
 function watchSizes() {
@@ -214,9 +234,11 @@ function syncBar() {
   if (!bar) bar = createBar();
 
   const rightEdge = barRightEdge(rect);
+  const width = Math.max(0, Math.round(rightEdge - rect.left - 8));
   bar.style.cssText =
     `position:fixed;left:${Math.round(rect.left)}px;top:${Math.round(rect.top)}px;` +
-    `width:${Math.max(0, Math.round(rightEdge - rect.left - 8))}px;height:${Math.round(rect.height)}px;z-index:10;display:block;` +
+    `width:${width}px;height:${Math.round(rect.height)}px;z-index:10;display:block;` +
+    `--sui-panel-clip:${openPanelOverlap(rect.left + width)}px;` +
     (bar.style.visibility ? `visibility:${bar.style.visibility};` : "");
 
   const activeKey = navKey(document.querySelector(`${NAV_ITEM_SELECTOR}[active]`) || document.createElement("i"));

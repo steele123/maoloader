@@ -98,6 +98,8 @@ export function openSettings(tabId) {
 
 export const NAV_SCREEN_SELECTOR = 'div[data-screen-name="rcp-fe-lol-navigation-screen"]';
 export const PANEL_SELECTOR = ".rcp-fe-viewport-sidebar";
+// How much of a collapsed right panel stays on screen to hover.
+export const COLLAPSED_PANEL_STRIP = 10;
 // Minimize, settings and close live in the top bar; they stay visible whatever the top bar mode.
 export const WINDOW_CONTROLS_SELECTOR = '[class*="app-controls"], [class*="window-controls"]';
 
@@ -106,7 +108,8 @@ export function navScreen() {
 }
 
 export function windowControls() {
-  return [...document.querySelectorAll(`${NAV_SCREEN_SELECTOR} :is(${WINDOW_CONTROLS_SELECTOR})`)].filter(
+  // Newer clients draw them in their own overlay screen, outside the navigation screen.
+  return [...document.querySelectorAll(`${NAV_SCREEN_SELECTOR} :is(${WINDOW_CONTROLS_SELECTOR}), .riotclient-app-controls`)].filter(
     (element) => element.getBoundingClientRect().width > 0,
   );
 }

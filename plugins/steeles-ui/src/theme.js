@@ -197,7 +197,11 @@ function applyFont() {
   const custom = current.customFont.trim();
   const stack =
     current.font === "custom" && custom ? { display: `"${custom}", ${FONT_STACKS.clean.display}`, body: `"${custom}", ${FONT_STACKS.clean.body}` } : FONT_STACKS[current.font];
-  setRules(SECTION, stack ? [`:root { --font-display: ${stack.display} !important; --font-body: ${stack.body} !important; }`] : []);
+  // Steele's UI's own client styles (lobby and other screens) read the accent from here.
+  const accent = current.recolor ? current.accent : CLIENT_GOLD;
+  const rules = [`:root { --sui-accent: ${accent}; --sui-accent-rgb: ${hexToRgb(accent).join(", ")}; }`];
+  if (stack) rules.push(`:root { --font-display: ${stack.display} !important; --font-body: ${stack.body} !important; }`);
+  setRules(SECTION, rules);
 }
 
 function apply() {

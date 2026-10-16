@@ -1,5 +1,5 @@
 /**
- * @description Steele's UI: backdrop, custom home, top bar, right panel, themes and profile picker for the League client, in one plugin.
+ * @description Steele's UI: backdrop, custom home, top bar, right panel, lobby, themes and profile picker for the League client, in one plugin.
  * @author maoloader
  * @link https://github.com/steele123/maoloader
  */
@@ -10,6 +10,7 @@ import { startBackdrop } from "./src/backdrop.js";
 import { startHome } from "./src/home.js";
 import { startTopBar } from "./src/topbar.js";
 import { startPanel } from "./src/panel.js";
+import { startLobby } from "./src/lobby.js";
 import { startTheme } from "./src/theme.js";
 import "./src/profile.js";
 import { startSettings } from "./src/settings.js";
@@ -26,5 +27,6 @@ export function load() {
   startHome();
   startTopBar();
   startPanel();
+  startLobby();
   startTheme();
 }

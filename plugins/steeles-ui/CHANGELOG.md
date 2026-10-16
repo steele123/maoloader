@@ -1,5 +1,16 @@
 # Steele's UI changelog
 
+## 0.2.1 - 2026-10-15
+
+### New
+- **Lobby** tab: open party seats become cards you can click anywhere to invite, and the lobby chat and progression panel get the same card look as the home screen. They follow your accent colour.
+- Hide the lobby chat while it's switched off (when you're on your own), and optionally hide the progression panel.
+
+### Fixed
+- **Collapse until hover** now gives the panel's space to the client, like **Hidden** does. Before, the lobby and other screens stopped 223px short and left an empty strip.
+- The open panel covers the custom top bar instead of sliding under it, and stays readable over the page.
+- The custom top bar no longer runs under the minimise, settings and close buttons, and no longer covers the close button of dialogs like the invite window.
+
 ## 0.2.0 - 2026-10-15
 
 ### New
