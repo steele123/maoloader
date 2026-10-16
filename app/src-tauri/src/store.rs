@@ -713,23 +713,35 @@ fn is_safe_relative_path(path: &Path) -> bool {
 
 fn ensure_child_path(base: &Path, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let base = base.canonicalize().unwrap_or_else(|_| base.to_path_buf());
-    let candidate_parent = if path.exists() {
-        path.canonicalize()?
-    } else {
-        path.parent()
-            .map(|parent| {
-                parent
-                    .canonicalize()
-                    .unwrap_or_else(|_| parent.to_path_buf())
-            })
-            .unwrap_or_else(|| path.to_path_buf())
-    };
-
-    if candidate_parent.starts_with(&base) {
+    if resolve_for_comparison(path).starts_with(&base) {
         Ok(())
     } else {
         Err("Install destination escapes the plugin directory".into())
     }
+}
+
+/// Canonicalizes the deepest part of `path` that exists and re-attaches the rest. Folders an
+/// install is about to create can't be canonicalized, and on Windows a canonical path carries a
+/// `\\?\` prefix a raw one lacks, so comparing the two would always fail.
+fn resolve_for_comparison(path: &Path) -> PathBuf {
+    let mut existing = path.to_path_buf();
+    let mut missing = Vec::new();
+    while !existing.exists() {
+        // A trailing ".." has no file name; stop and let the comparison fail safely.
+        match (existing.file_name(), existing.parent()) {
+            (Some(name), Some(parent)) => {
+                missing.push(name.to_os_string());
+                existing = parent.to_path_buf();
+            }
+            _ => break,
+        }
+    }
+
+    let mut resolved = existing.canonicalize().unwrap_or(existing);
+    for name in missing.iter().rev() {
+        resolved.push(name);
+    }
+    resolved
 }
 
 #[cfg(test)]
@@ -1025,6 +1037,35 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
+    fn live_store_package_extracts_with_nested_folders() {
+        // Downloads Steele's UI (src/, assets/, backgrounds/) from the live store into a temp folder.
+        let plugins = fetch_plugins().unwrap();
+        let plugin = plugins.iter().find(|plugin| plugin.slug == "steeles-ui").unwrap();
+        let client = github_client().unwrap();
+        let install = StorePluginInstall {
+            name: plugin.name.clone(),
+            slug: plugin.slug.clone(),
+            repo: plugin.repo.clone(),
+            detail_url: plugin.detail_url.clone(),
+            download_url: plugin.download_url.clone(),
+        };
+        let detail = fetch_registry_detail(&client, &install).unwrap();
+        let url = detail.download_url.clone().unwrap();
+        let archive = client.get(url).send().unwrap().error_for_status().unwrap().bytes().unwrap();
+
+        let destination = std::env::temp_dir().join(format!("maoloader-live-extract-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&destination);
+        fs::create_dir_all(&destination).unwrap();
+        extract_zip(&archive, &destination, None, detail.file_selection().as_ref()).unwrap();
+
+        assert!(destination.join("index.js").exists());
+        assert!(destination.join("assets").join("icon.svg").exists());
+        assert!(destination.join("src").join("home.js").exists());
+        fs::remove_dir_all(destination).unwrap();
+    }
+
+    #[test]
     fn extracts_selected_archive_subfolder_safely() {
         let mut archive = Cursor::new(Vec::new());
         {
@@ -1056,6 +1097,59 @@ mod tests {
         assert!(!destination.join("Other").exists());
 
         fs::remove_dir_all(destination).unwrap();
+    }
+
+    #[test]
+    fn extracts_files_into_folders_that_do_not_exist_yet() {
+        // Same shape as a GitHub archive of the maoloader repo: plugins/<slug>/ with an assets folder.
+        let mut archive = Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut archive);
+            let options = zip::write::SimpleFileOptions::default();
+            for (name, body) in [
+                ("steele123-maoloader-e4a02d4/plugins/auto-accept/index.js", "x"),
+                ("steele123-maoloader-e4a02d4/plugins/auto-accept/assets/icon.svg", "<svg/>"),
+                ("steele123-maoloader-e4a02d4/plugins/other/index.js", "y"),
+            ] {
+                writer.start_file(name, options).unwrap();
+                writer.write_all(body.as_bytes()).unwrap();
+            }
+            writer.finish().unwrap();
+        }
+
+        let destination = std::env::temp_dir().join(format!(
+            "maoloader-nested-test-{}",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&destination).unwrap();
+
+        let selection = FileSelection::new(
+            "plugins/auto-accept/index.js",
+            &[
+                "plugins/auto-accept/index.js".into(),
+                "plugins/auto-accept/assets/icon.svg".into(),
+            ],
+        );
+        extract_zip(archive.get_ref(), &destination, None, selection.as_ref()).unwrap();
+
+        assert!(destination.join("index.js").exists());
+        assert!(destination.join("assets").join("icon.svg").exists());
+        assert!(!destination.join("other").exists());
+
+        fs::remove_dir_all(destination).unwrap();
+    }
+
+    #[test]
+    fn child_path_check_still_rejects_escapes() {
+        let base = std::env::temp_dir().join(format!("maoloader-child-test-{}", std::process::id()));
+        fs::create_dir_all(&base).unwrap();
+        assert!(ensure_child_path(&base, &base.join("new").join("deeper").join("file.js")).is_ok());
+        assert!(ensure_child_path(&base, &base.join("..").join("outside.js")).is_err());
+        assert!(ensure_child_path(&base, &std::env::temp_dir().join("elsewhere").join("x.js")).is_err());
+        fs::remove_dir_all(base).unwrap();
     }
 
     #[test]
