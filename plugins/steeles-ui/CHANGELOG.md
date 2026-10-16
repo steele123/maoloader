@@ -1,5 +1,16 @@
 # Steele's UI changelog
 
+## 0.2.2 - 2026-10-15
+
+### New
+- **Mono** look in Theme → Presets: black surfaces, grey borders, white text and the Geist font, for a clean, minimal client.
+- **Neutral colours** switch in the Theme tab: turns the client's navy, teal and cream into greys, and greys out the lobby's gold buttons. Bright colours that mean something, like status dots, rarity, wins and losses, stay.
+- **Geist** font option, included with Steele's UI.
+
+### Fixed
+- Steele's UI's own home and top bar now use the font you pick in the Theme tab.
+- Recolouring now also reaches stylesheets that finish loading after a screen opens, and settings the client marks as important.
+
 ## 0.2.1 - 2026-10-15
 
 ### New

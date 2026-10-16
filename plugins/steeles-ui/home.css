@@ -32,7 +32,7 @@
   scrollbar-gutter: stable;
   padding: 24px 40px 32px;
   color: #e8edf2;
-  font: 13px/1.45 Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font: 13px/1.45 var(--sui-font, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
 }
 
 button,

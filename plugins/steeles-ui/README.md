@@ -68,10 +68,13 @@ The plugin is an ES module split by area: `src/backdrop.js`, `src/home.js`, `src
 
 ## Theme
 
-- **Presets**: Hextech, Midnight, Focus, Ember, or back to Steele's default. Each sets the accent, font, backdrop, top bar and panel at once; the toast that follows has **Undo**.
+- **Presets**: Mono, Hextech, Midnight, Focus, Ember, or back to Steele's default. Each sets the accent, font, backdrop, top bar and panel at once; the toast that follows has **Undo**.
 - **Share your look**: **Copy my code** puts your whole look on the clipboard as a `SUI1-` code. Paste a friend's code and press **Apply** to try theirs (also undoable). Codes never include your home cards, notes, or images from your own `backgrounds` folder.
 - **Accent colour**: recolours the client's gold (buttons, borders, highlights, text) and Steele's UI's own windows. A few parts Riot draws inside sealed components, like the top menu icons, keep their gold.
-- **Font**: **League** (Riot's fonts), **Clean** (Segoe UI), **Serif** (League's title font everywhere), or **Custom** with the name of any font installed on your PC.
+- **Neutral colours**: turns the client's navy, teal and cream (and the same colours in Steele's UI's windows) into greys of the same lightness, and greys out the lobby's gold buttons, which are images. Bright, light colours that carry meaning, like status dots, rarity, wins and losses, keep their colour. **Mono** combines this with a near-white accent, a black backdrop and Geist.
+- **Font**: **League** (Riot's fonts), **Clean** (Segoe UI), **Geist** (comes with the plugin), **Serif** (League's title font everywhere), or **Custom** with the name of any font installed on your PC.
+
+Geist is © 2023 Vercel, in collaboration with basement.studio, and is used under the SIL Open Font License 1.1; see `assets/fonts/Geist-LICENSE.txt`.
 
 ## Profile
 

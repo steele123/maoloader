@@ -115,13 +115,15 @@
     {
       "slug": "steeles-ui",
       "title": "Steele's UI",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "description": "Backdrop, custom home, top bar, right panel and lobby controls, themes with share codes, and a profile background and banner picker, in one plugin.",
       "image": "plugins/steeles-ui/assets/icon.svg",
       "entry": "plugins/steeles-ui/index.js",
       "files": [
         "plugins/steeles-ui/CHANGELOG.md",
         "plugins/steeles-ui/README.md",
+        "plugins/steeles-ui/assets/fonts/Geist-LICENSE.txt",
+        "plugins/steeles-ui/assets/fonts/Geist-Variable.woff2",
         "plugins/steeles-ui/assets/icon.svg",
         "plugins/steeles-ui/backgrounds/README.md",
         "plugins/steeles-ui/home.css",

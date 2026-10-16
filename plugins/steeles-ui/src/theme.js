@@ -13,6 +13,7 @@ import {
   toast,
   escapeHtml,
   hexOr,
+  pluginUrl,
   isHex,
   switchField,
   segmented,
@@ -31,21 +32,24 @@ const LOOK_SECTIONS = ["theme", "backdrop", "topBar", "panel"];
 const FONTS = [
   { id: "client", label: "League" },
   { id: "clean", label: "Clean" },
+  { id: "geist", label: "Geist" },
   { id: "serif", label: "Serif" },
   { id: "custom", label: "Custom" },
 ];
 const FONT_STACKS = {
   clean: { display: '"Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif', body: '"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif' },
+  geist: { display: '"Geist", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif', body: '"Geist", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif' },
   serif: { display: '"LoL Display", Georgia, serif', body: '"LoL Display", Georgia, serif' },
 };
 
-const DEFAULTS = { recolor: false, accent: CLIENT_GOLD, font: "client", customFont: "" };
+const DEFAULTS = { recolor: false, accent: CLIENT_GOLD, neutral: false, font: "client", customFont: "" };
 
 registerSection(SECTION, {
   defaults: DEFAULTS,
   normalize: (raw) => ({
     recolor: Boolean(raw.recolor),
     accent: hexOr(raw.accent, CLIENT_GOLD),
+    neutral: Boolean(raw.neutral),
     font: FONTS.some((font) => font.id === raw.font) ? raw.font : "client",
     // A font name only: no quotes, braces or semicolons that could break out of the rule.
     customFont: String(raw.customFont || "").replace(/["'{};<>\\]/g, "").slice(0, 60),
@@ -86,10 +90,6 @@ const clamp01 = (value) => Math.min(1, Math.max(0, value));
 
 // The client's golds, as written in its stylesheets (hex, or rgb() with an optional alpha).
 const GOLD_SHADES = ["#c8aa6e", "#c89b3c", "#785a28", "#cdbe91", "#c8a96e"];
-const GOLD_PATTERN = new RegExp(
-  `${GOLD_SHADES.join("|")}|rgba?\\(\\s*(${GOLD_SHADES.map((hex) => hexToRgb(hex).join(",\\s*")).join("|")})\\s*(?:,\\s*([\\d.]+)\\s*)?\\)`,
-  "gi",
-);
 
 // Moves a gold shade to the accent: the accent's hue, saturation scaled the same way, and the
 // shade's lightness shifted by the difference, so dark and light golds stay dark and light.
@@ -101,23 +101,49 @@ function accentShade(rgb, accent) {
   return hslToRgb([accentH, saturation, clamp01(shadeL + (accentL - goldL))]);
 }
 
-function recolorValue(value, accent) {
-  return value.replace(GOLD_PATTERN, (match, rgbList, alpha) => {
-    const rgb = match.startsWith("#") ? hexToRgb(match.toLowerCase()) : rgbList.split(",").map((part) => Number(part.trim()));
-    const [r, g, b] = accentShade(rgb, accent);
-    return alpha !== undefined ? `rgba(${r}, ${g}, ${b}, ${alpha})` : `rgb(${r}, ${g}, ${b})`;
-  });
-}
-
 // ---- Recolouring ----
-// Each client rule that uses gold gets a copy with only those properties, in the accent. The
-// copies come later in the page with the same selectors, so they win without !important and the
-// client's own hover, active and disabled states keep working.
+// Each client rule that uses gold (or, with neutral colours on, navy, teal or cream) gets a copy
+// with only those properties, recoloured. The copies come later in the page with the same
+// selectors, so they win and the client's own hover, active and disabled states keep working.
 
 let lastSheetCount = -1;
 let lastSignature = "";
 
-function recolorCss(sheets, accent) {
+const GOLD_KEYS = new Set(GOLD_SHADES.map((hex) => hexToRgb(hex).join(",")));
+const HAS_COLOR = /#[0-9a-f]{3}|rgba?\(/i;
+// Any hex or rgb()/rgba() colour, as stylesheets write them.
+const COLOR_PATTERN = /#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})\b|rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(?:,\s*[\d.]+\s*)?\)/gi;
+
+function parseColor(text) {
+  if (text.startsWith("#")) {
+    let hex = text.slice(1);
+    if (hex.length <= 4) hex = [...hex].map((char) => char + char).join("");
+    const rgb = [0, 2, 4].map((index) => parseInt(hex.slice(index, index + 2), 16));
+    return { rgb, alpha: hex.length === 8 ? String(Math.round((parseInt(hex.slice(6), 16) / 255) * 1000) / 1000) : undefined };
+  }
+  const parts = text.slice(text.indexOf("(") + 1, -1).split(",").map((part) => part.trim());
+  return { rgb: parts.slice(0, 3).map((part) => Math.round(Number(part))), alpha: parts[3] };
+}
+
+// Navy, teal and blue, and the client's creams and warm greys, lose their colour but keep their
+// lightness. Bright, light colours that mean something (status dots, rarity, wins and losses) stay.
+function neutralShade(rgb) {
+  const [h, s, l] = rgbToHsl(rgb);
+  if (!s || (s >= 0.55 && l >= 0.5)) return undefined;
+  if (!((h >= 150 && h <= 260) || s < 0.35)) return undefined;
+  return hslToRgb([h, 0, l]);
+}
+
+function recolorValue(value, accent, neutral) {
+  return value.replace(COLOR_PATTERN, (match) => {
+    const { rgb, alpha } = parseColor(match.toLowerCase());
+    const shade = accent && GOLD_KEYS.has(rgb.join(",")) ? accentShade(rgb, accent) : neutral ? neutralShade(rgb) : undefined;
+    if (!shade) return match;
+    return alpha !== undefined ? `rgba(${shade.join(", ")}, ${alpha})` : `rgb(${shade.join(", ")})`;
+  });
+}
+
+function recolorCss(sheets, accent, neutral) {
   const out = [];
   const visit = (rules) => {
     for (const rule of rules) {
@@ -131,18 +157,15 @@ function recolorCss(sheets, accent) {
         }
         continue;
       }
-      if (rule.type !== CSSRule.STYLE_RULE || !GOLD_PATTERN.test(rule.cssText)) {
-        GOLD_PATTERN.lastIndex = 0;
-        continue;
-      }
-      GOLD_PATTERN.lastIndex = 0;
+      if (rule.type !== CSSRule.STYLE_RULE || !HAS_COLOR.test(rule.cssText)) continue;
       const declarations = [];
       for (let index = 0; index < rule.style.length; index += 1) {
         const property = rule.style[index];
         const value = rule.style.getPropertyValue(property);
-        GOLD_PATTERN.lastIndex = 0;
-        if (GOLD_PATTERN.test(value)) declarations.push(`${property}: ${recolorValue(value, accent)}`);
-        GOLD_PATTERN.lastIndex = 0;
+        if (!HAS_COLOR.test(value)) continue;
+        const next = recolorValue(value, accent, neutral);
+        // An !important original needs an !important copy to lose to.
+        if (next !== value) declarations.push(`${property}: ${next}${rule.style.getPropertyPriority(property) ? " !important" : ""}`);
       }
       if (declarations.length) out.push(`${rule.selectorText} { ${declarations.join("; ")}; }`);
     }
@@ -158,10 +181,10 @@ function recolorCss(sheets, accent) {
   return out.join("\n");
 }
 
-function recolorRoot(root, accent) {
+function recolorRoot(root, accent, neutral) {
   const head = root === document ? document.head || document.documentElement : root;
   let style = head.querySelector?.(`style[${RECOLOR_ATTRIBUTE}]`);
-  if (!accent) {
+  if (!accent && !neutral) {
     style?.remove();
     return;
   }
@@ -169,7 +192,7 @@ function recolorRoot(root, accent) {
     style = document.createElement("style");
     style.setAttribute(RECOLOR_ATTRIBUTE, "");
   }
-  style.textContent = recolorCss(root.styleSheets, accent);
+  style.textContent = recolorCss(root.styleSheets, accent, neutral);
   // Last in the page (or shadow root), so it comes after every sheet it overrides.
   if (head.lastElementChild !== style) head.appendChild(style);
 }
@@ -179,18 +202,57 @@ function ownRoots() {
   return [...document.querySelectorAll("steeles-ui-home, steeles-ui-topbar, steeles-ui-settings")].map((host) => host.shadowRoot).filter(Boolean);
 }
 
+// A stylesheet still loading has no rules to read yet, and finishing doesn't change the sheet
+// count; recolour again once it arrives. Loads come in bursts on screen changes, so batch them.
+const watchedRoots = new WeakSet();
+let reloadTimer = 0;
+
+function watchSheetLoads(roots) {
+  for (const root of roots) {
+    if (watchedRoots.has(root)) continue;
+    watchedRoots.add(root);
+    root.addEventListener(
+      "load",
+      (event) => {
+        const link = event.target;
+        if (link?.tagName !== "LINK" || link.rel !== "stylesheet") return;
+        const current = settings();
+        if (!current.recolor && !current.neutral) return;
+        clearTimeout(reloadTimer);
+        reloadTimer = setTimeout(() => applyRecolor(true), 150);
+      },
+      true,
+    );
+  }
+}
+
 function applyRecolor(force = false) {
   const current = settings();
   const accent = current.recolor && current.accent.toLowerCase() !== CLIENT_GOLD ? current.accent : "";
+  const neutral = current.neutral;
   const roots = [document, ...ownRoots()];
+  watchSheetLoads(roots);
   const sheetCount = roots.reduce((total, root) => total + root.styleSheets.length, 0);
-  const signature = `${accent}|${roots.length}`;
+  const signature = `${accent}|${neutral}|${roots.length}`;
   // The client adds stylesheets as screens load; only redo the work when that happens.
   if (!force && sheetCount === lastSheetCount && signature === lastSignature) return;
   lastSheetCount = sheetCount;
   lastSignature = signature;
-  for (const root of roots) recolorRoot(root, accent);
+  for (const root of roots) recolorRoot(root, accent, neutral);
 }
+
+const NEUTRAL_IMAGES = [
+  ".generic-button-primary-img-container img",
+  ".lobby-header-buttons-container",
+  ".lobby-header-map-icon",
+  ".point-eligibility-icon",
+  ".find-match-button-container",
+  ".close-button-container",
+  ".v2-position-selector-component",
+];
+
+// Fonts that ship with the plugin.
+const FONT_FILES = { geist: { family: "Geist", file: "assets/fonts/Geist-Variable.woff2" } };
 
 function applyFont() {
   const current = settings();
@@ -200,7 +262,15 @@ function applyFont() {
   // Steele's UI's own client styles (lobby and other screens) read the accent from here.
   const accent = current.recolor ? current.accent : CLIENT_GOLD;
   const rules = [`:root { --sui-accent: ${accent}; --sui-accent-rgb: ${hexToRgb(accent).join(", ")}; }`];
-  if (stack) rules.push(`:root { --font-display: ${stack.display} !important; --font-body: ${stack.body} !important; }`);
+  const file = FONT_FILES[current.font];
+  if (file) {
+    rules.push(`@font-face { font-family: "${file.family}"; src: url("${pluginUrl(file.file)}") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }`);
+  }
+  // --sui-font reaches Steele's UI's own windows (home, top bar), which have their own styles.
+  if (stack) rules.push(`:root { --font-display: ${stack.display} !important; --font-body: ${stack.body} !important; --sui-font: ${stack.body}; }`);
+  // The lobby's gold and teal buttons are images, which recolouring can't reach; grey them instead.
+  // The banners stay in colour: they're yours.
+  if (current.neutral) rules.push(`.parties-view :is(${NEUTRAL_IMAGES.join(", ")}) { filter: grayscale(1); }`);
   setRules(SECTION, rules);
 }
 
@@ -219,11 +289,22 @@ const PRESETS = [
     reset: true,
   },
   {
+    id: "mono",
+    label: "Mono",
+    swatches: ["#ededed", "#000000"],
+    patch: {
+      theme: { recolor: true, accent: "#ededed", neutral: true, font: "geist" },
+      backdrop: { enabled: true, mode: "color", color: "#000000", hideScreenArt: true },
+      topBar: { mode: "custom" },
+      panel: { seeThrough: true, tint: 85, divider: true, dividerColor: "#262626", dividerWidth: 1 },
+    },
+  },
+  {
     id: "hextech",
     label: "Hextech",
     swatches: ["#0ac8b9", "#091428"],
     patch: {
-      theme: { recolor: true, accent: "#0ac8b9", font: "client" },
+      theme: { recolor: true, neutral: false, accent: "#0ac8b9", font: "client" },
       backdrop: { enabled: true, mode: "gradient", gradientFrom: "#091428", gradientTo: "#0a7a8a", gradientAngle: 160 },
       panel: { seeThrough: true, tint: 55, divider: true, dividerColor: "#0ac8b9" },
     },
@@ -233,7 +314,7 @@ const PRESETS = [
     label: "Midnight",
     swatches: ["#9d8bff", "#05070d"],
     patch: {
-      theme: { recolor: true, accent: "#9d8bff", font: "clean" },
+      theme: { recolor: true, neutral: false, accent: "#9d8bff", font: "clean" },
       backdrop: { enabled: true, mode: "color", color: "#05070d" },
       topBar: { mode: "custom" },
       panel: { mode: "visible", seeThrough: true, tint: 70 },
@@ -244,7 +325,7 @@ const PRESETS = [
     label: "Focus",
     swatches: [CLIENT_GOLD, "#0a1428"],
     patch: {
-      theme: { recolor: false, font: "clean" },
+      theme: { recolor: false, neutral: false, font: "clean" },
       backdrop: { enabled: true, mode: "color", color: "#0a1428" },
       topBar: { mode: "custom" },
       panel: { mode: "collapsed" },
@@ -255,7 +336,7 @@ const PRESETS = [
     label: "Ember",
     swatches: ["#ff7a45", "#1a0b10"],
     patch: {
-      theme: { recolor: true, accent: "#ff7a45", font: "client" },
+      theme: { recolor: true, neutral: false, accent: "#ff7a45", font: "client" },
       backdrop: { enabled: true, mode: "gradient", gradientFrom: "#1a0b10", gradientTo: "#7a2a1f", gradientAngle: 125 },
       panel: { divider: true, dividerColor: "#ff7a45" },
     },
@@ -369,9 +450,10 @@ function renderTab() {
           ${colorField("data-th-accent-color", current.accent, "Accent colour")}
         </div>
       </div>
+      ${switchField("data-th-neutral", current.neutral, "Neutral colours", "Turns the client's navy, teal and cream into greys, for a clean black-and-white look. Bright colours like rarity, wins and losses stay.")}
     </div>
     <div class="field is-stacked section-start">
-      <span class="field-copy"><strong>Font</strong><small>League keeps Riot's fonts. Clean uses Windows' Segoe UI; Serif uses League's title font everywhere.</small></span>
+      <span class="field-copy"><strong>Font</strong><small>League keeps Riot's fonts. Clean uses Windows' Segoe UI; Geist is a crisp modern sans that comes with Steele's UI; Serif uses League's title font everywhere.</small></span>
       ${segmented("data-th-font", FONTS, current.font, "Font")}
       <div class="mode-section" data-th-font-section="custom" ${current.font === "custom" ? "" : "hidden"}>
         <input class="text-input" type="text" data-th-custom-font value="${escapeHtml(current.customFont)}" placeholder="Name of a font on your PC, e.g. Inter" spellcheck="false" />
@@ -418,6 +500,7 @@ function bindTab(container) {
     save({ recolor: event.target.checked });
     container.querySelector("[data-th-accent]").hidden = !event.target.checked;
   });
+  container.querySelector("[data-th-neutral]").addEventListener("change", (event) => save({ neutral: event.target.checked }));
   const color = container.querySelector("[data-color][data-th-accent-color]");
   // Recolouring the client is heavy, so it happens when the picker closes, not while dragging.
   color.addEventListener("change", () => isHex(color.value) && save({ accent: color.value }));
@@ -442,7 +525,7 @@ export function startTheme() {
   });
   // New screens bring new stylesheets; recolour them as they arrive.
   onDomChange(() => {
-    if (settings().recolor) applyRecolor();
+    if (settings().recolor || settings().neutral) applyRecolor();
   });
   apply();
 }
