@@ -1,33 +1,28 @@
 import { error } from "@sveltejs/kit";
 import { submissionListings } from "$lib/registry/admin";
 import { getSubmission } from "$lib/registry/store";
-import { validateAdminToken } from "$lib/registry/upload";
 import type { RequestHandler } from "./$types";
 
-// Lets a reviewer read an uploaded zip before approving it. A POST so the token stays out of URLs.
-export const POST: RequestHandler = async ({ params, platform, request }) => {
-	const env = platform?.env;
-	if (!env?.PLUGIN_BUCKET) error(501, "PLUGIN_BUCKET R2 binding is not configured");
-
-	try {
-		validateAdminToken(env, await request.formData(), request.headers.get("authorization"));
-	} catch {
-		error(401, "Invalid admin token.");
-	}
+// Lets a signed-in reviewer read an uploaded zip before approving it.
+// hooks.server.ts turns away anyone who isn't signed in; this checks again.
+export const GET: RequestHandler = async ({ params, platform, locals }) => {
+	if (!locals.admin) error(401, "Sign in first.");
+	const bucket = platform?.env?.PLUGIN_BUCKET;
+	if (!bucket) error(501, "PLUGIN_BUCKET R2 binding is not configured");
 
 	const submission = await getSubmission(params.id, platform);
-	const key = submission && submissionListings(submission)[0]?.assets.package?.key;
-	if (!key) error(404, "This submission has no uploaded package.");
+	const listing = submission && submissionListings(submission)[0];
+	const key = listing?.assets.package?.key;
+	if (!listing || !key) error(404, "This submission has no uploaded package.");
 
-	const object = await env.PLUGIN_BUCKET.get(key);
+	const object = await bucket.get(key);
 	if (!object) error(404, "Package object not found");
 
-	const slug = submissionListings(submission)[0].slug;
 	return new Response(object.body, {
 		headers: {
 			"Content-Type": "application/zip",
 			"Content-Length": String(object.size),
-			"Content-Disposition": `attachment; filename="${slug}-submission.zip"`
+			"Content-Disposition": `attachment; filename="${listing.slug}-submission.zip"`
 		}
 	});
 };

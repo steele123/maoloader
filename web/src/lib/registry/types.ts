@@ -88,4 +88,7 @@ export type RegistrySubmission = {
 	listings?: RegistryListing[];
 	github_ref?: string;
 	notes?: string;
+	/** Why a reviewer rejected it, shown in the admin history. */
+	review_note?: string;
+	reviewed_at?: string;
 };

@@ -1,220 +1,401 @@
 <script lang="ts">
+	import { enhance } from "$app/forms";
+	import { page } from "$app/state";
+	import CheckIcon from "@lucide/svelte/icons/check";
+	import DownloadIcon from "@lucide/svelte/icons/download";
+	import ExternalLinkIcon from "@lucide/svelte/icons/external-link";
+	import FileArchiveIcon from "@lucide/svelte/icons/file-archive";
 	import GitBranchIcon from "@lucide/svelte/icons/git-branch";
-	import PackageCheckIcon from "@lucide/svelte/icons/package-check";
-	import UploadCloudIcon from "@lucide/svelte/icons/upload-cloud";
+	import HistoryIcon from "@lucide/svelte/icons/history";
+	import InboxIcon from "@lucide/svelte/icons/inbox";
+	import LogOutIcon from "@lucide/svelte/icons/log-out";
+	import PlusIcon from "@lucide/svelte/icons/plus";
+	import StarIcon from "@lucide/svelte/icons/star";
+	import StoreIcon from "@lucide/svelte/icons/store";
+	import TrashIcon from "@lucide/svelte/icons/trash-2";
+	import XIcon from "@lucide/svelte/icons/x";
 	import { Button } from "$lib/components/ui/button";
-	import { Input } from "$lib/components/ui/input";
-	import { Label } from "$lib/components/ui/label";
-	import { Textarea } from "$lib/components/ui/textarea";
+	import type { RegistryListing, RegistrySubmission } from "$lib/registry/types";
+	import type { SubmitFunction } from "@sveltejs/kit";
 	import type { ActionData, PageData } from "./$types";
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
-	const pending = $derived(data.submissions.filter((submission) => submission.status === "pending"));
-	const submissionListings = (submission: PageData["submissions"][number]) =>
+
+	type Tab = "queue" | "store" | "add" | "history";
+	const tabs: { id: Tab; label: string; icon: typeof InboxIcon }[] = [
+		{ id: "queue", label: "Review queue", icon: InboxIcon },
+		{ id: "store", label: "Published", icon: StoreIcon },
+		{ id: "add", label: "Add a plugin", icon: PlusIcon },
+		{ id: "history", label: "History", icon: HistoryIcon }
+	];
+	const initialTab = page.url.searchParams.get("tab") as Tab | null;
+	let tab: Tab = $state(tabs.some((entry) => entry.id === initialTab) ? initialTab! : "queue");
+
+	// Keeps the open tab in the address bar so a reload stays put.
+	function selectTab(next: Tab) {
+		tab = next;
+		const url = new URL(page.url);
+		url.searchParams.set("tab", next);
+		history.replaceState(history.state, "", url);
+	}
+
+	// One action at a time; remembers which button is working so it can say so.
+	let busyKey = $state("");
+	const busy =
+		(key: string): SubmitFunction =>
+		() => {
+			busyKey = key;
+			return async ({ update }) => {
+				await update({ reset: false });
+				busyKey = "";
+				rejecting = "";
+				removing = "";
+			};
+		};
+
+	let rejecting = $state("");
+	let removing = $state("");
+	let storeFilter = $state("");
+
+	const listingsOf = (submission: RegistrySubmission): RegistryListing[] =>
 		submission.listings?.length ? submission.listings : submission.listing ? [submission.listing] : [];
+
+	const shownListings = $derived(
+		data.listings.filter((listing) =>
+			[listing.name, listing.slug, listing.author.name].join(" ").toLowerCase().includes(storeFilter.trim().toLowerCase())
+		)
+	);
+
+	function ago(value?: string) {
+		if (!value) return "";
+		const seconds = (Date.now() - new Date(value).getTime()) / 1000;
+		if (seconds < 60) return "just now";
+		const units: [number, string][] = [
+			[60, "minute"],
+			[3600, "hour"],
+			[86400, "day"],
+			[604800, "week"]
+		];
+		let [size, name] = units[0];
+		for (const unit of units) if (seconds >= unit[0]) [size, name] = unit;
+		const count = Math.floor(seconds / size);
+		return `${count} ${name}${count === 1 ? "" : "s"} ago`;
+	}
+
+	const shortSha = (sha?: string) => (sha && /^[0-9a-f]{40}$/i.test(sha) ? sha.slice(0, 7) : sha);
+	const treeUrl = (submission: RegistrySubmission) =>
+		submission.repository && submission.github_ref
+			? `${submission.repository}/tree/${submission.github_ref}`
+			: submission.repository;
 </script>
 
 <svelte:head>
-	<title>Admin upload · maoloader</title>
+	<title>Admin · maoloader</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
-<section class="page-hero compact">
+<header class="admin-top">
 	<div>
 		<p class="eyebrow">Admin</p>
-		<h1>Review submissions</h1>
-		<p>
-			Approve uploaded zips and GitHub repos. Download an upload to read its code before you approve it.
-		</p>
+		<h1>Store admin</h1>
 	</div>
-	<div class:ready={data.hasBindings} class="status-panel">
-		<strong>{data.hasBindings ? "Storage ready" : "Storage missing"}</strong>
-		<span>{data.tokenRequired ? "Admin token required" : "No token configured"}</span>
+	<div class="admin-stats" aria-label="Overview">
+		<span class:is-hot={data.stats.pending > 0}><strong>{data.stats.pending}</strong> waiting</span>
+		<span><strong>{data.stats.listings}</strong> published</span>
+		<span><strong>{data.stats.installs.toLocaleString()}</strong> installs</span>
 	</div>
-</section>
+	<form method="POST" action="?/logout">
+		<Button type="submit" variant="outline" size="sm"><LogOutIcon />Sign out</Button>
+	</form>
+</header>
 
+{#if !data.hasStorage}
+	<p class="admin-message">The D1 database or R2 bucket isn't connected here, so some actions won't work.</p>
+{/if}
 {#if form?.message}
-	<p class:success={form.published} class="admin-message">{form.message}</p>
+	<p class="admin-message" class:success={form.ok} role="status">{form.message}</p>
 {/if}
 
-<div class="admin-layout">
-	<form class="surface-form" method="POST" action="?/submitRepo">
-		<div class="section-title">
-			<GitBranchIcon />
-			<h2>Submit GitHub repo</h2>
-		</div>
-		<div class="form-grid">
-			<Label>
-				<span>Admin token</span>
-				<Input name="token" type="password" autocomplete="current-password" />
-			</Label>
-			<Label>
-				<span>GitHub repository</span>
-				<Input name="repository" type="url" placeholder="https://github.com/owner/repo" required />
-			</Label>
-			<Label>
-				<span>Branch, tag, or SHA</span>
-				<Input name="githubRef" placeholder="main, v1.0.0, or leave empty for default branch" />
-			</Label>
-			<Label class="wide">
-				<span>Manifest path</span>
-				<Input name="manifestPath" placeholder="packages/example/maoloader.json" />
-				<small>Leave empty for root maoloader.json.</small>
-			</Label>
-			<Label class="wide">
-				<span>Review notes</span>
-				<Textarea name="notes" rows={2} />
-			</Label>
-		</div>
+<nav class="admin-tabs" aria-label="Admin sections">
+	{#each tabs as entry}
+		<button type="button" aria-current={tab === entry.id ? "page" : undefined} onclick={() => selectTab(entry.id)}>
+			<entry.icon />
+			{entry.label}
+			{#if entry.id === "queue" && data.stats.pending}<span class="tab-count">{data.stats.pending}</span>{/if}
+		</button>
+	{/each}
+</nav>
 
-		<div class="form-actions">
-			<Button type="submit">Queue for review</Button>
-		</div>
-	</form>
+{#if tab === "queue"}
+	{#if data.pending.length}
+		<div class="review-list">
+			{#each data.pending as submission (submission.id)}
+				{@const listings = listingsOf(submission)}
+				<article class="surface review-card">
+					<header>
+						<span class="source-chip">
+							{#if submission.repository}
+								<GitBranchIcon />
+								<a href={treeUrl(submission)} target="_blank" rel="noreferrer">
+									{submission.repository.replace("https://github.com/", "")}
+								</a>
+								{#if submission.github_ref}<code>{shortSha(submission.github_ref)}</code>{/if}
+							{:else}
+								<FileArchiveIcon />Uploaded .zip
+							{/if}
+						</span>
+						<span class="muted">{ago(submission.created_at)}</span>
+					</header>
 
-	<section class="surface-panel queue-panel">
-		<div class="section-title">
-			<PackageCheckIcon />
-			<h2>Pending mirrors</h2>
-		</div>
+					<ul class="review-listings">
+						{#each listings as listing}
+							<li>
+								<span class="mini-icon">
+									{#if listing.assets.icon?.url}<img src={listing.assets.icon.url} alt="" loading="lazy" />{:else}{listing.name.slice(0, 1)}{/if}
+								</span>
+								<span class="review-name">
+									<strong>{listing.name}</strong>
+									<small>{listing.slug} · v{listing.version} · {listing.author.name}</small>
+								</span>
+								{#if data.published[listing.slug]}
+									<span class="pill is-update">updates v{data.published[listing.slug]}</span>
+								{:else}
+									<span class="pill is-new">new</span>
+								{/if}
+							</li>
+						{/each}
+					</ul>
 
-		{#if pending.length > 0}
-			<div class="submission-list">
-				{#each pending as submission}
-					<article>
-						<div>
-							<strong>{submissionListings(submission).map((listing) => listing.name).join(", ")}</strong>
-							<span>{submission.repository || submissionListings(submission)[0]?.repository || "Uploaded .zip"}</span>
-							<small>
-								{submissionListings(submission).length} listing{submissionListings(submission).length === 1
-									? ""
-									: "s"}
-								{#if submission.github_ref} - {submission.github_ref}{/if}
-							</small>
-							{#if submission.notes}<small class="submission-notes">{submission.notes}</small>{/if}
-						</div>
-						{#if !submission.repository}
+					{#if submission.notes}<p class="review-notes">{submission.notes}</p>{/if}
+
+					<footer>
+						{#if submission.repository}
+							<Button href={treeUrl(submission)} target="_blank" rel="noreferrer" variant="outline" size="sm">
+								<ExternalLinkIcon />Read the code
+							</Button>
+						{:else}
 							<!-- Read uploaded code before approving it. -->
-							<form method="POST" action={`/api/admin/submissions/${submission.id}/package`}>
-								<Input name="token" type="password" placeholder="Admin token" />
-								<Button type="submit" size="sm" variant="outline">Download zip</Button>
+							<Button href={`/api/admin/submissions/${submission.id}/package`} variant="outline" size="sm">
+								<DownloadIcon />Download zip
+							</Button>
+						{/if}
+						<span class="spacer"></span>
+						{#if rejecting === submission.id}
+							<form method="POST" action="?/reject" class="inline-form" use:enhance={busy(`reject-${submission.id}`)}>
+								<input type="hidden" name="id" value={submission.id} />
+								<input name="reason" placeholder="Reason (optional)" aria-label="Reason for rejecting" />
+								<Button type="submit" variant="destructive" size="sm" disabled={!!busyKey}>Reject</Button>
+								<Button type="button" variant="ghost" size="sm" onclick={() => (rejecting = "")}>Cancel</Button>
+							</form>
+						{:else}
+							<Button type="button" variant="ghost" size="sm" onclick={() => (rejecting = submission.id)}>
+								<XIcon />Reject
+							</Button>
+							<form method="POST" action="?/approve" use:enhance={busy(`approve-${submission.id}`)}>
+								<input type="hidden" name="id" value={submission.id} />
+								<Button type="submit" size="sm" disabled={!!busyKey}>
+									<CheckIcon />
+									{busyKey === `approve-${submission.id}`
+										? "Publishing…"
+										: `Approve${listings.length > 1 ? ` all ${listings.length}` : ""}`}
+								</Button>
 							</form>
 						{/if}
-						<form method="POST" action="?/approve">
-							<Input name="id" type="hidden" value={submission.id} />
-							<Input name="token" type="password" placeholder="Admin token" />
-							<Button type="submit" size="sm">Approve</Button>
+					</footer>
+				</article>
+			{/each}
+		</div>
+	{:else}
+		<div class="empty-panel">
+			<strong>Nothing to review</strong>
+			<span>New uploads and repo submissions show up here.</span>
+		</div>
+	{/if}
+{:else if tab === "store"}
+	<div class="store-toolbar">
+		<input bind:value={storeFilter} placeholder="Filter published plugins" aria-label="Filter published plugins" />
+		<span class="muted">{shownListings.length} of {data.listings.length}</span>
+	</div>
+	{#if shownListings.length}
+		<div class="surface published-table" role="table" aria-label="Published plugins">
+			{#each shownListings as listing (listing.slug)}
+				<div class="published-row" role="row">
+					<span class="mini-icon" role="cell">
+						{#if listing.assets.icon?.url}<img src={listing.assets.icon.url} alt="" loading="lazy" />{:else}{listing.name.slice(0, 1)}{/if}
+					</span>
+					<span class="review-name" role="cell">
+						<a href={`/plugins/${listing.slug}`}><strong>{listing.name}</strong></a>
+						<small>{listing.slug} · {listing.author.name}</small>
+					</span>
+					<span role="cell" class="muted">v{listing.version}</span>
+					<span role="cell" class="muted"><DownloadIcon class="inline-icon" />{(listing.downloads ?? 0).toLocaleString()}</span>
+					<span role="cell" class="muted">{ago(listing.updated_at)}</span>
+					<span role="cell" class="row-actions">
+						<form method="POST" action="?/feature" use:enhance={busy(`feature-${listing.slug}`)}>
+							<input type="hidden" name="slug" value={listing.slug} />
+							<input type="hidden" name="featured" value={String(!listing.featured)} />
+							<button
+								class="star-toggle"
+								class:is-on={listing.featured}
+								type="submit"
+								disabled={!!busyKey}
+								title={listing.featured ? "Unfeature" : "Feature on the home page"}
+								aria-label={listing.featured ? `Unfeature ${listing.name}` : `Feature ${listing.name}`}
+							>
+								<StarIcon />
+							</button>
 						</form>
-					</article>
-				{/each}
-			</div>
-		{:else}
-			<div class="empty-panel">
-				<strong>No pending submissions</strong>
-				<span>New uploads and repo submissions show up here.</span>
-			</div>
-		{/if}
-	</section>
-</div>
-
-<details class="manual-upload" open>
-	<summary>Direct project upload - no GitHub repo or maoloader.json required</summary>
-	<form class="admin-form" method="POST" action="?/upload" enctype="multipart/form-data">
-		<section>
-			<div class="section-title">
-				<UploadCloudIcon />
-				<h2>Upload zip and metadata</h2>
-			</div>
+						<button
+							class="icon-ghost"
+							type="button"
+							title="Remove from store"
+							aria-label={`Remove ${listing.name}`}
+							onclick={() => (removing = removing === listing.slug ? "" : listing.slug)}
+						>
+							<TrashIcon />
+						</button>
+					</span>
+					{#if removing === listing.slug}
+						<form method="POST" action="?/remove" class="remove-confirm" use:enhance={busy(`remove-${listing.slug}`)}>
+							<input type="hidden" name="slug" value={listing.slug} />
+							<span>Type <code>{listing.slug}</code> to remove it from the store:</span>
+							<input name="confirm" autocomplete="off" aria-label={`Type ${listing.slug} to confirm`} />
+							<Button type="submit" variant="destructive" size="sm" disabled={!!busyKey}>Remove</Button>
+							<Button type="button" variant="ghost" size="sm" onclick={() => (removing = "")}>Cancel</Button>
+						</form>
+					{/if}
+				</div>
+			{/each}
+		</div>
+	{:else}
+		<div class="empty-panel">
+			<strong>{data.listings.length ? "Nothing matches" : "Nothing published yet"}</strong>
+			<span>Approved submissions appear here.</span>
+		</div>
+	{/if}
+{:else if tab === "add"}
+	<div class="admin-add">
+		<form class="surface-form" method="POST" action="?/submitRepo" use:enhance={busy("repo")}>
+			<div class="section-title"><GitBranchIcon /><h2>From a GitHub repo</h2></div>
+			<p class="muted">Reads the repo's maoloader.json and adds it to the review queue, pinned to the current commit.</p>
 			<div class="form-grid">
-				<Label>
-					<span>Admin token</span>
-					<Input name="token" type="password" autocomplete="current-password" />
-				</Label>
-				<Label>
+				<label class="wide">
+					<span>Repository</span>
+					<input name="repository" type="url" placeholder="https://github.com/owner/repo" required />
+				</label>
+				<label>
+					<span>Branch, tag or commit</span>
+					<input name="githubRef" placeholder="Default branch" />
+				</label>
+				<label>
+					<span>Manifest path</span>
+					<input name="manifestPath" placeholder="maoloader.json" />
+				</label>
+				<label class="wide">
+					<span>Notes</span>
+					<textarea name="notes" rows="2"></textarea>
+				</label>
+			</div>
+			<div class="form-actions">
+				<Button type="submit" disabled={!!busyKey}>{busyKey === "repo" ? "Reading repo…" : "Add to queue"}</Button>
+			</div>
+		</form>
+
+		<form class="surface-form" method="POST" action="?/upload" enctype="multipart/form-data" use:enhance={busy("upload")}>
+			<div class="section-title"><FileArchiveIcon /><h2>Upload a .zip with details</h2></div>
+			<p class="muted">For packages without a maoloader.json. Can publish straight away.</p>
+			<div class="form-grid">
+				<label class="wide">
+					<span>Package .zip</span>
+					<input name="package" type="file" accept=".zip,application/zip" required />
+				</label>
+				<label>
+					<span>Name</span>
+					<input name="name" required />
+				</label>
+				<label>
+					<span>Slug</span>
+					<input name="slug" placeholder="my-plugin" required />
+				</label>
+				<label>
+					<span>Version</span>
+					<input name="version" placeholder="0.1.0" required />
+				</label>
+				<label>
 					<span>Kind</span>
-					<select name="kind" required>
+					<select name="kind">
 						<option value="plugin">Plugin</option>
 						<option value="theme">Theme</option>
 					</select>
-				</Label>
-				<Label>
-					<span>Package zip</span>
-					<Input name="package" type="file" accept=".zip,application/zip" required />
-				</Label>
-				<Label>
-					<span>Repository</span>
-					<Input name="repository" type="url" placeholder="Optional" />
-				</Label>
-				<Label>
-					<span>Homepage</span>
-					<Input name="homepage" type="url" placeholder="Optional project page" />
-				</Label>
-				<Label>
-					<span>Slug</span>
-					<Input name="slug" placeholder="my-plugin" required />
-				</Label>
-				<Label>
-					<span>Name</span>
-					<Input name="name" required />
-				</Label>
-				<Label>
-					<span>Version</span>
-					<Input name="version" placeholder="0.1.0" required />
-				</Label>
-				<Label>
-					<span>Entry file</span>
-					<Input name="entry" value="index.js" required />
-				</Label>
-				<Label class="wide">
+				</label>
+				<label class="wide">
 					<span>Description</span>
-					<Textarea name="description" rows={3} required />
-				</Label>
-				<Label>
+					<textarea name="description" rows="2" required></textarea>
+				</label>
+				<label>
 					<span>Author</span>
-					<Input name="author" required />
-				</Label>
-				<Label>
-					<span>Author URL</span>
-					<Input name="authorUrl" type="url" placeholder="Optional" />
-				</Label>
-				<Label>
+					<input name="author" value="maoloader developers" required />
+				</label>
+				<label>
+					<span>Entry file</span>
+					<input name="entry" value="index.js" required />
+				</label>
+				<label>
 					<span>Tags</span>
-					<Input name="tags" placeholder="theme, ui, example" />
-				</Label>
-				<Label>
-					<span>Compatibility</span>
-					<Input name="compatibility" value=">=0.1.0" />
-				</Label>
-				<Label class="wide">
+					<input name="tags" placeholder="lobby, ui" />
+				</label>
+				<label>
 					<span>Files</span>
-					<Input name="files" placeholder="index.js, styles.css, README.md" />
-				</Label>
-				<Label>
-					<span>Icon image</span>
-					<Input name="icon" type="file" accept="image/*" />
-				</Label>
-				<Label>
+					<input name="files" placeholder="index.js, styles.css" />
+				</label>
+				<label>
+					<span>Icon</span>
+					<input name="icon" type="file" accept="image/*" />
+				</label>
+				<label>
 					<span>Screenshot</span>
-					<Input name="screenshot" type="file" accept="image/*" />
-				</Label>
-				<Label class="wide">
-					<span>Review notes</span>
-					<Textarea name="notes" rows={2} />
-				</Label>
+					<input name="screenshot" type="file" accept="image/*" />
+				</label>
+				<label>
+					<span>Repository</span>
+					<input name="repository" type="url" placeholder="Optional" />
+				</label>
+				<label>
+					<span>Homepage</span>
+					<input name="homepage" type="url" placeholder="Optional" />
+				</label>
 			</div>
-		</section>
-		<section class="admin-options">
-			<Label>
-				<Input class="size-4 w-auto shadow-none" name="featured" type="checkbox" />
-				<span>Featured listing</span>
-			</Label>
-			<Label>
-				<Input class="size-4 w-auto shadow-none" name="publish" type="checkbox" />
-				<span>Publish immediately instead of pending review</span>
-			</Label>
-		</section>
-		<div class="admin-actions">
-			<Button type="submit">Upload zip</Button>
-		</div>
-	</form>
-</details>
+			<div class="admin-options">
+				<label><input name="publish" type="checkbox" /> Publish now (skip the queue)</label>
+				<label><input name="featured" type="checkbox" /> Featured</label>
+			</div>
+			<div class="form-actions">
+				<Button type="submit" disabled={!!busyKey}>{busyKey === "upload" ? "Uploading…" : "Upload"}</Button>
+			</div>
+		</form>
+	</div>
+{:else if data.history.length}
+	<div class="surface published-table">
+		{#each data.history as submission (submission.id)}
+			<div class="history-row">
+				<span class="pill" class:is-new={submission.status === "approved"} class:is-rejected={submission.status === "rejected"}>
+					{submission.status}
+				</span>
+				<span class="review-name">
+					<strong>{listingsOf(submission).map((listing) => listing.name).join(", ") || "Untitled"}</strong>
+					<small>
+						{submission.repository ? submission.repository.replace("https://github.com/", "") : "Uploaded .zip"}
+						{#if submission.github_ref}· {shortSha(submission.github_ref)}{/if}
+						{#if submission.review_note}· “{submission.review_note}”{/if}
+					</small>
+				</span>
+				<span class="muted">{ago(submission.reviewed_at ?? submission.updated_at)}</span>
+			</div>
+		{/each}
+	</div>
+{:else}
+	<div class="empty-panel">
+		<strong>No reviews yet</strong>
+		<span>Approved and rejected submissions are listed here.</span>
+	</div>
+{/if}

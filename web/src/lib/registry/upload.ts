@@ -187,18 +187,6 @@ async function sha256Hex(bytes: Uint8Array<ArrayBuffer>) {
 	return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-export function validateAdminToken(env: Env, form: FormData, authorization?: string | null) {
-	if (!env.ADMIN_TOKEN) {
-		return;
-	}
-
-	const bearer = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-	const token = stringField(form, "token") || bearer || "";
-	if (token !== env.ADMIN_TOKEN) {
-		throw new Error("Invalid admin token.");
-	}
-}
-
 function fileField(form: FormData, name: string) {
 	const value = form.get(name);
 	return value instanceof File && value.size > 0 ? value : undefined;

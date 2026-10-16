@@ -59,6 +59,7 @@ export async function approveAndMirrorSubmission(env: Env, submission: RegistryS
 			...submission,
 			status: "approved",
 			updated_at: now,
+			reviewed_at: now,
 			listing: published[0],
 			listings: published
 		});
@@ -101,6 +102,7 @@ export async function approveAndMirrorSubmission(env: Env, submission: RegistryS
 		...submission,
 		status: "approved",
 		updated_at: now,
+		reviewed_at: now,
 		repository,
 		github_ref: archive.ref,
 		listing: published[0],
@@ -108,6 +110,40 @@ export async function approveAndMirrorSubmission(env: Env, submission: RegistryS
 	});
 
 	return published;
+}
+
+export async function rejectSubmission(env: Env, submission: RegistrySubmission, reason?: string) {
+	const now = new Date().toISOString();
+	await updateSubmission(env, {
+		...submission,
+		status: "rejected",
+		updated_at: now,
+		reviewed_at: now,
+		review_note: reason?.trim() || undefined
+	});
+}
+
+/** Featured listings lead the store and the home page. */
+export async function setListingFeatured(env: Env, slug: string, featured: boolean) {
+	const db = requireDb(env);
+	const row = await db
+		.select({ listingJson: registryListings.listingJson })
+		.from(registryListings)
+		.where(eq(registryListings.slug, slug))
+		.get();
+	if (!row) throw new Error(`No listing named "${slug}".`);
+	const listing = { ...(JSON.parse(row.listingJson) as RegistryListing), featured };
+	await db
+		.update(registryListings)
+		.set({ featured, listingJson: JSON.stringify(listing) })
+		.where(eq(registryListings.slug, slug))
+		.run();
+}
+
+/** Takes a listing out of the store. Its files stay in R2, so approving it again restores it. */
+export async function removeListing(env: Env, slug: string) {
+	const db = requireDb(env);
+	await db.delete(registryListings).where(eq(registryListings.slug, slug)).run();
 }
 
 export function submissionListings(submission: RegistrySubmission) {

@@ -2,6 +2,10 @@
 // for information about these interfaces
 declare global {
 	namespace App {
+		interface Locals {
+			/** Signed in at /admin/login (or an admin Bearer token on API calls). */
+			admin: boolean;
+		}
         interface Platform {
             env: Env;
             cf: CfProperties;

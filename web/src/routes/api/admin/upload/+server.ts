@@ -1,8 +1,10 @@
 import { error, json } from "@sveltejs/kit";
-import { directUploadProject, validateAdminToken } from "$lib/registry/upload";
+import { directUploadProject } from "$lib/registry/upload";
 import type { RequestHandler } from "./$types";
 
-export const POST: RequestHandler = async ({ request, platform }) => {
+// Scripts call this with "Authorization: Bearer <ADMIN_TOKEN>"; hooks.server.ts checks it.
+export const POST: RequestHandler = async ({ request, platform, locals }) => {
+	if (!locals.admin) error(401, "Invalid admin token.");
 	const env = platform?.env;
 	if (!env?.PLUGIN_DB || !env.PLUGIN_BUCKET) {
 		error(501, "Cloudflare D1/R2 bindings are not configured for this environment.");
@@ -14,11 +16,6 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	}
 
 	const form = await request.formData();
-	try {
-		validateAdminToken(env, form, request.headers.get("authorization"));
-	} catch {
-		error(401, "Invalid admin token.");
-	}
 
 	try {
 		const result = await directUploadProject(env, form);
