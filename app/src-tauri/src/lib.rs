@@ -179,8 +179,44 @@ fn sync_bundled_core<R: Runtime>(app: &tauri::App<R>) -> io::Result<()> {
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::copy(source, dest)?;
-    Ok(())
+    replace_loaded_file(&source, &dest)
+}
+
+/// Copies `source` over `dest` even while League has `dest` loaded. Windows refuses to overwrite
+/// a loaded DLL but allows renaming it, so the old file is moved aside first. The installer does
+/// the same in windows/installer-hooks.nsh.
+fn replace_loaded_file(source: &std::path::Path, dest: &std::path::Path) -> io::Result<()> {
+    match fs::copy(source, dest) {
+        Ok(_) => Ok(()),
+        Err(error) if dest.exists() => {
+            let aside = dest.with_file_name(format!(
+                "{}.old-{}",
+                dest.file_name().and_then(|name| name.to_str()).unwrap_or("core.dll"),
+                current_epoch_millis()
+            ));
+            fs::rename(dest, &aside).map_err(|_| error)?;
+            fs::copy(source, dest).map(|_| ())
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// Deletes `core.dll.old-*` copies left by updates. Ones League still has loaded can't be
+/// deleted yet; they are tried again on the next start.
+fn remove_stale_core_copies() {
+    let core = config::core_path();
+    let (Some(dir), Some(name)) = (core.parent(), core.file_name().and_then(|name| name.to_str())) else {
+        return;
+    };
+    let prefix = format!("{name}.old-");
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if entry.file_name().to_str().is_some_and(|file| file.starts_with(&prefix)) {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
 }
 
 fn bundled_core_candidates<R: Runtime>(app: &tauri::App<R>) -> io::Result<Vec<PathBuf>> {
@@ -303,6 +339,7 @@ pub fn run() {
                 }
             }
             sync_bundled_core(app)?;
+            remove_stale_core_copies();
             ensure_loader_layout()?;
             Ok(())
         })
@@ -336,6 +373,44 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::binary_files_match;
+
+    #[cfg(windows)]
+    #[test]
+    fn replaces_a_core_dll_that_is_held_open_like_a_loaded_dll() {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_SHARE_READ: u32 = 0x1;
+        const FILE_SHARE_DELETE: u32 = 0x4;
+
+        let root = std::env::temp_dir().join(format!("maoloader-core-lock-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let source = root.join("new-core.dll");
+        let dest = root.join("core.dll");
+        std::fs::write(&source, b"core-v2").unwrap();
+        std::fs::write(&dest, b"core-v1").unwrap();
+
+        // The Windows loader holds DLLs open like this: others may read or rename, not write.
+        let held = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(FILE_SHARE_READ | FILE_SHARE_DELETE)
+            .open(&dest)
+            .unwrap();
+        assert!(std::fs::copy(&source, &dest).is_err(), "a plain copy should be refused");
+
+        super::replace_loaded_file(&source, &dest).unwrap();
+        assert_eq!(std::fs::read(&dest).unwrap(), b"core-v2");
+        let leftovers = || {
+            std::fs::read_dir(&root)
+                .unwrap()
+                .flatten()
+                .filter(|entry| entry.file_name().to_string_lossy().starts_with("core.dll.old-"))
+                .count()
+        };
+        assert_eq!(leftovers(), 1);
+
+        drop(held);
+        let _ = std::fs::remove_dir_all(root);
+    }
 
     #[test]
     fn binary_files_match_detects_missing_and_changed_destinations() {
