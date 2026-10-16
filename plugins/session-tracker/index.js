@@ -1,5 +1,5 @@
 /**
- * @description Track today's wins, losses, streak and LP change in a small card, with a summary after each game.
+ * @description Track today's wins, losses, streak and LP change in a small card, with a summary after each game and an optional tilt guard.
  * @author maoloader
  * @link https://github.com/steele123/maoloader
  */
@@ -9,6 +9,7 @@
   const stylesheetId = "maoloader-session-tracker-styles";
   const settingsKey = "session-tracker.settings";
   const phaseApi = "/lol-gameflow/v1/gameflow-phase";
+  const searchApi = "/lol-lobby/v2/lobby/matchmaking/search";
   const historyApi = "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=29";
   const rankedApi = "/lol-ranked/v1/current-ranked-stats";
   // Games shorter than this are remakes and don't count.
@@ -17,7 +18,7 @@
   const tiers = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND"];
   const divisions = { IV: 0, III: 1, II: 2, I: 3 };
   // Options the user changes in the settings window.
-  const defaults = { visible: true, autoDaily: true, rankedOnly: false, toastAfterGame: true };
+  const defaults = { visible: true, autoDaily: true, rankedOnly: false, toastAfterGame: true, tiltGuard: false, tiltLosses: 3, tiltBreakMinutes: 10 };
   let pluginRoot = pluginName;
   let settings;
   // Tracker state, saved under the same key next to the options.
@@ -26,6 +27,7 @@
   let summary;
   let refreshing = false;
   let commandBound = false;
+  let breakTimer = 0;
 
   function storedObject() {
     const stored = window.DataStore?.get?.(settingsKey, {});
@@ -40,6 +42,9 @@
       sessionStart: Number(stored.sessionStart) || 0,
       startRanks: stored.startRanks && typeof stored.startRanks === "object" ? stored.startRanks : null,
       knownGameIds: Array.isArray(stored.knownGameIds) ? stored.knownGameIds.slice(-60) : [],
+      // Tilt guard: when the current break ends, and the loss that started it (so it starts once per loss).
+      breakUntil: Number(stored.breakUntil) || 0,
+      breakGameId: stored.breakGameId ?? null,
     };
   }
 
@@ -77,6 +82,36 @@
             default: defaults.autoDaily,
           },
           { key: "rankedOnly", type: "toggle", label: "Ranked games only", description: "Leaves out normals, ARAM and other queues.", default: defaults.rankedOnly },
+          { type: "heading", label: "Tilt guard" },
+          {
+            key: "tiltGuard",
+            type: "toggle",
+            label: "Suggest a break after a losing streak",
+            description: "Counts the same games as the card, so remakes never count.",
+            default: defaults.tiltGuard,
+          },
+          {
+            key: "tiltLosses",
+            type: "range",
+            label: "Losses in a row",
+            min: 2,
+            max: 6,
+            step: 1,
+            default: defaults.tiltLosses,
+            showIf: (values) => values.tiltGuard,
+          },
+          {
+            key: "tiltBreakMinutes",
+            type: "range",
+            label: "Lock Find Match for",
+            description: "Any queue you start during the break is cancelled. 0 only suggests the break.",
+            min: 0,
+            max: 30,
+            step: 1,
+            unit: " min",
+            default: defaults.tiltBreakMinutes,
+            showIf: (values) => values.tiltGuard,
+          },
           {
             type: "button",
             label: "Start a new session",
@@ -90,7 +125,7 @@
     const stored = storedObject();
     const values = { ...defaults };
     for (const key of Object.keys(defaults)) {
-      if (typeof stored[key] === "boolean") values[key] = stored[key];
+      if (typeof stored[key] === typeof defaults[key]) values[key] = stored[key];
     }
     const listeners = new Set();
     return {
@@ -127,6 +162,77 @@
     const response = await fetch(path);
     if (!response.ok) throw new Error(`GET ${path} failed with ${response.status}`);
     return response.json();
+  }
+
+  // ---- Tilt guard ----
+
+  function onBreak() {
+    return state.breakUntil > Date.now();
+  }
+
+  function clockTime(ms) {
+    return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
+  function minutesLeft() {
+    return Math.max(1, Math.ceil((state.breakUntil - Date.now()) / 60000));
+  }
+
+  // Redraws the card's break line each minute, and once more when the break ends.
+  function scheduleBreakTick() {
+    window.clearTimeout(breakTimer);
+    if (!onBreak()) return;
+    breakTimer = window.setTimeout(() => {
+      render();
+      window.CommandBar?.update?.();
+      scheduleBreakTick();
+    }, Math.min(60000, state.breakUntil - Date.now() + 50));
+  }
+
+  function endBreak({ quiet = false } = {}) {
+    if (!onBreak()) return;
+    saveState({ breakUntil: 0 });
+    scheduleBreakTick();
+    render();
+    window.CommandBar?.update?.();
+    if (!quiet) toast("info", "Break over. Find Match is unlocked.", { duration: 3000 });
+  }
+
+  // After each new game: a loss that makes the streak long enough starts a break, once per loss.
+  function checkTilt(game) {
+    if (!settings.get("tiltGuard") || !game || game.win || game.remake || state.breakGameId === game.id) return;
+    if (!summary.games.some((counted) => counted.id === game.id)) return;
+    if (summary.streakWin !== false || summary.streak < settings.get("tiltLosses")) return;
+    const minutes = settings.get("tiltBreakMinutes");
+    saveState({ breakGameId: game.id, breakUntil: minutes ? Date.now() + minutes * 60000 : 0 });
+    scheduleBreakTick();
+    render();
+    window.CommandBar?.update?.();
+    toast("warning", {
+      title: `${summary.streak} losses in a row`,
+      description: minutes
+        ? `Take a breather. Find Match is locked until ${clockTime(state.breakUntil)}.`
+        : "Good moment for a break: stretch, get some water, come back fresh.",
+      duration: 12000,
+      action: minutes ? { label: "Play anyway", onClick: () => endBreak() } : undefined,
+    });
+  }
+
+  // During a break, a queue that starts is cancelled straight away.
+  async function onPhase(phase) {
+    if (phase === "EndOfGame") window.setTimeout(() => refreshAfterGame(), 4000);
+    if (phase !== "Matchmaking" || !onBreak()) return;
+    try {
+      await fetch(searchApi, { method: "DELETE" });
+    } catch (error) {
+      console.warn("[session-tracker] Could not cancel the queue.", error);
+    }
+    toast("info", {
+      title: "You're on a break",
+      description: `Find Match unlocks at ${clockTime(state.breakUntil)} (${minutesLeft()} min).`,
+      duration: 6000,
+      action: { label: "End break", onClick: () => endBreak() },
+    });
   }
 
   function todayStart() {
@@ -231,6 +337,7 @@
       render();
 
       if (afterGame && settings.get("toastAfterGame") && fresh.length) announce(fresh[0]);
+      if (afterGame && fresh.length) checkTilt(fresh[0]);
       return fresh.length;
     } catch (error) {
       console.warn("[session-tracker] Refresh failed.", error);
@@ -319,7 +426,10 @@
 
   function mount() {
     let element = host();
-    if (element) return element;
+    if (element?.shadowRoot) return element;
+    // While the client starts up it can replace the card with a copy, and copies lose their shadow
+    // root (so the card shows nothing); build it again.
+    element?.remove();
     element = document.createElement("maoloader-session-tracker");
     element.id = hostId;
     element.style.cssText = "position:fixed;z-index:2147483639;display:block;width:236px;";
@@ -379,12 +489,17 @@
       )
       .join("");
 
+    const pause = onBreak()
+      ? `<div class="break-row"><span>On a break · ${minutesLeft()} min left</span><button type="button" data-end-break>End</button></div>`
+      : "";
     body.innerHTML = total
       ? `
+        ${pause}
         <div class="record"><strong>${summary.wins}W ${summary.losses}L</strong><span>${rate}%</span>${streak}</div>
         <div class="dots" aria-label="Recent results, oldest first">${dots}</div>
         ${lp}`
-      : `<p class="card-empty">No games yet${settings.get("rankedOnly") ? " in ranked" : ""}.</p>${lp}`;
+      : `${pause}<p class="card-empty">No games yet${settings.get("rankedOnly") ? " in ranked" : ""}.</p>${lp}`;
+    body.querySelector("[data-end-break]")?.addEventListener("click", () => endBreak());
   }
 
   // The card itself is shown or removed in onSettingsChange.
@@ -402,6 +517,7 @@
   }
 
   function onSettingsChange(values, changed) {
+    if (changed.includes("tiltGuard") && !values.tiltGuard) endBreak({ quiet: true });
     if (changed.includes("autoDaily") && values.autoDaily) saveState({ sessionStart: todayStart(), startRanks: null });
     if (changed.some((key) => key === "visible" || key === "autoDaily" || key === "rankedOnly")) {
       render();
@@ -438,6 +554,21 @@
       perform: () => settings.set("rankedOnly", !settings.get("rankedOnly")),
     });
     window.CommandBar.addAction({
+      name: () => (settings.get("tiltGuard") ? "Turn off tilt guard" : "Turn on tilt guard"),
+      group: "session",
+      tags: ["tilt", "break", "losing streak", "session"],
+      perform: () => {
+        settings.set("tiltGuard", !settings.get("tiltGuard"));
+        toast("info", settings.get("tiltGuard") ? "Tilt guard is on." : "Tilt guard is off.", { duration: 2500 });
+      },
+    });
+    window.CommandBar.addAction({
+      name: "End tilt break",
+      group: "session",
+      tags: ["tilt", "break", "unlock", "queue"],
+      perform: () => (onBreak() ? endBreak() : toast("info", "You're not on a break.")),
+    });
+    window.CommandBar.addAction({
       name: "Session tracker settings",
       group: "session",
       tags: ["session", "tracker", "settings"],
@@ -450,14 +581,15 @@
     const socket = context?.socket || window.socket;
     settings = defineSettings();
     settings.onChange(onSettingsChange);
-    socket?.observe?.(phaseApi, (event) => {
-      if (event?.data === "EndOfGame") window.setTimeout(() => refreshAfterGame(), 4000);
-    });
+    socket?.observe?.(phaseApi, (event) => onPhase(event?.data));
   };
 
   exports.load = function load() {
     bindCommandBar();
     render();
     refresh();
+    scheduleBreakTick();
+    // Check again once the client has finished starting, in case it replaced the card meanwhile.
+    window.setTimeout(render, 8000);
   };
 })();

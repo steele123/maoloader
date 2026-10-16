@@ -164,3 +164,32 @@ button:focus-visible {
 .lp-delta.is-down {
   color: #f3a59c;
 }
+
+/* Tilt guard: the break in progress, with a button to end it early. */
+.break-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(216, 161, 60, 0.35);
+  border-radius: 6px;
+  background: rgba(216, 161, 60, 0.1);
+  color: #e9c27a;
+  padding: 5px 6px 5px 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.break-row button {
+  margin-left: auto;
+  border: 1px solid rgba(216, 161, 60, 0.45);
+  border-radius: 4px;
+  background: transparent;
+  color: #e9c27a;
+  padding: 2px 8px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.break-row button:hover {
+  background: rgba(216, 161, 60, 0.18);
+}

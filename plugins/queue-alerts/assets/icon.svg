@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="queuealerts-title">
+  <title id="queuealerts-title">Queue Alerts</title>
+  <defs>
+    <linearGradient id="queuealerts-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#132636"/>
+      <stop offset="1" stop-color="#07111b"/>
+    </linearGradient>
+    <radialGradient id="queuealerts-glow" cx="0.5" cy="0.38" r="0.62">
+      <stop offset="0" stop-color="#ffcf5a" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#ffcf5a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="queuealerts-rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8aa6e" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#c8aa6e" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#queuealerts-bg)"/>
+  <rect width="64" height="64" rx="14" fill="url(#queuealerts-glow)"/>
+  <rect x="1" y="1" width="62" height="62" rx="13" fill="none" stroke="url(#queuealerts-rim)" stroke-width="2"/>
+  <path d="M32 15c-6.6 0-11 4.9-11 11.2v6.6l-3.6 6.2h29.2L43 32.8v-6.6C43 19.9 38.6 15 32 15z" fill="none" stroke="#f0e6d2" stroke-width="3.2" stroke-linejoin="round"/>
+  <path d="M27.5 43.5a4.6 4.6 0 0 0 9 0" fill="none" stroke="#f0e6d2" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M14 22.5a14 14 0 0 1 4.2-7.5M50 22.5a14 14 0 0 0-4.2-7.5" fill="none" stroke="#ffcf5a" stroke-width="3" stroke-linecap="round"/>
+</svg>

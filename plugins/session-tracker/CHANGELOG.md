@@ -1,5 +1,13 @@
 # Session Tracker changelog
 
+## 0.3.0 - 2026-10-16
+
+### New
+- **Tilt guard** (off by default): after a losing streak you choose, it suggests a break and can lock Find Match for up to 30 minutes. End it early from the toast, the card, or Ctrl+K → `End tilt break`.
+
+### Fixed
+- The card now shows when the client starts. Before, the client could replace it with an empty copy while starting up, so it stayed invisible until you hid and showed it again.
+
 ## 0.2.0 - 2026-10-15
 
 ### Changed

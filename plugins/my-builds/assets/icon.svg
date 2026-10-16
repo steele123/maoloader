@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="mybuilds-title">
+  <title id="mybuilds-title">My Builds</title>
+  <defs>
+    <linearGradient id="mybuilds-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#132636"/>
+      <stop offset="1" stop-color="#07111b"/>
+    </linearGradient>
+    <radialGradient id="mybuilds-glow" cx="0.5" cy="0.38" r="0.62">
+      <stop offset="0" stop-color="#b08cff" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#b08cff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mybuilds-rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8aa6e" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#c8aa6e" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#mybuilds-bg)"/>
+  <rect width="64" height="64" rx="14" fill="url(#mybuilds-glow)"/>
+  <rect x="1" y="1" width="62" height="62" rx="13" fill="none" stroke="url(#mybuilds-rim)" stroke-width="2"/>
+  <rect x="14" y="15" width="15" height="15" rx="3.5" fill="none" stroke="#f0e6d2" stroke-width="3"/>
+  <rect x="35" y="15" width="15" height="15" rx="3.5" fill="none" stroke="#f0e6d2" stroke-width="3"/>
+  <rect x="14" y="36" width="15" height="15" rx="3.5" fill="none" stroke="#f0e6d2" stroke-width="3"/>
+  <rect x="35" y="36" width="15" height="15" rx="3.5" fill="#b08cff" fill-opacity="0.25" stroke="#b08cff" stroke-width="3"/>
+  <path d="M42.5 39.5v8M38.5 43.5h8" stroke="#b08cff" stroke-width="3" stroke-linecap="round"/>
+</svg>

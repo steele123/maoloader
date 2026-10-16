@@ -16,11 +16,17 @@ Drag the card by its header; double-click the header to put it back in the botto
 - `Start a new session`: counts from now instead of midnight, and turns off the daily reset.
 - `Session tracker: reset daily at midnight` / `stop resetting daily`
 - `Session tracker: count ranked only` / `count all games`
+- `Turn on tilt guard` / `Turn off tilt guard`
+- `End tilt break`: unlocks Find Match before the break is over.
 - `Session tracker settings`: opens this plugin's settings.
 
 ## Settings
 
-In Ctrl+K → **Plugin settings** → Session Tracker: show or hide the card, turn the after-game summary on or off, reset daily at midnight, count ranked games only, and start a new session.
+In Ctrl+K → **Plugin settings** → Session Tracker: show or hide the card, turn the after-game summary on or off, reset daily at midnight, count ranked games only, start a new session, and set up the tilt guard.
+
+## Tilt guard
+
+Off by default; turn it on in the settings. After a set number of losses in a row (2 to 6, default 3), it suggests a break. With **Lock Find Match for** above 0 (up to 30 minutes, default 10), any queue you start during the break is cancelled straight away, and the card shows the time left. **Play anyway** on the toast, **End** on the card, or `End tilt break` in Ctrl+K ends it early. It counts the same games as the card, so remakes never count, and with **Ranked games only** on, only ranked losses do.
 
 ## Details
 
@@ -38,3 +44,4 @@ Settings are saved in the maoloader DataStore under `session-tracker.settings`.
 | Games | `GET /lol-match-history/v1/products/lol/current-summoner/matches` |
 | Rank and LP | `GET /lol-ranked/v1/current-ranked-stats` |
 | Refresh after games | socket `/lol-gameflow/v1/gameflow-phase` |
+| Tilt guard queue lock | `DELETE /lol-lobby/v2/lobby/matchmaking/search` |

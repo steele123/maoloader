@@ -198,8 +198,8 @@
     {
       "slug": "session-tracker",
       "title": "Session Tracker",
-      "version": "0.2.0",
-      "description": "Track today's wins, losses, streak, and LP change in a small card, with a summary after each game.",
+      "version": "0.3.0",
+      "description": "Track today's wins, losses, streak and LP change in a small card, with a summary after each game and an optional tilt guard.",
       "image": "plugins/session-tracker/assets/icon.svg",
       "entry": "plugins/session-tracker/index.js",
       "files": [
@@ -300,6 +300,92 @@
         "utility"
       ],
       "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/lobby-tools"
+    },
+    {
+      "slug": "client-fixes",
+      "title": "Client Fixes",
+      "version": "0.1.0",
+      "description": "One-click fixes for a black or frozen client, a missing Reconnect button, stuck post-game stats, a ghost queue and a failed launch, plus automatic recovery.",
+      "image": "plugins/client-fixes/assets/icon.svg",
+      "entry": "plugins/client-fixes/index.js",
+      "files": [
+        "plugins/client-fixes/CHANGELOG.md",
+        "plugins/client-fixes/README.md",
+        "plugins/client-fixes/assets/icon.svg",
+        "plugins/client-fixes/index.js"
+      ],
+      "tags": [
+        "fixes",
+        "bugs",
+        "reconnect",
+        "restart",
+        "stuck",
+        "utility"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/client-fixes"
+    },
+    {
+      "slug": "queue-alerts",
+      "title": "Queue Alerts",
+      "version": "0.1.0",
+      "description": "Never miss a queue pop: a sound even with the client muted, the client brought to the front, and phone notifications through Discord or ntfy.",
+      "image": "plugins/queue-alerts/assets/icon.svg",
+      "entry": "plugins/queue-alerts/index.js",
+      "files": [
+        "plugins/queue-alerts/CHANGELOG.md",
+        "plugins/queue-alerts/README.md",
+        "plugins/queue-alerts/assets/icon.svg",
+        "plugins/queue-alerts/index.js"
+      ],
+      "tags": [
+        "queue",
+        "notifications",
+        "sound",
+        "discord"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/queue-alerts"
+    },
+    {
+      "slug": "ranked-tracker",
+      "title": "Ranked Tracker",
+      "version": "0.1.0",
+      "description": "Your LP history, which the client doesn't keep: an LP graph after every ranked game, and how far you are from the Grandmaster and Challenger cutoffs.",
+      "image": "plugins/ranked-tracker/assets/icon.svg",
+      "entry": "plugins/ranked-tracker/index.js",
+      "files": [
+        "plugins/ranked-tracker/CHANGELOG.md",
+        "plugins/ranked-tracker/README.md",
+        "plugins/ranked-tracker/assets/icon.svg",
+        "plugins/ranked-tracker/index.js"
+      ],
+      "tags": [
+        "ranked",
+        "lp",
+        "graph",
+        "stats"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/ranked-tracker"
+    },
+    {
+      "slug": "my-builds",
+      "title": "My Builds",
+      "version": "0.1.0",
+      "description": "Item sets made from your own games: your core items, boots and starters on each champion, ready in the in-game shop.",
+      "image": "plugins/my-builds/assets/icon.svg",
+      "entry": "plugins/my-builds/index.js",
+      "files": [
+        "plugins/my-builds/CHANGELOG.md",
+        "plugins/my-builds/README.md",
+        "plugins/my-builds/assets/icon.svg",
+        "plugins/my-builds/index.js"
+      ],
+      "tags": [
+        "items",
+        "builds",
+        "item sets",
+        "champion"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/my-builds"
     },
     {
       "slug": "event-recorder",
