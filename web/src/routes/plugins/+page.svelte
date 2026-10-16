@@ -4,6 +4,7 @@
 	import DownloadIcon from "@lucide/svelte/icons/download";
 	import PaletteIcon from "@lucide/svelte/icons/palette";
 	import SearchIcon from "@lucide/svelte/icons/search";
+	import StarIcon from "@lucide/svelte/icons/star";
 	import UploadIcon from "@lucide/svelte/icons/upload";
 	import UserIcon from "@lucide/svelte/icons/user";
 	import { Badge } from "$lib/components/ui/badge";
@@ -105,6 +106,9 @@
 				<span><UserIcon />{item.author.name}</span>
 				<span>v{item.version}</span>
 				<span><DownloadIcon />{(item.downloads ?? 0).toLocaleString()}</span>
+				{#if item.rating?.count}
+					<span title={`${item.rating.count} ${item.rating.count === 1 ? "rating" : "ratings"}`}><StarIcon />{item.rating.average.toFixed(1)}</span>
+				{/if}
 				<ArrowRightIcon />
 			</div>
 		</a>

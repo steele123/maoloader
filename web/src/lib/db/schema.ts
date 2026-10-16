@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const registryListings = sqliteTable(
 	"registry_listings",
@@ -40,4 +40,17 @@ export const registrySubmissions = sqliteTable(
 		index("idx_registry_submissions_created_at").on(table.createdAt),
 		index("idx_registry_submissions_repository").on(table.repository)
 	]
+);
+
+/** One rating per visitor per listing. `voter` is a salted hash, never an address. */
+export const listingRatings = sqliteTable(
+	"listing_ratings",
+	{
+		slug: text("slug").notNull(),
+		voter: text("voter").notNull(),
+		stars: integer("stars").notNull(),
+		createdAt: text("created_at").notNull(),
+		updatedAt: text("updated_at").notNull()
+	},
+	(table) => [primaryKey({ columns: [table.slug, table.voter] }), index("idx_listing_ratings_slug").on(table.slug)]
 );

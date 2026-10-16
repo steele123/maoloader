@@ -10,6 +10,7 @@
 	import InboxIcon from "@lucide/svelte/icons/inbox";
 	import LogOutIcon from "@lucide/svelte/icons/log-out";
 	import PlusIcon from "@lucide/svelte/icons/plus";
+	import RefreshIcon from "@lucide/svelte/icons/refresh-cw";
 	import StarIcon from "@lucide/svelte/icons/star";
 	import StoreIcon from "@lucide/svelte/icons/store";
 	import TrashIcon from "@lucide/svelte/icons/trash-2";
@@ -212,6 +213,29 @@
 		</div>
 	{/if}
 {:else if tab === "store"}
+	<section class="surface sync-panel" aria-label="GitHub sync">
+		<div class="section-title"><RefreshIcon /><h2>GitHub sync</h2></div>
+		<p class="muted">
+			{#if data.webhook.configured}
+				Pushes to a repo's default branch update the store on their own. Repos marked <em>auto-publish</em> go live at once; others land in the review queue.
+			{:else}
+				Webhook not set up yet: add a <code>GITHUB_WEBHOOK_SECRET</code>, then a webhook on GitHub to <code>{data.webhook.url}</code> (content type <code>application/json</code>, push events only). Until then, sync by hand here.
+			{/if}
+		</p>
+		{#each data.repositories as repo (repo.repository)}
+			<form class="sync-row" method="POST" action="?/sync" use:enhance={busy(`sync-${repo.repository}`)}>
+				<input type="hidden" name="repository" value={repo.repository} />
+				<a href={repo.repository} target="_blank" rel="noreferrer">{repo.repository.replace("https://github.com/", "")}<ExternalLinkIcon class="inline-icon" /></a>
+				<span class="muted">{repo.plugins} plugin{repo.plugins === 1 ? "" : "s"}</span>
+				{#if repo.autoPublish}<span class="badge">auto-publish</span>{/if}
+				<Button type="submit" size="sm" variant="outline" disabled={!!busyKey}>
+					{busyKey === `sync-${repo.repository}` ? "Syncing…" : "Sync now"}
+				</Button>
+			</form>
+		{:else}
+			<p class="muted">No published plugins come from GitHub yet.</p>
+		{/each}
+	</section>
 	<div class="store-toolbar">
 		<input bind:value={storeFilter} placeholder="Filter published plugins" aria-label="Filter published plugins" />
 		<span class="muted">{shownListings.length} of {data.listings.length}</span>

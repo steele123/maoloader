@@ -1135,6 +1135,54 @@ a.featured-mini-card:hover {
 	font-size: 0.85rem;
 }
 
+/* Star rating: hover previews, a click saves; your own stars show in gold. */
+.rating {
+	display: grid;
+	gap: 4px;
+	padding-top: 8px;
+	border-top: 1px solid var(--line);
+}
+
+.rating-stars {
+	display: flex;
+	gap: 2px;
+}
+
+.rating-stars button {
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--muted-text);
+	cursor: pointer;
+}
+
+.rating-stars button :global(svg) {
+	width: 19px;
+	height: 19px;
+}
+
+.rating-stars button.is-lit {
+	color: var(--gold);
+}
+
+.rating-stars button.is-lit :global(svg) {
+	fill: currentColor;
+}
+
+.rating-stars button.is-lit.is-mine {
+	color: var(--gold-bright);
+}
+
+.rating-stars button:focus-visible {
+	outline: 2px solid var(--gold);
+	outline-offset: 1px;
+}
+
 .install-hint {
 	margin: 0;
 	color: var(--muted-text);
@@ -2657,6 +2705,47 @@ dd {
 	align-items: center;
 	gap: 12px;
 	margin-bottom: 12px;
+}
+
+/* GitHub sync: one row per repo with plugins in the store. */
+.sync-panel {
+	display: grid;
+	gap: 10px;
+	margin-bottom: 16px;
+	padding: 16px 18px;
+}
+
+.sync-panel p {
+	margin: 0;
+}
+
+.sync-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+	padding-top: 10px;
+	border-top: 1px solid var(--border);
+}
+
+.sync-row a {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-weight: 600;
+}
+
+.sync-row :global(button),
+.sync-row button {
+	margin-left: auto;
+}
+
+.sync-row .badge {
+	border: 1px solid rgba(98, 201, 154, 0.4);
+	border-radius: 999px;
+	padding: 1px 8px;
+	color: #62c99a;
+	font-size: 12px;
 }
 
 .store-toolbar input {

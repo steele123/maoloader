@@ -1,6 +1,7 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "$lib/db/client";
 import { registryListings, registrySubmissions } from "$lib/db/schema";
+import { ratingFor, ratingSummaries } from "./ratings";
 import type {
 	RegistryFilters,
 	RegistryIndex,
@@ -21,16 +22,17 @@ export function summarizeListing(listing: RegistryListing): RegistrySummary {
 		compatibility: listing.compatibility,
 		featured: listing.featured,
 		downloads: listing.downloads,
+		rating: listing.rating,
 		updated_at: listing.updated_at,
 		assets: listing.assets
 	};
 }
 
 export async function getRegistryIndex(platform?: App.Platform): Promise<RegistryIndex> {
-	const listings = await allListings(platform);
+	const [listings, ratings] = await Promise.all([allListings(platform), ratingSummaries(platform)]);
 	return {
 		generated_at: listings[0]?.updated_at ?? new Date(0).toISOString(),
-		items: listings.map(summarizeListing)
+		items: listings.map((listing) => summarizeListing({ ...listing, rating: ratings.get(listing.slug) }))
 	};
 }
 
@@ -49,7 +51,8 @@ export async function getListing(
 		.where(eq(registryListings.slug, slug))
 		.get();
 
-	return row ? parseListing(row.listingJson, row.downloads) : undefined;
+	if (!row) return undefined;
+	return { ...parseListing(row.listingJson, row.downloads), rating: await ratingFor(slug, platform) };
 }
 
 export async function countDownload(slug: string, platform?: App.Platform) {

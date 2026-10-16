@@ -10,9 +10,13 @@ export const GET: RequestHandler = async ({ platform, url }) => {
 	const index = await getRegistryIndex(platform);
 	const items = await searchListings({ kind, query, tag }, platform);
 
-	return json({
-		generated_at: index.generated_at,
-		count: items.length,
-		items
-	});
+	// Public and read-only: the League client's Ctrl+K store reads it from another origin.
+	return json(
+		{
+			generated_at: index.generated_at,
+			count: items.length,
+			items
+		},
+		{ headers: { "Access-Control-Allow-Origin": "*" } }
+	);
 };

@@ -10,6 +10,7 @@
 	import LinkIcon from "@lucide/svelte/icons/link-2";
 	import MonitorDownIcon from "@lucide/svelte/icons/monitor-down";
 	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
+	import StarIcon from "@lucide/svelte/icons/star";
 	import UserIcon from "@lucide/svelte/icons/user";
 	import { Badge } from "$lib/components/ui/badge";
 	import { fileType } from "$lib/file-types";
@@ -19,6 +20,49 @@
 
 	let { data }: { data: PageData } = $props();
 	const listing = $derived(data.listing);
+
+	// Ratings: the average comes with the page; the visitor's own stars are looked up after load.
+	type RatingResponse = { rating: { average: number; count: number }; mine: number | null };
+	let rating = $state({ average: 0, count: 0 });
+	let mine = $state<number | null>(null);
+	let hoverStars = $state(0);
+	let rating_busy = $state(false);
+	$effect(() => {
+		rating = data.listing.rating ?? { average: 0, count: 0 };
+		mine = null;
+		if (!browser) return;
+		const slug = data.listing.slug;
+		fetch(`/api/plugins/${encodeURIComponent(slug)}/rating`)
+			.then((response) => (response.ok ? (response.json() as Promise<RatingResponse>) : undefined))
+			.then((body) => {
+				if (body && slug === data.listing.slug) {
+					rating = body.rating;
+					mine = body.mine;
+				}
+			})
+			.catch(() => {});
+	});
+
+	async function rate(stars: number) {
+		if (rating_busy) return;
+		rating_busy = true;
+		try {
+			const response = await fetch(`/api/plugins/${encodeURIComponent(listing.slug)}/rating`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ stars })
+			});
+			if (!response.ok) throw new Error(await response.text());
+			const body = (await response.json()) as RatingResponse;
+			rating = body.rating;
+			mine = body.mine;
+			toast.success(`Thanks! You gave ${listing.name} ${stars} star${stars === 1 ? "" : "s"}.`);
+		} catch {
+			toast.error("Couldn't save your rating. Try again in a moment.");
+		} finally {
+			rating_busy = false;
+		}
+	}
 
 	type ExplorerRow = {
 		path: string;
@@ -197,6 +241,31 @@
 		{#if typeof listing.downloads === "number"}
 			<span class="install-meta">{listing.downloads.toLocaleString()} {listing.downloads === 1 ? "install" : "installs"}</span>
 		{/if}
+		<div class="rating" aria-label="Rating">
+			<div class="rating-stars" role="group" aria-label="Rate this plugin" onmouseleave={() => (hoverStars = 0)}>
+				{#each [1, 2, 3, 4, 5] as stars}
+					<button
+						type="button"
+						aria-pressed={mine === stars}
+						aria-label={`${stars} star${stars === 1 ? "" : "s"}`}
+						class:is-lit={(hoverStars || mine || Math.round(rating.average)) >= stars}
+						class:is-mine={!hoverStars && mine !== null}
+						disabled={rating_busy}
+						onmouseenter={() => (hoverStars = stars)}
+						onclick={() => rate(stars)}
+					>
+						<StarIcon />
+					</button>
+				{/each}
+			</div>
+			<span class="install-meta">
+				{#if rating.count}
+					{rating.average.toFixed(1)} from {rating.count} {rating.count === 1 ? "rating" : "ratings"}{#if mine} · yours: {mine}{/if}
+				{:else}
+					No ratings yet. Be the first.
+				{/if}
+			</span>
+		</div>
 		<p class="install-hint" class:is-shown={launchHint} aria-live="polite">
 			{#if launchHint}
 				Nothing opened? <a href="/download">Get the maoloader app</a>, then try again.

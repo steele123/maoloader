@@ -16,6 +16,12 @@ export type RegistryAsset = {
 	sha256?: string;
 };
 
+export type RegistryRating = {
+	/** 1 to 5, one decimal. */
+	average: number;
+	count: number;
+};
+
 export type RegistryVersion = {
 	version: string;
 	published_at: string;
@@ -38,6 +44,8 @@ export type RegistryListing = {
 	image_path?: string;
 	featured?: boolean;
 	downloads?: number;
+	/** Visitors' stars, added when the listing is read; never stored in the listing itself. */
+	rating?: RegistryRating;
 	/** README.md from the package, shown on the plugin page. */
 	readme?: string;
 	/** CHANGELOG.md from the package: one "## <version>" section per release. */
@@ -65,6 +73,7 @@ export type RegistrySummary = Pick<
 	| "compatibility"
 	| "featured"
 	| "downloads"
+	| "rating"
 	| "updated_at"
 	| "assets"
 >;

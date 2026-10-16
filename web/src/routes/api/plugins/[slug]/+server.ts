@@ -8,8 +8,11 @@ export const GET: RequestHandler = async ({ params, platform }) => {
 		error(404, "Plugin not found");
 	}
 
-	return json({
-		...listing,
-		download_url: publicDownloadUrl(listing.slug)
-	});
+	return json(
+		{
+			...listing,
+			download_url: publicDownloadUrl(listing.slug)
+		},
+		{ headers: { "Access-Control-Allow-Origin": "*" } }
+	);
 };

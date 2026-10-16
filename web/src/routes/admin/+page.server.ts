@@ -10,6 +10,7 @@ import {
 } from "$lib/registry/admin";
 import { loadListingsFromManifest } from "$lib/registry/manifest";
 import { getSubmission, listSubmissions, searchListings } from "$lib/registry/store";
+import { autoPublishes, syncRepository } from "$lib/registry/sync";
 import type { RegistrySubmission } from "$lib/registry/types";
 import { directUploadProject } from "$lib/registry/upload";
 import { endAdminSession } from "$lib/server/admin-auth";
@@ -27,9 +28,19 @@ const message = (text: string) => ({ message: text, ok: true });
 const problem = (status: number, text: string) => fail(status, { message: text, ok: false });
 const errorText = (value: unknown) => String(value instanceof Error ? value.message : value);
 
-export const load: PageServerLoad = async ({ platform }) => {
+export const load: PageServerLoad = async ({ platform, url }) => {
 	const [submissions, listings] = await Promise.all([listSubmissions(platform), searchListings({}, platform)]);
 	const published = Object.fromEntries(listings.map((listing) => [listing.slug, listing.version]));
+	// Every repo with plugins in the store, for GitHub sync.
+	const repositoryCounts = new Map<string, number>();
+	for (const listing of listings) {
+		if (listing.repository) repositoryCounts.set(listing.repository, (repositoryCounts.get(listing.repository) ?? 0) + 1);
+	}
+	const repositories = [...repositoryCounts].map(([repository, plugins]) => ({
+		repository,
+		plugins,
+		autoPublish: autoPublishes(platform?.env, repository)
+	}));
 
 	return {
 		hasStorage: Boolean(platform?.env?.PLUGIN_DB && platform.env.PLUGIN_BUCKET),
@@ -37,6 +48,8 @@ export const load: PageServerLoad = async ({ platform }) => {
 		history: submissions.filter((submission) => submission.status !== "pending").slice(0, 40),
 		listings,
 		published,
+		repositories,
+		webhook: { configured: Boolean(platform?.env?.GITHUB_WEBHOOK_SECRET), url: `${url.origin}/api/github/webhook` },
 		stats: {
 			pending: submissions.filter((submission) => submission.status === "pending").length,
 			listings: listings.length,
@@ -97,6 +110,20 @@ export const actions: Actions = {
 		}
 		await removeListing(env, slug);
 		return message(`Removed ${slug} from the store. Approving it again brings it back.`);
+	},
+
+	sync: async (event) => {
+		const env = requireAdmin(event);
+		if (!env.PLUGIN_BUCKET) return problem(501, "The R2 bucket isn't connected in this environment.");
+		const repository = stringField(await event.request.formData(), "repository");
+		if (!repository || !isGitHubRepository(repository)) return problem(400, "Repository must be a GitHub URL.");
+		try {
+			const result = await syncRepository(env, repository, { publish: true, notes: "Synced from /admin." });
+			if (result.outcome === "unchanged") return message("Already up to date: every plugin's version matches the store.");
+			return message(`Published ${result.changed.map((listing) => `${listing.name} ${listing.version}`).join(", ")}.`);
+		} catch (syncError) {
+			return problem(400, errorText(syncError));
+		}
 	},
 
 	submitRepo: async (event) => {

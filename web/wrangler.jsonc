@@ -35,7 +35,9 @@
 		}
 	],
 	"vars": {
-		"GITHUB_RELEASE_MANIFEST_URL": "https://github.com/steele123/maoloader/releases/latest/download/latest.json"
+		"GITHUB_RELEASE_MANIFEST_URL": "https://github.com/steele123/maoloader/releases/latest/download/latest.json",
+		// Pushes to these repos (through the GitHub webhook) publish without review.
+		"AUTO_PUBLISH_REPOSITORIES": "https://github.com/steele123/maoloader"
 	}
 	/**
 	 * Smart Placement
