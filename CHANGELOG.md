@@ -14,6 +14,7 @@ newest first, as `## <version> - <yyyy-mm-dd>`.
 
 ### Changed
 - Cleaner notifications: dark cards that fit the client, with small tinted icons, quieter text, and a gentle slide in and fade out. They use your theme's font when you pick one in Steele's UI.
+- The **Discord** button in the sidebar now takes you to the maoloader server.
 
 ## 0.1.7 - 2026-10-15
 
