@@ -1,6 +1,6 @@
 /**
  * @description A compact champ select HUD with the phase timer, auto pick and ban, random skin, ARAM reroll and a guarded dodge button.
- * @author maoloader developers
+ * @author maoloader
  * @link https://github.com/steele123/maoloader
  */
 (function () {

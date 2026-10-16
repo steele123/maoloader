@@ -334,7 +334,7 @@
 				</label>
 				<label>
 					<span>Author</span>
-					<input name="author" value="maoloader developers" required />
+					<input name="author" value="maoloader" required />
 				</label>
 				<label>
 					<span>Entry file</span>

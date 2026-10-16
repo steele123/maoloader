@@ -1,6 +1,6 @@
 /**
  * @description Save rune pages as named presets, apply them in one click, and auto-apply them per champion.
- * @author maoloader developers
+ * @author maoloader
  * @link https://github.com/steele123/maoloader
  */
 (function () {

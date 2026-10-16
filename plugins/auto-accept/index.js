@@ -1,6 +1,6 @@
 /**
  * @description Accept ready checks automatically after a short, cancellable delay.
- * @author maoloader developers
+ * @author maoloader
  * @link https://github.com/steele123/maoloader
  */
 (function () {

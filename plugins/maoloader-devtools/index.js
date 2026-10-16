@@ -1,6 +1,6 @@
 /**
  * @description Visual DOM picker and sanitized snapshot exporter for maoloader plugin development.
- * @author maoloader developers
+ * @author maoloader
  * @link https://github.com/steele123/maoloader
  */
 (function () {

@@ -1,6 +1,6 @@
 /**
  * @description Inspect plugin load health and attributed logs inside the League client.
- * @author maoloader developers
+ * @author maoloader
  * @link https://github.com/steele123/maoloader
  */
 (function () {

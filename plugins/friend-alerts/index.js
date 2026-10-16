@@ -1,6 +1,6 @@
 /**
  * @description Toasts when chosen friends come online or finish a game, with a quick invite while you're in a lobby.
- * @author maoloader developers
+ * @author maoloader
  * @link https://github.com/steele123/maoloader
  */
 (function () {
