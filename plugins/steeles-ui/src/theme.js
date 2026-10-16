@@ -125,12 +125,14 @@ function parseColor(text) {
   return { rgb: parts.slice(0, 3).map((part) => Math.round(Number(part))), alpha: parts[3] };
 }
 
-// Navy, teal and blue, and the client's creams and warm greys, lose their colour but keep their
-// lightness. Bright, light colours that mean something (status dots, rarity, wins and losses) stay.
+// Navy, teal and blue, the dark gold-browns of frames and borders, and the client's creams and
+// warm greys lose their colour but keep their lightness. Bright, light colours that mean something
+// (status dots, rarity, wins and losses) stay.
 function neutralShade(rgb) {
   const [h, s, l] = rgbToHsl(rgb);
   if (!s || (s >= 0.55 && l >= 0.5)) return undefined;
-  if (!((h >= 150 && h <= 260) || s < 0.35)) return undefined;
+  const darkGold = h >= 30 && h <= 60 && l < 0.35;
+  if (!((h >= 150 && h <= 260) || s < 0.35 || darkGold)) return undefined;
   return hslToRgb([h, 0, l]);
 }
 
@@ -241,6 +243,86 @@ function applyRecolor(force = false) {
   for (const root of roots) recolorRoot(root, accent, neutral);
 }
 
+// Riot's components (buttons, inputs, tabs) keep their styles in their own shadow roots, out of
+// reach of the page's rules, so each gets its own recoloured copy. Components of one kind share
+// the same styles, so each kind's copy is only worked out once.
+const COMPONENT_PATTERN = /^(LOL|UIKIT|HEXTECH)-/;
+const componentCss = new Map();
+const componentSources = new WeakMap();
+let componentTimer = 0;
+
+function componentRoots(scope = document, found = []) {
+  for (const element of scope.querySelectorAll("*")) {
+    const root = element.shadowRoot;
+    if (!root) continue;
+    if (COMPONENT_PATTERN.test(element.tagName)) found.push(root);
+    // maoloader's and Steele's UI's own windows aren't Riot's; their insides are left alone.
+    if (!/^(MAOLOADER|STEELES-UI)-/.test(element.tagName)) componentRoots(root, found);
+  }
+  return found;
+}
+
+function hashText(text) {
+  let hash = 5381;
+  for (let index = 0; index < text.length; index += 1) hash = (hash * 33 + text.charCodeAt(index)) | 0;
+  return hash;
+}
+
+function recolorComponents() {
+  const current = settings();
+  const accent = current.recolor && current.accent.toLowerCase() !== CLIENT_GOLD ? current.accent : "";
+  const neutral = current.neutral;
+  for (const root of componentRoots()) {
+    let style = root.querySelector(`style[${RECOLOR_ATTRIBUTE}]`);
+    if (!accent && !neutral) {
+      style?.remove();
+      componentSources.delete(root);
+      continue;
+    }
+    const sources = [...root.querySelectorAll(`style:not([${RECOLOR_ATTRIBUTE}]), link[rel="stylesheet"]`)];
+    const known = componentSources.get(root);
+    const lastSource = sources[sources.length - 1];
+    // Same styles as last time, and the copy still comes after them: nothing to do.
+    if (
+      known?.mode === `${accent}|${neutral}` &&
+      known.sources.length === sources.length &&
+      known.sources.every((node, index) => node === sources[index]) &&
+      (!style || !lastSource || lastSource.compareDocumentPosition(style) & Node.DOCUMENT_POSITION_FOLLOWING)
+    ) {
+      continue;
+    }
+    componentSources.set(root, { mode: `${accent}|${neutral}`, sources });
+    const text = sources.map((node) => (node.tagName === "LINK" ? node.href : node.textContent)).join("\n");
+    const key = `${accent}|${neutral}|${text.length}|${hashText(text)}`;
+    if (!componentCss.has(key)) componentCss.set(key, recolorCss(root.styleSheets, accent, neutral));
+    const css = componentCss.get(key);
+    if (!css) {
+      style?.remove();
+      continue;
+    }
+    if (!style) {
+      style = document.createElement("style");
+      style.setAttribute(RECOLOR_ATTRIBUTE, "");
+    }
+    if (style.textContent !== css) style.textContent = css;
+    root.appendChild(style);
+  }
+}
+
+// Components appear as screens open; catch up shortly after the page settles.
+function scheduleComponents() {
+  if (componentTimer) return;
+  componentTimer = setTimeout(() => {
+    componentTimer = 0;
+    recolorComponents();
+  }, 250);
+}
+
+const NEUTRAL_COMPONENTS = ["lol-uikit-flat-button", "lol-uikit-flat-button-secondary", "lol-uikit-flat-button-group"];
+
+// Champ select's Lock In button and the framed rune and spell buttons beside it.
+const NEUTRAL_CHAMP_SELECT = [".lock-in .action-button", ".framed-icon-button-frame"];
+
 const NEUTRAL_IMAGES = [
   ".generic-button-primary-img-container img",
   ".lobby-header-buttons-container",
@@ -271,12 +353,16 @@ function applyFont() {
   // The lobby's gold and teal buttons are images, which recolouring can't reach; grey them instead.
   // The banners stay in colour: they're yours.
   if (current.neutral) rules.push(`.parties-view :is(${NEUTRAL_IMAGES.join(", ")}) { filter: grayscale(1); }`);
+  if (current.neutral) rules.push(`.champion-select :is(${NEUTRAL_CHAMP_SELECT.join(", ")}) { filter: grayscale(1); }`);
+  // Riot's framed buttons draw their gold frame from images too.
+  if (current.neutral) rules.push(`:is(${NEUTRAL_COMPONENTS.join(", ")}) { filter: grayscale(1); }`);
   setRules(SECTION, rules);
 }
 
 function apply() {
   applyFont();
   applyRecolor(true);
+  recolorComponents();
 }
 
 // ---- Presets and share codes ----
@@ -443,7 +529,7 @@ function renderTab() {
       <p class="field-note" data-th-code-error hidden></p>
     </div>
     <div class="section-start">
-      ${switchField("data-th-recolor", current.recolor, "Accent colour", "Recolours the client's gold: buttons, borders, highlights and text. A few built-in parts, like the top menu icons, keep their gold.")}
+      ${switchField("data-th-recolor", current.recolor, "Accent colour", "Recolours the client's gold: buttons, borders, highlights and text. Parts drawn as images, like framed button borders, keep their gold.")}
       <div class="mode-section" data-th-accent ${current.recolor ? "" : "hidden"}>
         <div class="field">
           <span class="field-copy"><strong>Colour</strong></span>
@@ -525,7 +611,9 @@ export function startTheme() {
   });
   // New screens bring new stylesheets; recolour them as they arrive.
   onDomChange(() => {
-    if (settings().recolor || settings().neutral) applyRecolor();
+    if (!settings().recolor && !settings().neutral) return;
+    applyRecolor();
+    scheduleComponents();
   });
   apply();
 }

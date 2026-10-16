@@ -30,7 +30,18 @@ const BACKGROUNDS_DIR = "backgrounds";
 const VIEWPORT_SELECTOR = "#rcp-fe-viewport-root";
 const MEDIA_PATTERN = /\.(png|jpe?g|webp|gif|avif|mp4|webm)$/i;
 const VIDEO_PATTERN = /\.(mp4|webm)(?:[?#]|$)/i;
-const SCREEN_ART_SELECTORS = [".parties-background", ".activity-center__background-component__image"];
+// Art that is its own element (or a looping video) is removed outright.
+const SCREEN_ART_SELECTORS = [".parties-background", ".activity-center__background-component__image", ".loot-backdrop #background-ambient"];
+// Art painted as the background of an element that also holds the screen only loses the picture.
+const SCREEN_ART_BACKGROUNDS = [
+  ".collections-application",
+  ".store-backdrop",
+  ".clash-root-background-landing",
+  ".clash-root-action-timeline-background-gradient",
+];
+// Clash keeps its ARAM and ARURF intro panels parked under its own background, which normally
+// covers them; without that art they would show as a box.
+const SCREEN_ART_PANELS = [".clash-root > .clash-aram-intro-modal", ".clash-root > .clash-arurf-intro-modal"];
 const MODES = [
   { id: "image", label: "Image" },
   { id: "color", label: "Color" },
@@ -159,6 +170,8 @@ function applyRules() {
     `html, body, ${VIEWPORT_SELECTOR} { background: transparent !important; }`,
     `${VIEWPORT_SELECTOR} { isolation: isolate; }`,
     settings().hideScreenArt ? `${SCREEN_ART_SELECTORS.join(", ")} { display: none !important; }` : "",
+    settings().hideScreenArt ? `${SCREEN_ART_BACKGROUNDS.join(", ")} { background-image: none !important; }` : "",
+    settings().hideScreenArt ? `${SCREEN_ART_PANELS.join(", ")} { background: none !important; }` : "",
   ]);
 }
 
@@ -327,7 +340,7 @@ function renderTab() {
       </div>
     </div>
 
-    ${switchField("data-bd-hide-art", current.hideScreenArt, "Hide screen art", "Removes lobby and home art that covers the backdrop.")}
+    ${switchField("data-bd-hide-art", current.hideScreenArt, "Hide screen art", "Removes the art behind home, the lobby, Collection, Loot, the Store and Clash, so your backdrop shows instead.")}
     <div class="field">
       <span class="field-copy"><strong>Window effect</strong><small>Native see-through effect behind the client.</small></span>
       <select class="effect-select" data-bd-effect aria-label="Window effect">

@@ -166,10 +166,12 @@ function panelLayoutLeft(panel, rect) {
   return parent.getBoundingClientRect().left + parent.clientLeft + panel.offsetLeft;
 }
 
-// Where the custom bar has to stop: before the window controls, and before the right panel
-// (where your profile sits) when it reaches up beside the top bar.
+// Where the custom bar has to stop: a little before the window controls, and right at the right
+// panel (where your profile sits) when it reaches up beside the top bar, so the two meet with no gap.
+const CONTROLS_GAP = 8;
+
 function barRightEdge(rect) {
-  const edges = [rect.right - 8, ...windowControls().map((element) => element.getBoundingClientRect().left)];
+  const edges = [rect.right - 2 * CONTROLS_GAP, ...windowControls().map((element) => element.getBoundingClientRect().left - CONTROLS_GAP)];
   const panel = document.querySelector(PANEL_SELECTOR);
   const box = panel?.getBoundingClientRect();
   // A collapsed panel slides over the page when hovered, so it only claims its strip.
@@ -221,20 +223,30 @@ function createBar() {
   return element;
 }
 
+// Champ select fills the whole window from its own full-screen layer, which hides Riot's top bar;
+// the custom bar steps aside too instead of covering champ select's timer.
+function fullScreenActive() {
+  const layer = document.querySelector(".rcp-fe-viewport-full-screen");
+  return [...(layer?.children || [])].some((screen) => {
+    const box = screen.getBoundingClientRect();
+    return box.width > 0 && box.height > 0 && getComputedStyle(screen).visibility !== "hidden";
+  });
+}
+
 function syncBar() {
   scanNav();
   watchSizes();
   const current = settings();
   let bar = document.getElementById(BAR_ID);
   const rect = navScreen()?.getBoundingClientRect();
-  if (current.mode !== "custom" || !rect || !rect.height) {
+  if (current.mode !== "custom" || !rect || !rect.height || fullScreenActive()) {
     bar?.remove();
     return;
   }
   if (!bar) bar = createBar();
 
   const rightEdge = barRightEdge(rect);
-  const width = Math.max(0, Math.round(rightEdge - rect.left - 8));
+  const width = Math.max(0, Math.round(rightEdge - rect.left));
   bar.style.cssText =
     `position:fixed;left:${Math.round(rect.left)}px;top:${Math.round(rect.top)}px;` +
     `width:${width}px;height:${Math.round(rect.height)}px;z-index:10;display:block;` +

@@ -1,5 +1,15 @@
 # Steele's UI changelog
 
+## 0.2.3 - 2026-10-15
+
+### Changed
+- **Hide screen art** now also clears the art behind Collection, Loot (its looping video), the Store and Clash, so your backdrop shows on those screens too.
+- **Accent colour** and **Neutral colours** now reach Riot's own buttons, inputs and tabs, which keep their styles sealed inside the component. With Neutral colours, framed buttons like Purchase RP and Create Team turn grey as well, and so do champ select's Lock In button, its rune and spell buttons, and the dark gold-brown frames and borders around the client.
+
+### Fixed
+- The custom top bar steps aside in champ select. Before, it covered champ select's "Pick your champion!" title and timer.
+- The custom top bar now meets the right panel with no gap. Before, it stopped a few pixels short, leaving a small notch beside the panel.
+
 ## 0.2.2 - 2026-10-15
 
 ### New

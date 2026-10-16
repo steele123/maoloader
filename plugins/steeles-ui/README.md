@@ -12,7 +12,7 @@ Open the settings with `Ctrl+K` → `Steele's UI settings`, the gear in the home
   - **Gradient**: five presets, or two colors and an angle.
   - **Transparent**: the window shows through. With no window effect you see your desktop.
 - **Opacity** (Color and Gradient): lower it to tint a window effect instead of covering it.
-- **Hide screen art**: removes the lobby and home art that would cover the backdrop.
+- **Hide screen art**: removes the art behind home, the lobby, Collection, Loot (its looping video), the Store and Clash, so the backdrop shows instead. Screen content stays.
 - **Window effect**: Mica (Windows 11), Acrylic or Blur behind.
 
 `Turn off backdrop` in `Ctrl+K` gets the stock background back without losing your settings.
@@ -41,7 +41,7 @@ Open the settings with `Ctrl+K` → `Steele's UI settings`, the gear in the home
 - **Custom**: a slim bar with a Play button and only the menu items you tick. Each button clicks Riot's real item, so navigation works as normal. The bar ends before the window controls and the right panel.
 - **Hidden**: no bar. Every menu gets a `Go to …` command in `Ctrl+K`, plus `Open Play`.
 
-Minimize, settings and close always stay visible. `Show Riot's top bar` or `Show the top bar again` in `Ctrl+K` brings the normal bar back.
+In champ select, which fills the whole window, the custom bar steps aside like Riot's does. Minimize, settings and close always stay visible. `Show Riot's top bar` or `Show the top bar again` in `Ctrl+K` brings the normal bar back.
 
 ## Right panel
 
@@ -70,7 +70,7 @@ The plugin is an ES module split by area: `src/backdrop.js`, `src/home.js`, `src
 
 - **Presets**: Mono, Hextech, Midnight, Focus, Ember, or back to Steele's default. Each sets the accent, font, backdrop, top bar and panel at once; the toast that follows has **Undo**.
 - **Share your look**: **Copy my code** puts your whole look on the clipboard as a `SUI1-` code. Paste a friend's code and press **Apply** to try theirs (also undoable). Codes never include your home cards, notes, or images from your own `backgrounds` folder.
-- **Accent colour**: recolours the client's gold (buttons, borders, highlights, text) and Steele's UI's own windows. A few parts Riot draws inside sealed components, like the top menu icons, keep their gold.
+- **Accent colour**: recolours the client's gold (buttons, borders, highlights, text) and Steele's UI's own windows. It also reaches inside Riot's sealed components (buttons, inputs, tabs); parts drawn as images, like framed button borders and menu icons, keep their gold unless **Neutral colours** is on.
 - **Neutral colours**: turns the client's navy, teal and cream (and the same colours in Steele's UI's windows) into greys of the same lightness, and greys out the lobby's gold buttons, which are images. Bright, light colours that carry meaning, like status dots, rarity, wins and losses, keep their colour. **Mono** combines this with a near-white accent, a black backdrop and Geist.
 - **Font**: **League** (Riot's fonts), **Clean** (Segoe UI), **Geist** (comes with the plugin), **Serif** (League's title font everywhere), or **Custom** with the name of any font installed on your PC.
 
