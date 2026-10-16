@@ -12,7 +12,7 @@ Open the settings with `Ctrl+K` → `Steele's UI settings`, the gear in the home
   - **Gradient**: five presets, or two colors and an angle.
   - **Transparent**: the window shows through. With no window effect you see your desktop.
 - **Opacity** (Color and Gradient): lower it to tint a window effect instead of covering it.
-- **Hide screen art**: removes the art behind home, the lobby, Collection, Loot (its looping video), the Store and Clash, so the backdrop shows instead. Screen content stays.
+- **Hide screen art**: removes the art behind home, the lobby, post-game, Collection, Loot (its looping video), the Store and Clash, so the backdrop shows instead. Screen content stays.
 - **Window effect**: Mica (Windows 11), Acrylic or Blur behind.
 
 `Turn off backdrop` in `Ctrl+K` gets the stock background back without losing your settings.
@@ -31,7 +31,9 @@ Open the settings with `Ctrl+K` → `Steele's UI settings`, the gear in the home
 
   **Card darkness** lets the backdrop show through. The dashboard starts below the top bar and scrolls on its own. Friends refresh every 20 seconds, games every 2 minutes, and only while those cards are on screen.
 
-  **Customize** (top right of the dashboard) lets you rearrange the cards: drag a card by its handle (holding it near the top or bottom edge scrolls), or focus the handle and use the arrow keys. Each card also has a show/hide toggle and, where it makes sense, half or full width. Hidden cards stay visible but dimmed while customizing, so you can bring them back. **Reset** restores the default layout and shows every card; **Done** leaves Customize mode. Hiding a card is the same as unticking it under Cards in the Home settings, which also has a **Reset layout** button.
+  Cards keep their own height and pack into two columns, so a short card like Quick play doesn't leave a gap beside a tall one.
+
+  **Customize** (the layout button beside the gear on the greeting card, or top right when the greeting is hidden) lets you rearrange the cards: drag a card by its handle (holding it near the top or bottom edge scrolls), or focus the handle and use the arrow keys. Each card also has a show/hide toggle and, where it makes sense, half or full width. Hidden cards stay visible but dimmed while customizing, so you can bring them back. **Reset** restores the default layout and shows every card; **Done** leaves Customize mode. Hiding a card is the same as unticking it under Cards in the Home settings, which also has a **Reset layout** button.
 - **Trim tabs**: keeps Riot's home but hides the tabs you tick, plus tab icons and promo art.
 - **Off**: Riot's home, untouched. `Show Riot's home tab` in `Ctrl+K` switches quickly.
 
@@ -41,7 +43,7 @@ Open the settings with `Ctrl+K` → `Steele's UI settings`, the gear in the home
 - **Custom**: a slim bar with a Play button and only the menu items you tick. Each button clicks Riot's real item, so navigation works as normal. The bar ends before the window controls and the right panel.
 - **Hidden**: no bar. Every menu gets a `Go to …` command in `Ctrl+K`, plus `Open Play`.
 
-In champ select, which fills the whole window, the custom bar steps aside like Riot's does. Minimize, settings and close always stay visible. `Show Riot's top bar` or `Show the top bar again` in `Ctrl+K` brings the normal bar back.
+In champ select and on the post-game screen, which use the top of the window themselves, the custom bar steps aside like Riot's does. Minimize, settings and close always stay visible. `Show Riot's top bar` or `Show the top bar again` in `Ctrl+K` brings the normal bar back.
 
 ## Right panel
 
@@ -71,7 +73,7 @@ The plugin is an ES module split by area: `src/backdrop.js`, `src/home.js`, `src
 - **Presets**: Mono, Hextech, Midnight, Focus, Ember, or back to Steele's default. Each sets the accent, font, backdrop, top bar and panel at once; the toast that follows has **Undo**.
 - **Share your look**: **Copy my code** puts your whole look on the clipboard as a `SUI1-` code. Paste a friend's code and press **Apply** to try theirs (also undoable). Codes never include your home cards, notes, or images from your own `backgrounds` folder.
 - **Accent colour**: recolours the client's gold (buttons, borders, highlights, text) and Steele's UI's own windows. It also reaches inside Riot's sealed components (buttons, inputs, tabs); parts drawn as images, like framed button borders and menu icons, keep their gold unless **Neutral colours** is on.
-- **Neutral colours**: turns the client's navy, teal and cream (and the same colours in Steele's UI's windows) into greys of the same lightness, and greys out the lobby's gold buttons, which are images. Bright, light colours that carry meaning, like status dots, rarity, wins and losses, keep their colour. **Mono** combines this with a near-white accent, a black backdrop and Geist.
+- **Neutral colours**: also greys the right panel's party card and the ring around your icon. It turns the client's navy, teal and cream (and the same colours in Steele's UI's windows) into greys of the same lightness, and greys out the lobby's gold buttons, which are images. Bright, light colours that carry meaning, like status dots, rarity, wins and losses, keep their colour. **Mono** combines this with a near-white accent, a black backdrop and Geist.
 - **Font**: **League** (Riot's fonts), **Clean** (Segoe UI), **Geist** (comes with the plugin), **Serif** (League's title font everywhere), or **Custom** with the name of any font installed on your PC.
 
 Geist is © 2023 Vercel, in collaboration with basement.studio, and is used under the SIL Open Font License 1.1; see `assets/fonts/Geist-LICENSE.txt`.

@@ -1,5 +1,19 @@
 # Steele's UI changelog
 
+## 0.2.4 - 2026-10-16
+
+### Fixed
+- A friend's profile now opens on top of the custom home instead of underneath it, and its close button shows in full over the custom top bar, as it does over Riot's.
+- The open right panel (with **Collapse until hover**) now slides over the custom top bar directly.
+- The custom top bar steps aside on the post-game screen, like Riot's does. Before, it covered the Victory or Defeat header, the game details and the View Advanced Details button.
+
+### Changed
+- Tidier home: cards keep their own height and pack into the two columns, so short cards like Quick play and Rank no longer stretch into big empty boxes, and the page is about a fifth shorter.
+- **Customize** moved onto the greeting card, next to the settings gear, so the cards start at the top. With the greeting hidden, it stays above the cards.
+- **Hide screen art** now also clears the map art behind the post-game screen.
+- With **Neutral colours**, the post-game Continue button turns grey like the lobby's Find Match, and the right panel's party card (a looping blue video), Clash panel art and the gold ring around your icon turn grey too.
+- In Customize mode, each card's tools sit on its top edge instead of covering what the card shows, like the clock.
+
 ## 0.2.3 - 2026-10-15
 
 ### Changed

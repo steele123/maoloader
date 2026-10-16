@@ -221,6 +221,10 @@ function applyRules() {
     // Only the client's own children are hidden, so its page keeps working underneath.
     rules.push(`${APP_SELECTOR} > :not(#${DASHBOARD_ID}) { display: none !important; }`);
     rules.push(`${APP_SELECTOR} { background: transparent !important; }`);
+    // A friend's profile opens as a full-page modal in the overlay layer; keep it above the
+    // dashboard (z-index 1) instead of under it. 11 matches the top bar's rule, which also needs
+    // it above the custom bar.
+    rules.push(".rcp-fe-viewport-overlay > .screen-root:has(> lol-uikit-full-page-modal) { z-index: 11; }");
   } else if (current.mode === "trim") {
     rules.push(`[${HIDDEN_TAB_MARKER}] { display: none !important; }`);
     if (current.hideTabIcons) rules.push(".activity-center__tab_label_icon { display: none !important; }");
@@ -672,7 +676,10 @@ function widgetHtml(id) {
           <strong>${now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</strong>
           <span>${now.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}</span>
         </div>
-        <button class="customize" type="button" data-open-settings aria-label="Customize home" title="Customize home">${gearIcon}</button>
+        <div class="greeting-tools">
+          <button class="customize" type="button" data-customize aria-label="Rearrange cards" title="Rearrange cards">${ICONS.layout}</button>
+          <button class="customize" type="button" data-open-settings aria-label="Home settings" title="Home settings">${gearIcon}</button>
+        </div>
       </section>`;
   }
   if (id === "play") {
@@ -804,26 +811,65 @@ function renderDashboard() {
   // Customize mode shows every card, hidden ones dimmed, so they can be brought back.
   const ids = customizing ? current.layout.order : current.layout.order.filter((id) => current.widgets[id]);
   const scroll = home.scrollTop;
+  // The greeting card carries the Customize and settings buttons; the bar above the cards is only
+  // needed while customizing, or when the greeting is hidden.
+  const bar = customizing
+    ? `<div class="home-bar">
+        <span class="muted">Drag cards by their handle, or use the arrow keys on it.</span>
+        <span class="bar-tools">
+          <button class="text-button" type="button" data-layout-reset>${ICONS.reset}Reset</button>
+          <button class="text-button is-primary" type="button" data-customize-done>${ICONS.check}Done</button>
+        </span>
+      </div>`
+    : current.widgets.greeting
+      ? ""
+      : `<div class="home-bar">
+          <span></span>
+          <span class="bar-tools">
+            <button class="text-button" type="button" data-customize>${ICONS.layout}Customize</button>
+            <button class="text-button" type="button" data-open-settings>${gearIcon}Settings</button>
+          </span>
+        </div>`;
   home.innerHTML = `
-    <div class="home-bar">
-      ${
-        customizing
-          ? `<span class="muted">Drag cards by their handle, or use the arrow keys on it.</span>
-            <span class="bar-tools">
-              <button class="text-button" type="button" data-layout-reset>${ICONS.reset}Reset</button>
-              <button class="text-button is-primary" type="button" data-customize-done>${ICONS.check}Done</button>
-            </span>`
-          : `<span></span>
-            <span class="bar-tools">
-              <button class="text-button" type="button" data-customize>${ICONS.layout}Customize</button>
-              ${current.widgets.greeting ? "" : `<button class="text-button" type="button" data-open-settings>${gearIcon}Settings</button>`}
-            </span>`
-      }
-    </div>
-    <div class="grid${customizing ? " is-customizing" : ""}">${ids.map(cellHtml).join("")}</div>
+    ${bar}
+    <div class="grid${customizing ? " is-customizing" : " is-masonry"}">${ids.map(cellHtml).join("")}</div>
     ${ids.length ? "" : '<p class="empty">Every card is hidden. Use Customize to bring some back.</p>'}`;
   home.scrollTop = scroll;
+  watchMasonry(home);
   startTimers();
+}
+
+// ---- Masonry ----
+// Outside Customize mode, cards keep their own height and pack into the two columns: the grid has
+// short rows and each card spans as many as its height needs, so a short card like Quick play no
+// longer stretches to match the tall one beside it.
+const MASONRY_ROW = 4;
+const MASONRY_GAP = 16;
+let masonryObserver;
+let masonryFrame = 0;
+
+function layoutMasonry() {
+  masonryFrame = 0;
+  const grid = document.getElementById(DASHBOARD_ID)?.shadowRoot?.querySelector(".grid.is-masonry");
+  if (!grid) return;
+  for (const cell of grid.children) {
+    const height = cell.firstElementChild?.getBoundingClientRect().height || 0;
+    const span = `span ${Math.max(1, Math.ceil((height + MASONRY_GAP) / MASONRY_ROW))}`;
+    if (cell.style.gridRowEnd !== span) cell.style.gridRowEnd = span;
+  }
+}
+
+function requestMasonry() {
+  if (!masonryFrame) masonryFrame = requestAnimationFrame(layoutMasonry);
+}
+
+// Cards change height as their data arrives and as the window resizes; repack when they do.
+function watchMasonry(home) {
+  masonryObserver?.disconnect();
+  if (typeof ResizeObserver !== "function") return;
+  masonryObserver = new ResizeObserver(requestMasonry);
+  home.querySelectorAll(".grid.is-masonry > .home-cell > .card-body").forEach((body) => masonryObserver.observe(body));
+  layoutMasonry();
 }
 
 function renderWidget(id) {

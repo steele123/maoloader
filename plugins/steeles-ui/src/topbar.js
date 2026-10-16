@@ -44,6 +44,7 @@ const DEFAULTS = { mode: "riot", navItems: [], showPlay: true };
 const seenNav = new Map();
 const navCommands = new Set();
 let resizeObserver;
+let navStyleObserver;
 let observedNav;
 let observedPanel;
 
@@ -79,9 +80,9 @@ function applyRules() {
     // bar (z-index 10) so a dialog's close button near the top stays clickable. :where() keeps this
     // weaker than any z-index the client sets itself.
     `:where(#lol-uikit-layer-manager-wrapper) > * { z-index: 11; }`,
-    // The backdrop isolates the client, so a collapsed panel sliding open can't rise above the bar;
-    // the bar cuts off the part the open panel covers instead.
-    `body:has(${PANEL_SELECTOR}:hover) > #${BAR_ID} { clip-path: inset(0 var(--sui-panel-clip, 0px) 0 0); }`,
+    // A friend's profile opens as a full-page modal whose close button overlaps the bottom of the
+    // top bar, as Riot draws it; lift its layer above the custom bar.
+    `.rcp-fe-viewport-overlay > .screen-root:has(> lol-uikit-full-page-modal) { z-index: 11; }`,
   ]);
 }
 
@@ -185,14 +186,6 @@ function barRightEdge(rect) {
   return Math.min(...edges);
 }
 
-// How far a collapsed panel reaches over the bar once it slides open.
-function openPanelOverlap(barRight) {
-  const panel = document.querySelector(PANEL_SELECTOR);
-  const parent = panel?.offsetParent?.getBoundingClientRect();
-  if (!parent || getComputedStyle(panel).position !== "absolute") return 0;
-  return Math.max(0, Math.round(barRight - (parent.right - panel.offsetWidth)));
-}
-
 function watchSizes() {
   const nav = navScreen();
   const panel = document.querySelector(PANEL_SELECTOR);
@@ -203,6 +196,10 @@ function watchSizes() {
   resizeObserver = new ResizeObserver(requestSync);
   resizeObserver.observe(nav);
   if (panel) resizeObserver.observe(panel);
+  // Riot shows and hides its bar with an inline style (see riotHidesBar).
+  navStyleObserver?.disconnect();
+  navStyleObserver = new MutationObserver(requestSync);
+  navStyleObserver.observe(nav, { attributes: true, attributeFilter: ["style"] });
 }
 
 function createBar() {
@@ -219,7 +216,9 @@ function createBar() {
     else if (event.target.closest("[data-play]")) clickPlay();
     else if (event.target.closest("[data-bar-settings]")) openSettings("topbar");
   });
-  document.body.appendChild(element);
+  // Inside the client's root, so the client's own layers (a friend's profile, the collapsed panel
+  // sliding open) can sit above the bar by z-index, as they do over Riot's bar.
+  (document.getElementById("rcp-fe-viewport-root") || document.body).appendChild(element);
   return element;
 }
 
@@ -233,13 +232,21 @@ function fullScreenActive() {
   });
 }
 
+// Screens that use the top of the window themselves, like post-game with its result and Advanced
+// Details button, hide Riot's bar with an inline style; Steele's UI's rules hide it from a
+// stylesheet, so the inline style is Riot's own signal.
+function riotHidesBar(nav) {
+  return nav?.style.visibility === "hidden";
+}
+
 function syncBar() {
   scanNav();
   watchSizes();
   const current = settings();
   let bar = document.getElementById(BAR_ID);
-  const rect = navScreen()?.getBoundingClientRect();
-  if (current.mode !== "custom" || !rect || !rect.height || fullScreenActive()) {
+  const nav = navScreen();
+  const rect = nav?.getBoundingClientRect();
+  if (current.mode !== "custom" || !rect || !rect.height || fullScreenActive() || riotHidesBar(nav)) {
     bar?.remove();
     return;
   }
@@ -250,7 +257,6 @@ function syncBar() {
   bar.style.cssText =
     `position:fixed;left:${Math.round(rect.left)}px;top:${Math.round(rect.top)}px;` +
     `width:${width}px;height:${Math.round(rect.height)}px;z-index:10;display:block;` +
-    `--sui-panel-clip:${openPanelOverlap(rect.left + width)}px;` +
     (bar.style.visibility ? `visibility:${bar.style.visibility};` : "");
 
   const activeKey = navKey(document.querySelector(`${NAV_ITEM_SELECTOR}[active]`) || document.createElement("i"));

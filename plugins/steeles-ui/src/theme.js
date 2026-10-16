@@ -323,6 +323,17 @@ const NEUTRAL_COMPONENTS = ["lol-uikit-flat-button", "lol-uikit-flat-button-seco
 // Champ select's Lock In button and the framed rune and spell buttons beside it.
 const NEUTRAL_CHAMP_SELECT = [".lock-in .action-button", ".framed-icon-button-frame"];
 
+// The right panel's party and invite card (a looping blue video), Clash's panel art, and the gold
+// level ring around your icon; the icon itself keeps its colours.
+const NEUTRAL_PANEL = [
+  "lol-parties-game-info-panel",
+  ".rcp-fe-viewport-sidebar .clash-social-persistent-magic-bg",
+  ".lol-social-identity .summoner-level-ring",
+];
+
+// Post-game's Continue button and the close button beside it.
+const NEUTRAL_POSTGAME = [".find-match-button-container", ".generic-button-primary-img-container img"];
+
 const NEUTRAL_IMAGES = [
   ".generic-button-primary-img-container img",
   ".lobby-header-buttons-container",
@@ -354,6 +365,8 @@ function applyFont() {
   // The banners stay in colour: they're yours.
   if (current.neutral) rules.push(`.parties-view :is(${NEUTRAL_IMAGES.join(", ")}) { filter: grayscale(1); }`);
   if (current.neutral) rules.push(`.champion-select :is(${NEUTRAL_CHAMP_SELECT.join(", ")}) { filter: grayscale(1); }`);
+  if (current.neutral) rules.push(`.postgame-footer :is(${NEUTRAL_POSTGAME.join(", ")}) { filter: grayscale(1); }`);
+  if (current.neutral) rules.push(`:is(${NEUTRAL_PANEL.join(", ")}) { filter: grayscale(1); }`);
   // Riot's framed buttons draw their gold frame from images too.
   if (current.neutral) rules.push(`:is(${NEUTRAL_COMPONENTS.join(", ")}) { filter: grayscale(1); }`);
   setRules(SECTION, rules);

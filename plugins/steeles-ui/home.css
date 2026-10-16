@@ -119,6 +119,16 @@ textarea:focus-visible {
   justify-items: end;
 }
 
+.greeting-tools {
+  display: flex;
+  gap: 8px;
+}
+
+.greeting-tools svg {
+  width: 16px;
+  height: 16px;
+}
+
 .clock strong {
   color: #f0e6d2;
   font-size: 26px;
@@ -127,12 +137,28 @@ textarea:focus-visible {
   line-height: 1.1;
 }
 
-/* Cards in the same row stretch to the same height. */
+/* In Customize mode, cards in the same row stretch to the same height, so rows read clearly while
+   dragging. */
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
   gap: 16px;
+}
+
+/* Otherwise cards keep their own height and pack into the columns: short 4px rows, and home.js
+   gives each card a row span that covers its height plus the 16px gap. Dense placement lets a
+   short card fill the hole beside a tall one. */
+.grid.is-masonry {
+  grid-auto-rows: 4px;
+  grid-auto-flow: row dense;
+  row-gap: 0;
+  align-items: start;
+}
+
+.grid.is-masonry .home-cell > .card-body,
+.grid.is-masonry .home-cell > .card-body > .card {
+  height: auto;
 }
 
 /* One column when the home area is narrow. */
@@ -405,6 +431,12 @@ textarea {
   height: 100%;
 }
 
+/* Room between rows for the tools on each card's top edge. */
+.grid.is-customizing {
+  row-gap: 32px;
+  padding-top: 14px;
+}
+
 .grid.is-customizing .home-cell {
   border-radius: 10px;
   outline: 1px dashed var(--line-strong);
@@ -427,10 +459,11 @@ textarea {
   opacity: 0.85;
 }
 
+/* Sits on the card's top edge, so it never covers what the card shows (like the clock). */
 .card-tools {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: -17px;
+  right: 14px;
   z-index: 3;
   display: flex;
   align-items: center;

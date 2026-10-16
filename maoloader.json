@@ -115,7 +115,7 @@
     {
       "slug": "steeles-ui",
       "title": "Steele's UI",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "description": "Backdrop, custom home, top bar, right panel and lobby controls, themes with share codes, and a profile background and banner picker, in one plugin.",
       "image": "plugins/steeles-ui/assets/icon.svg",
       "entry": "plugins/steeles-ui/index.js",

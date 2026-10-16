@@ -31,7 +31,7 @@ const VIEWPORT_SELECTOR = "#rcp-fe-viewport-root";
 const MEDIA_PATTERN = /\.(png|jpe?g|webp|gif|avif|mp4|webm)$/i;
 const VIDEO_PATTERN = /\.(mp4|webm)(?:[?#]|$)/i;
 // Art that is its own element (or a looping video) is removed outright.
-const SCREEN_ART_SELECTORS = [".parties-background", ".activity-center__background-component__image", ".loot-backdrop #background-ambient"];
+const SCREEN_ART_SELECTORS = [".parties-background", ".activity-center__background-component__image", ".loot-backdrop #background-ambient", ".postgame-background-image"];
 // Art painted as the background of an element that also holds the screen only loses the picture.
 const SCREEN_ART_BACKGROUNDS = [
   ".collections-application",
@@ -340,7 +340,7 @@ function renderTab() {
       </div>
     </div>
 
-    ${switchField("data-bd-hide-art", current.hideScreenArt, "Hide screen art", "Removes the art behind home, the lobby, Collection, Loot, the Store and Clash, so your backdrop shows instead.")}
+    ${switchField("data-bd-hide-art", current.hideScreenArt, "Hide screen art", "Removes the art behind home, the lobby, post-game, Collection, Loot, the Store and Clash, so your backdrop shows instead.")}
     <div class="field">
       <span class="field-copy"><strong>Window effect</strong><small>Native see-through effect behind the client.</small></span>
       <select class="effect-select" data-bd-effect aria-label="Window effect">

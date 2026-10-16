@@ -1,6 +1,9 @@
+/* Only the buttons take clicks; the rest of the bar lets them through, so things the client
+   draws just under it, like the close button of a friend's profile, stay clickable. */
 :host {
   display: block;
   color-scheme: dark;
+  pointer-events: none;
 }
 
 .bar,
@@ -23,6 +26,7 @@
 }
 
 button {
+  pointer-events: auto;
   border: 0;
   cursor: pointer;
   font: inherit;

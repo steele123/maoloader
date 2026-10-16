@@ -144,8 +144,7 @@ function applyRules() {
       `#rcp-fe-viewport-root > .rcp-fe-viewport-persistent > .screen-root.active { width: 100% !important; }`,
       `#rcp-fe-viewport-root > .rcp-fe-viewport-persistent .activity-center-application { width: 100% !important; }`,
     );
-    // Open, it sits over the page but under the window controls. The custom top bar trims itself
-    // where the open panel would be (see topbar.js).
+    // Open, it sits over the page and the custom top bar (z-index 10), but under the window controls.
     rules.push(`${PANEL_SELECTOR}:hover { transform: none; z-index: 11; }`);
     rules.push(`[data-screen-name="window-controls"] { z-index: 12; }`);
     // Over the page, a see-through panel would show the screen under it; keep it readable.
