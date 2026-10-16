@@ -1,15 +1,15 @@
 {
-    "version":  "0.1.7",
-    "notes":  "### New\n- **One settings window for every plugin**: Ctrl+K → **Plugin settings** lists each plugin with\n  its own tab, in maoloader\u0027s navy and gold. Each plugin\u0027s \"… settings\" command opens its tab.\n  Update your plugins from the store to move them in; your saved settings carry over.\n- What\u0027s new in each update now shows before it installs, and on maoloader.com/changelog.\n- **Event recorder** plugin in the store: see every live event the client sends, filter them,\n  and copy ready-made code for plugin authors.",
-    "pub_date":  "2026-10-16T02:42:24Z",
+    "version":  "0.1.8",
+    "notes":  "### New\n- **Plugin store in Ctrl+K**: type `get` or `plugin`, or run **Browse plugins**, to see store plugins you don\u0027t have yet. Picking one opens maoloader on that plugin, where you confirm the install.\n- **Settings backups** in Settings → Backups: back up every plugin\u0027s settings and saved data (themes, LP history, notes and so on) and restore them in one click. maoloader also keeps an automatic copy each day your settings change, and restoring saves a copy of your current settings first. If League is open, its window closes and reopens with the restored settings.\n\n### Changed\n- Cleaner notifications: dark cards that fit the client, with small tinted icons, quieter text, and a gentle slide in and fade out. They use your theme\u0027s font when you pick one in Steele\u0027s UI.\n- The **Discord** button in the sidebar now takes you to the maoloader server.",
+    "pub_date":  "2026-10-16T10:47:01Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "url":  "https://fs.maoloader.com/releases/maoloader/v0.1.7/windows-x86_64/maoloader_0.1.7_x64-setup.exe",
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMGlGTUdIaXZhOEZPVk1SYjVxRS9CTmZhd0JCWUduV20vNHZMN1YzTnoya0ozb2dxOUhFZEp4VVE0VkNLcW43STRlU00wZUwzc2tZRVp4MVlDQVViQnFybmZNWE9OMUFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMTE4NTQ0CWZpbGU6bWFvbG9hZGVyXzAuMS43X3g2NC1zZXR1cC5leGUJdmVyc2lvbjowLjEuNwprUStlczBySDF3SGRVSEVCRW0yYjdPT1dHZTVWZHFYdjZxOFdpSnd4ckFmNG45NjFWbWNHd093VlEyN2k0MUJOT2dESm9scmhJNVRVb0p4VFR5bTZDQT09Cg==",
-                                             "installer_url":  "https://fs.maoloader.com/releases/maoloader/v0.1.7/windows-x86_64/maoloader_0.1.7_x64-setup.exe",
-                                             "installer_name":  "maoloader_0.1.7_x64-setup.exe",
-                                             "size":  4075560,
-                                             "sha256":  "d500472e110284ddab4a63216e262f69656a9a247e62ed97390da05d1a8c7425"
+                                             "url":  "https://fs.maoloader.com/releases/maoloader/v0.1.8/windows-x86_64/maoloader_0.1.8_x64-setup.exe",
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSMGlGTUdIaXZhOEtzYTA3bytXakpleENwTGozZ1pPUEd2WlpNTE9SdExtYjlFSkJFamZxSHo2NDl3b2lBUHBQOVZlYmwxVFplZzZnY01BbVBnMGw0c1VVRzBEYzJtdFE4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMTQ3NjIxCWZpbGU6bWFvbG9hZGVyXzAuMS44X3g2NC1zZXR1cC5leGUJdmVyc2lvbjowLjEuOAp3b1pnWVVRcUc0Y2ZXZUZybWhNdU9LQ2Y4d0sySWtUd2VKdEtmd2pLRTZNcGVuam1FS3ltb2xPdGJCa0lwZUdtQTA2a0JpWFcrVGdZZnlMYXNQekFBUT09Cg==",
+                                             "installer_url":  "https://fs.maoloader.com/releases/maoloader/v0.1.8/windows-x86_64/maoloader_0.1.8_x64-setup.exe",
+                                             "installer_name":  "maoloader_0.1.8_x64-setup.exe",
+                                             "size":  4133211,
+                                             "sha256":  "25c373335d39bc600f09643ae7412ee348d88b681dd3c83d941e8af757507909"
                                          }
                   }
 }

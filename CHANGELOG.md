@@ -11,6 +11,7 @@ newest first, as `## <version> - <yyyy-mm-dd>`.
 
 ### New
 - **Plugin store in Ctrl+K**: type `get` or `plugin`, or run **Browse plugins**, to see store plugins you don't have yet. Picking one opens maoloader on that plugin, where you confirm the install.
+- **Settings backups** in Settings → Backups: back up every plugin's settings and saved data (themes, LP history, notes and so on) and restore them in one click. maoloader also keeps an automatic copy each day your settings change, and restoring saves a copy of your current settings first. If League is open, its window closes and reopens with the restored settings.
 
 ### Changed
 - Cleaner notifications: dark cards that fit the client, with small tinted icons, quieter text, and a gentle slide in and fade out. They use your theme's font when you pick one in Steele's UI.

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ActivityIcon from "@lucide/svelte/icons/activity";
+	import ArchiveIcon from "@lucide/svelte/icons/archive";
 	import CircleAlertIcon from "@lucide/svelte/icons/circle-alert";
 	import CircleCheckIcon from "@lucide/svelte/icons/circle-check";
 	import CircleXIcon from "@lucide/svelte/icons/circle-x";
@@ -8,7 +9,7 @@
 	import SaveIcon from "@lucide/svelte/icons/save";
 	import SparklesIcon from "@lucide/svelte/icons/sparkles";
 	import WrenchIcon from "@lucide/svelte/icons/wrench";
-	import { getContext } from "svelte";
+	import { getContext, onMount } from "svelte";
 	import { APP_STATE_KEY, type AppState, type LoaderConfig } from "$lib/app-state.svelte";
 	import { Button } from "$lib/components/ui/button/index.js";
 
@@ -45,6 +46,17 @@
 					: "",
 	);
 	const modeLocked = $derived(Boolean(app.activation?.activated));
+
+	onMount(() => {
+		app.loadBackups();
+	});
+
+	// Restore asks once, on the row itself.
+	let confirmRestore = $state("");
+	const kindLabel: Record<string, string> = { manual: "Backup", automatic: "Automatic", "before-restore": "Before a restore" };
+	function backupDate(ms: number) {
+		return new Date(ms).toLocaleString([], { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+	}
 	const saving = $derived(app.saveState === "Saving...");
 </script>
 
@@ -155,6 +167,58 @@
 			</span>
 			<input class="text-input number-input" type="number" min="0" max="65534" step="1" bind:value={app.config.client.debug_port} />
 		</label>
+	</section>
+
+	<section class="panel settings-section" aria-label="Backups">
+		<header><ArchiveIcon /><h2>Backups</h2></header>
+		<div class="setting">
+			<span class="setting-copy">
+				<strong>Plugin settings</strong>
+				<small>
+					{app.backupMessage ||
+						"Every plugin's settings and saved data (themes, LP history, notes and so on), plus which plugins are switched off. maoloader also keeps an automatic copy each day the settings change."}
+				</small>
+			</span>
+			<div class="page-tools">
+				<Button variant="outline" size="sm" onclick={() => app.openBackupsFolder()}>Open folder</Button>
+				<Button size="sm" disabled={!!app.backupBusy} onclick={() => app.createBackup()}>
+					{app.backupBusy === "create" ? "Backing up…" : "Back up now"}
+				</Button>
+			</div>
+		</div>
+		{#each app.backups.slice(0, 8) as backup (backup.name)}
+			<div class="setting backup-row">
+				<span class="setting-copy">
+					<strong>{backupDate(backup.created_at)}<span class="backup-kind">{kindLabel[backup.kind] ?? backup.kind}</span></strong>
+					<small>{backup.entries} {backup.entries === 1 ? "entry" : "entries"} · {backup.plugins} plugins installed · {Math.max(1, Math.round(backup.size / 1024))} KB</small>
+				</span>
+				<div class="page-tools">
+					{#if confirmRestore === backup.name}
+						<span class="confirm-text">Replace your current settings?</span>
+						<Button variant="outline" size="sm" onclick={() => (confirmRestore = "")}>Cancel</Button>
+						<Button
+							size="sm"
+							disabled={!!app.backupBusy}
+							onclick={async () => {
+								await app.restoreBackup(backup.name);
+								confirmRestore = "";
+							}}>{app.backupBusy === backup.name ? "Restoring…" : "Restore"}</Button
+						>
+					{:else}
+						<Button variant="ghost" size="sm" disabled={!!app.backupBusy} onclick={() => app.deleteBackup(backup.name)}>Delete</Button>
+						<Button variant="outline" size="sm" disabled={!!app.backupBusy} onclick={() => (confirmRestore = backup.name)}>Restore</Button>
+					{/if}
+				</div>
+			</div>
+		{:else}
+			<p class="diag-hint">No backups yet.</p>
+		{/each}
+		{#if app.backups.length}
+			<p class="diag-hint">
+				Restoring makes a copy of your current settings first, so you can undo it. If League is open, its window closes and reopens
+				with the restored settings; it won't restore during a queue, champ select or a game.
+			</p>
+		{/if}
 	</section>
 
 	<section class="panel settings-section" aria-label="Diagnostics">

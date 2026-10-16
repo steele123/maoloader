@@ -1230,6 +1230,27 @@ label.setting {
 	text-transform: uppercase;
 }
 
+/* Settings backups: one row per backup, with its kind as a small tag. */
+.backup-kind {
+	margin-left: 8px;
+	border-radius: 4px;
+	background: rgba(255, 255, 255, 0.06);
+	color: var(--text-muted);
+	padding: 1px 6px;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	vertical-align: 1px;
+}
+
+.backup-row .confirm-text {
+	align-self: center;
+	color: var(--amber);
+	font-size: 12px;
+	font-weight: 600;
+}
+
 .input-row {
 	display: flex;
 	gap: 6px;

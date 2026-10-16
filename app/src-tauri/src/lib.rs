@@ -1,3 +1,4 @@
+mod backups;
 mod config;
 mod league_client;
 mod native_core;
@@ -267,6 +268,34 @@ fn uninstall_store_plugin(plugin: StorePluginInstall) -> Result<StoreUninstallRe
 }
 
 #[tauri::command]
+fn list_settings_backups() -> Vec<backups::BackupSummary> {
+    backups::list_backups()
+}
+
+#[tauri::command]
+fn create_settings_backup() -> Result<backups::BackupSummary, String> {
+    backups::create_backup("manual").map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn delete_settings_backup(name: String) -> Result<(), String> {
+    backups::delete_backup(&name).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn settings_backups_dir() -> String {
+    backups::backups_dir().to_string_lossy().into_owned()
+}
+
+// Talks to the League client and waits for its UI to close, so it runs off the UI thread.
+#[tauri::command]
+async fn restore_settings_backup(name: String) -> Result<backups::RestoreResult, String> {
+    tauri::async_runtime::spawn_blocking(move || backups::restore_backup(&name))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
 fn fetch_store_plugins() -> Result<Vec<StorePlugin>, String> {
     store::fetch_plugins().map_err(|error| error.to_string())
 }
@@ -339,6 +368,12 @@ pub fn run() {
                 }
             }
             sync_bundled_core(app)?;
+            // A copy of the plugin settings now and then, in case something goes wrong.
+            std::thread::spawn(|| {
+                if let Err(error) = backups::automatic_backup_if_due() {
+                    eprintln!("automatic settings backup failed: {error}");
+                }
+            });
             remove_stale_core_copies();
             ensure_loader_layout()?;
             Ok(())
@@ -365,6 +400,11 @@ pub fn run() {
             uninstall_store_plugin,
             fetch_store_plugins,
             create_diagnostics_bundle,
+            list_settings_backups,
+            create_settings_backup,
+            delete_settings_backup,
+            settings_backups_dir,
+            restore_settings_backup,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

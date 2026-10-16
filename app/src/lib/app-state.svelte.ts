@@ -132,6 +132,23 @@ export type NativeCoreStatus = {
 	error: string;
 };
 
+export type BackupSummary = {
+	name: string;
+	path: string;
+	created_at: number;
+	/** "manual", "automatic" or "before-restore". */
+	kind: string;
+	entries: number;
+	plugins: number;
+	size: number;
+};
+
+export type RestoreResult = {
+	restored: BackupSummary;
+	safety_backup: BackupSummary | null;
+	restarted_client: boolean;
+};
+
 export type ActivationStatus = {
 	supported: boolean;
 	mode: "universal" | "targeted";
@@ -170,6 +187,9 @@ export class AppState {
 	// The updater's handle; not reactive, only kept until Install is pressed.
 	pendingUpdate: import("@tauri-apps/plugin-updater").Update | undefined;
 	diagnosticsMessage = $state("");
+	backups = $state<BackupSummary[]>([]);
+	backupMessage = $state("");
+	backupBusy = $state("");
 	// The config as last loaded or saved, so the settings page can tell when there are unsaved changes.
 	savedConfigJson = $state("");
 
@@ -493,6 +513,73 @@ export class AppState {
 			await openUrl(url);
 		} catch {
 			window.open(url, "_blank", "noreferrer");
+		}
+	}
+
+	async loadBackups() {
+		const { invoke } = await import("@tauri-apps/api/core");
+		try {
+			this.backups = await invoke<BackupSummary[]>("list_settings_backups");
+		} catch (error) {
+			this.backupMessage = String(error);
+		}
+	}
+
+	async createBackup() {
+		const { invoke } = await import("@tauri-apps/api/core");
+		this.backupBusy = "create";
+		try {
+			const backup = await invoke<BackupSummary>("create_settings_backup");
+			this.backupMessage = `Backed up ${backup.entries} plugin ${backup.entries === 1 ? "entry" : "entries"}.`;
+			await this.loadBackups();
+		} catch (error) {
+			this.backupMessage = `Couldn't back up: ${error}`;
+		} finally {
+			this.backupBusy = "";
+		}
+	}
+
+	async restoreBackup(name: string) {
+		const { invoke } = await import("@tauri-apps/api/core");
+		this.backupBusy = name;
+		this.backupMessage = "Restoring…";
+		try {
+			const result = await invoke<RestoreResult>("restore_settings_backup", { name });
+			this.backupMessage = result.restarted_client
+				? "Restored. The League client reopened with these settings."
+				: "Restored. The League client uses these settings next time it starts.";
+			// The restore also brings back which plugins were switched off.
+			this.config = await invoke<LoaderConfig>("read_loader_config");
+			this.savedConfigJson = JSON.stringify(this.config);
+			this.plugins = await invoke<PluginEntry[]>("list_plugins");
+			await this.loadBackups();
+		} catch (error) {
+			this.backupMessage = String(error);
+		} finally {
+			this.backupBusy = "";
+		}
+	}
+
+	async deleteBackup(name: string) {
+		const { invoke } = await import("@tauri-apps/api/core");
+		this.backupBusy = name;
+		try {
+			await invoke("delete_settings_backup", { name });
+			await this.loadBackups();
+		} catch (error) {
+			this.backupMessage = String(error);
+		} finally {
+			this.backupBusy = "";
+		}
+	}
+
+	async openBackupsFolder() {
+		const { invoke } = await import("@tauri-apps/api/core");
+		const dir = await invoke<string>("settings_backups_dir");
+		try {
+			await invoke("open_path", { path: dir });
+		} catch {
+			this.backupMessage = "No backups folder yet. Back up once to create it.";
 		}
 	}
 
