@@ -124,6 +124,15 @@ function applyRules() {
   const rules = [];
   if (current.mode === "hidden") {
     rules.push(`${PANEL_SELECTOR} { display: none !important; }`);
+    // The client sizes everything else for a 223px panel: the main area is a fixed 1055px, the
+    // persistent layer stops 223px short and the home screen is fixed too. Without these the
+    // panel's space is left as a dead strip on the right.
+    rules.push(
+      `#rcp-fe-viewport-root > .rcp-fe-viewport-main { width: 100% !important; flex: 1 1 auto !important; }`,
+      `#rcp-fe-viewport-root > .rcp-fe-viewport-persistent { right: 0 !important; }`,
+      `#rcp-fe-viewport-root > .rcp-fe-viewport-persistent > .screen-root.active { width: 100% !important; }`,
+      `#rcp-fe-viewport-root > .rcp-fe-viewport-persistent .activity-center-application { width: 100% !important; }`,
+    );
   } else if (current.mode === "collapsed") {
     // Slides off to the right leaving a strip; hovering the strip brings it back.
     rules.push(`${PANEL_SELECTOR} { transform: translateX(calc(100% - ${COLLAPSED_STRIP}px)); transition: transform 0.22s ease; }`);
