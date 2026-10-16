@@ -11,6 +11,7 @@ function createPreloadWindow({
   penguVersion = "",
   readyState = "loading",
   readonlyPlugins = false,
+  storeNative = false,
   superPotato = false,
   welcomeHost = false,
   leagueVersion,
@@ -111,6 +112,14 @@ function createPreloadWindow({
       ReloadClient: () => calls.push(["ReloadClient"]),
       SetWindowTheme: (dark) => calls.push(["SetWindowTheme", dark]),
       SetWindowVibrancy: (...args) => calls.push(["SetWindowVibrancy", ...args]),
+      ...(storeNative
+        ? {
+            OpenStorePlugin: (slug) => {
+              calls.push(["OpenStorePlugin", slug]);
+              return true;
+            },
+          }
+        : {}),
     },
     addEventListener: (type, listener, options) => {
       windowListeners.push({ type, listener, options });
@@ -942,6 +951,45 @@ export const moduleUrl = import.meta.url;
     });
 
     expect(events).toContain("hidden");
+  });
+
+  test("Ctrl+K offers store plugins you don't have and opens the app on one", async () => {
+    const listing = {
+      items: [
+        { slug: "ranked-tracker", name: "Ranked Tracker", tags: ["ranked"] },
+        { slug: "queue-alerts", name: "Queue Alerts", tags: ["queue"] },
+      ],
+    };
+    const { calls, window } = createPreloadWindow({
+      storeNative: true,
+      plugins: ["ranked-tracker/index.js"],
+      fetchImpl: () => Promise.resolve({ ok: true, json: () => Promise.resolve(listing) }),
+    });
+    window.CommandBar.show();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const actions = window.__maoloaderCommandBarActions;
+    expect(calls).toContainEqual(["fetch", "https://maoloader.com/api/plugins"]);
+    expect(actions.some((action) => action.name === "Get Ranked Tracker")).toBe(false);
+    const get = actions.find((action) => action.name === "Get Queue Alerts");
+    expect(get.hidden).toBe(true);
+    expect(get.legend).toBe("Plugin store");
+    get.perform();
+    expect(calls).toContainEqual(["OpenStorePlugin", "queue-alerts"]);
+
+    // Opening Ctrl+K again doesn't fetch or add the plugins twice.
+    window.CommandBar.show();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(calls.filter(([name, url]) => name === "fetch" && url === "https://maoloader.com/api/plugins")).toHaveLength(1);
+    expect(actions.filter((action) => action.name === "Get Queue Alerts")).toHaveLength(1);
+  });
+
+  test("Ctrl+K skips the plugin store on a core without OpenStorePlugin", async () => {
+    const { calls, window } = createPreloadWindow();
+    window.CommandBar.show();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(calls.some(([name]) => name === "fetch")).toBe(false);
+    expect(window.__maoloaderCommandBarActions.find((action) => action.name === "Browse plugins").hidden).toBe(true);
   });
 
   test("includes maoloader and lobby CommandBar default actions", async () => {

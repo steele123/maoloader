@@ -39,6 +39,7 @@ pub unsafe fn expose(context: *mut c_void) -> bool {
         "SaveDataStore",
         "OpenDevTools",
         "OpenPluginsFolder",
+        "OpenStorePlugin",
         "ReloadClient",
         "SetWindowTheme",
         "SetWindowVibrancy",
@@ -162,6 +163,16 @@ unsafe extern "system" fn handler_execute(
             unsafe { set_retval(retval, cef_types::v8_create_bool(opened)) };
             1
         }
+        "OpenStorePlugin" => {
+            let slug = if arguments_count > 0 && !arguments.is_null() {
+                unsafe { cef_types::v8_string_value(*arguments) }
+            } else {
+                None
+            };
+            let opened = slug.as_deref().is_some_and(open_store_plugin);
+            unsafe { set_retval(retval, cef_types::v8_create_bool(opened)) };
+            1
+        }
         "OpenDevTools" => {
             send_browser_message("@open-devtools");
             1
@@ -228,6 +239,33 @@ fn open_plugins_folder(subpath: Option<&str>) -> bool {
         let _ = path;
         found
     }
+}
+
+// Opens the maoloader app on a store plugin through its maoloader://install/<slug> link, the same
+// link maoloader.com uses. Only a plugin slug gets through, so nothing else can be launched.
+fn open_store_plugin(slug: &str) -> bool {
+    let Some(url) = store_plugin_link(slug) else {
+        return false;
+    };
+
+    #[cfg(windows)]
+    {
+        std::process::Command::new("explorer.exe").arg(url).spawn().is_ok()
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = url;
+        false
+    }
+}
+
+fn store_plugin_link(slug: &str) -> Option<String> {
+    let valid = !slug.is_empty()
+        && slug.len() <= 64
+        && slug.starts_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit())
+        && slug.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    valid.then(|| format!("maoloader://install/{slug}"))
 }
 
 fn plugins_folder_target(base: PathBuf, subpath: Option<&str>) -> (PathBuf, bool) {
@@ -498,6 +536,16 @@ mod tests {
             assert!(std::mem::size_of::<NativeHandler>() > std::mem::size_of::<CefV8Handler>());
             handler_release((&mut (*handler).base.base) as *mut CefBaseRefCounted);
         }
+    }
+
+    #[test]
+    fn store_plugin_link_only_accepts_plugin_slugs() {
+        assert_eq!(store_plugin_link("ranked-tracker").as_deref(), Some("maoloader://install/ranked-tracker"));
+        assert_eq!(store_plugin_link("auto-accept2").as_deref(), Some("maoloader://install/auto-accept2"));
+        for bad in ["", "-leading", "Upper", "a b", "a/b", r"a\b", "x\" & calc", "https://evil", "a.b"] {
+            assert_eq!(store_plugin_link(bad), None, "{bad:?} should be refused");
+        }
+        assert_eq!(store_plugin_link(&"a".repeat(65)), None);
     }
 
     #[test]

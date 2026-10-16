@@ -688,6 +688,15 @@
       perform: () => window.openPluginsFolder?.(),
     },
     {
+      name: "Browse plugins",
+      legend: "Plugin store",
+      tags: ["plugin", "store", "install", "get", "new"],
+      group: "maoloader",
+      hidden: typeof native.OpenStorePlugin !== "function",
+      // The bar closes after an action runs; reopen it filtered to the store's plugins.
+      perform: () => window.setTimeout(() => showCommandBar(STORE_SEARCH), 0),
+    },
+    {
       name: "Reload plugins",
       legend: "Reload client",
       tags: ["plugin", "reload"],
@@ -997,12 +1006,72 @@
     input.focus?.();
   }
 
-  function showCommandBar() {
+  function showCommandBar(search = "") {
     commandBarVisible = true;
-    commandBarSearch = "";
+    commandBarSearch = search;
     commandBarActiveIndex = 0;
     renderCommandBar();
     emitCommandBarEvent("maoloader:commandbar-show");
+    loadStoreCommands();
+  }
+
+  // ---- Plugin store in Ctrl+K ----
+  // Plugins from maoloader.com you don't have yet show up as "Get <plugin>" when you search. Picking
+  // one opens the maoloader app on that plugin through the same maoloader://install link the website
+  // uses, and you confirm the install there. Needs a core with OpenStorePlugin (maoloader 0.1.8+).
+  const STORE_URL = "https://maoloader.com/api/plugins";
+  const STORE_SEARCH = "plugin store";
+  let storeState = "idle";
+
+  async function loadStoreCommands() {
+    if (storeState !== "idle" || typeof native.OpenStorePlugin !== "function" || typeof fetch !== "function") {
+      return;
+    }
+    storeState = "loading";
+    let listing;
+    try {
+      const response = await fetch(STORE_URL);
+      if (!response.ok) {
+        throw new Error(`Plugin store request failed with ${response.status}`);
+      }
+      listing = await response.json();
+    } catch (error) {
+      console.warn("[maoloader] Plugin store unavailable.", error);
+      // Try again the next time Ctrl+K opens.
+      storeState = "idle";
+      return;
+    }
+    storeState = "loaded";
+    const installed = new Set((pengu.plugins || []).map((entry) => String(entry).split("/")[0].toLowerCase()));
+    for (const item of Array.isArray(listing?.items) ? listing.items : []) {
+      const slug = String(item?.slug || "");
+      if (!slug || installed.has(slug.toLowerCase())) {
+        continue;
+      }
+      commandActions.push({
+        name: `Get ${item.name || slug}`,
+        legend: "Plugin store",
+        group: "plugin store",
+        hidden: true,
+        tags: ["plugin", "store", "install", "get", ...(Array.isArray(item.tags) ? item.tags : []), String(item.description || "")],
+        perform: () => openStorePlugin(slug, item.name || slug),
+      });
+    }
+    renderCommandBar();
+  }
+
+  function openStorePlugin(slug, name) {
+    let opened = false;
+    try {
+      opened = native.OpenStorePlugin(slug) === true;
+    } catch (error) {
+      console.warn("[maoloader] Couldn't open the plugin store.", error);
+    }
+    if (opened) {
+      window.Toast?.info?.({ title: `Opening maoloader`, description: `Confirm installing ${name} there.` });
+    } else {
+      window.Toast?.error?.(`Couldn't open maoloader. Install ${name} from the maoloader app or maoloader.com.`);
+    }
   }
 
   if (typeof window.addEventListener === "function") {
@@ -1068,48 +1137,40 @@
 
   let toastRoot;
 
-  const toastVisuals = {
-    info: {
-      icon: "i",
-      accent: "#3f6f9f",
-      background: "#f7fbff",
-      border: "rgba(63,111,159,.24)",
-      iconBackground: "rgba(63,111,159,.12)",
-      iconColor: "#254f7d",
-    },
-    success: {
-      icon: "✓",
-      accent: "#2f7d55",
-      background: "#f7fcf9",
-      border: "rgba(47,125,85,.24)",
-      iconBackground: "rgba(47,125,85,.12)",
-      iconColor: "#245f3f",
-    },
-    warning: {
-      icon: "!",
-      accent: "#9a6a1f",
-      background: "#fffaf1",
-      border: "rgba(154,106,31,.28)",
-      iconBackground: "rgba(154,106,31,.13)",
-      iconColor: "#7a5217",
-    },
-    error: {
-      icon: "!",
-      accent: "#9c3838",
-      background: "#fff8f8",
-      border: "rgba(156,56,56,.26)",
-      iconBackground: "rgba(156,56,56,.12)",
-      iconColor: "#833030",
-    },
-    loading: {
-      icon: "",
-      accent: "#4c5968",
-      background: "#fbfcfd",
-      border: "rgba(76,89,104,.22)",
-      iconBackground: "rgba(76,89,104,.10)",
-      iconColor: "#354252",
-    },
+  // Small line icons, drawn in the toast's accent colour.
+  const toastIconPaths = {
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.01"/>',
+    success: '<path d="M5 12.5l4.2 4.2L19 7"/>',
+    warning: '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.01"/>',
+    error: '<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>',
   };
+  const toastVisuals = {
+    info: { accent: "#6aa9ff", soft: "rgba(106,169,255,.14)", line: "rgba(106,169,255,.42)" },
+    success: { accent: "#4fd18b", soft: "rgba(79,209,139,.14)", line: "rgba(79,209,139,.42)" },
+    warning: { accent: "#f2b84b", soft: "rgba(242,184,75,.14)", line: "rgba(242,184,75,.45)" },
+    error: { accent: "#ff6b6b", soft: "rgba(255,107,107,.14)", line: "rgba(255,107,107,.45)" },
+    loading: { accent: "#9aa6b2", soft: "rgba(154,166,178,.14)", line: "rgba(154,166,178,.4)" },
+  };
+  // Dark glass cards, quiet text, and the client's body font (so a theme's font applies here too).
+  const TOAST_STYLES = [
+    "@keyframes maoloader-toast-spin{to{transform:rotate(360deg)}}",
+    "@keyframes maoloader-toast-progress{from{transform:scaleX(1)}to{transform:scaleX(0)}}",
+    "@keyframes maoloader-toast-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}",
+    ".maoloader-toast{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;box-sizing:border-box;width:100%;overflow:hidden;padding:11px 8px 12px 12px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(13,18,27,.94);backdrop-filter:blur(14px) saturate(1.15);box-shadow:0 12px 32px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.04);color:#eef2f6;font:13px/1.4 var(--font-body,system-ui),system-ui,-apple-system,'Segoe UI',sans-serif;letter-spacing:0;pointer-events:auto;animation:maoloader-toast-in .22s cubic-bezier(.2,.8,.2,1);transition:opacity .16s ease,transform .16s ease}",
+    ".maoloader-toast.is-leaving{opacity:0;transform:translateY(6px)}",
+    ".maoloader-toast-icon{display:grid;place-items:center;width:22px;height:22px;border-radius:7px;background:var(--toast-soft);color:var(--toast-accent)}",
+    ".maoloader-toast-icon svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}",
+    ".maoloader-toast-spinner{width:12px;height:12px;border:2px solid var(--toast-soft);border-top-color:var(--toast-accent);border-radius:999px;animation:maoloader-toast-spin .8s linear infinite}",
+    ".maoloader-toast-body{display:grid;gap:2px;min-width:0;padding-top:2px}",
+    ".maoloader-toast-title{color:#f3f6f9;font-weight:600;overflow-wrap:anywhere}",
+    ".maoloader-toast-text{color:#98a3ae;font-size:12px;overflow-wrap:anywhere}",
+    ".maoloader-toast-action{justify-self:start;margin-top:7px;padding:5px 10px;border:1px solid var(--toast-line);border-radius:6px;background:var(--toast-soft);color:#f3f6f9;font:600 12px/1.2 inherit;cursor:pointer;transition:background .12s ease}",
+    ".maoloader-toast-action:hover{background:var(--toast-line)}",
+    ".maoloader-toast-close{display:grid;place-items:center;width:22px;height:22px;padding:0;border:0;border-radius:6px;background:transparent;color:#6f7b87;font:400 17px/1 system-ui,sans-serif;cursor:pointer;transition:color .12s ease,background .12s ease}",
+    ".maoloader-toast-close:hover{color:#eef2f6;background:rgba(255,255,255,.07)}",
+    ".maoloader-toast-progress{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--toast-accent);opacity:.35;transform-origin:left center}",
+    ".maoloader-toast:hover .maoloader-toast-progress{animation-play-state:paused}",
+  ].join("");
   const MAOLOADER_ICON_URL =
     "https://raw.githubusercontent.com/steele123/maoloader/main/app/static/maologo-icon.png";
 
@@ -1125,11 +1186,10 @@
     const renderRoot = toastRoot?.__maoloaderShadowRoot || toastRoot;
     if (renderRoot && !toastRoot.__maoloaderToastStack) {
       const style = document.createElement("style");
-      style.textContent =
-        "@keyframes maoloader-toast-spin{to{transform:rotate(360deg)}}@keyframes maoloader-toast-progress{from{transform:scaleX(1)}to{transform:scaleX(0)}}";
+      style.textContent = TOAST_STYLES;
       renderRoot.appendChild(style);
       const stack = document.createElement("div");
-      stack.style.cssText = "display:flex;flex-direction:column;gap:10px;pointer-events:none;width:min(380px,calc(100vw - 32px));";
+      stack.style.cssText = "display:flex;flex-direction:column;gap:8px;pointer-events:none;width:min(360px,calc(100vw - 32px));";
       renderRoot.appendChild(stack);
       toastRoot.__maoloaderToastStack = stack;
     }
@@ -1178,22 +1238,26 @@
   }
 
   function removeToast(toast) {
-    if (!toast) {
+    if (!toast || toast.__maoloaderLeaving) {
       return;
     }
 
-    toast.style.opacity = "0";
-    toast.style.transform = "translateY(4px)";
+    toast.__maoloaderLeaving = true;
+    clearToastTimer(toast);
+    toast.classList?.add?.("is-leaving");
     toast.style.pointerEvents = "none";
-    toast.remove?.();
-    if (toast.parentNode?.removeChild) {
-      toast.parentNode.removeChild(toast);
-    }
-    const stack = toastRoot?.__maoloaderToastStack;
-    if (toastRoot && (!stack || stack.children?.length === 0)) {
-      toastRoot.remove?.();
-      toastRoot = undefined;
-    }
+    // Out of the stack once the fade has played.
+    setTimeout(() => {
+      toast.remove?.();
+      if (toast.parentNode?.removeChild) {
+        toast.parentNode.removeChild(toast);
+      }
+      const stack = toastRoot?.__maoloaderToastStack;
+      if (toastRoot && (!stack || stack.children?.length === 0)) {
+        toastRoot.remove?.();
+        toastRoot = undefined;
+      }
+    }, 160);
   }
 
   function scheduleToastRemoval(toast, duration) {
@@ -1216,18 +1280,17 @@
     }
   }
 
-  function toastIcon(kind, visual) {
+  function toastIcon(kind) {
     if (kind === "loading") {
       const spinner = document.createElement("span");
-      spinner.style.cssText =
-        "width:14px;height:14px;border:2px solid rgba(76,89,104,.22);border-top-color:#4c5968;border-radius:999px;animation:maoloader-toast-spin .8s linear infinite;";
+      spinner.className = "maoloader-toast-spinner";
       return spinner;
     }
 
-    const icon = document.createElement("span");
-    icon.textContent = visual.icon;
-    icon.style.cssText =
-      "display:grid;place-items:center;width:18px;height:18px;border-radius:999px;font:700 12px/1 system-ui,sans-serif;";
+    const icon = document.createElementNS?.("http://www.w3.org/2000/svg", "svg") || document.createElement("span");
+    icon.setAttribute?.("viewBox", "0 0 24 24");
+    icon.setAttribute?.("aria-hidden", "true");
+    icon.innerHTML = toastIconPaths[kind] || toastIconPaths.info;
     return icon;
   }
 
@@ -1235,39 +1298,32 @@
     const visual = toastVisuals[kind] || toastVisuals.info;
     toast.className = `maoloader-toast maoloader-toast-${kind}`;
     toast.textContent = "";
-    toast.style.cssText =
-      `position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:flex-start;` +
-      `width:100%;box-sizing:border-box;overflow:hidden;border:1px solid ${visual.border};border-left:4px solid ${visual.accent};` +
-      `border-radius:8px;background:${visual.background};color:#141d26;box-shadow:0 18px 42px rgba(20,29,38,.20);` +
-      "padding:12px 10px 12px 12px;font:13px/1.4 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;pointer-events:auto;transition:opacity .14s ease,transform .14s ease;";
+    toast.style.cssText = `--toast-accent:${visual.accent};--toast-soft:${visual.soft};--toast-line:${visual.line};`;
 
     const iconWrap = document.createElement("div");
-    iconWrap.style.cssText =
-      `display:grid;place-items:center;width:26px;height:26px;border-radius:999px;background:${visual.iconBackground};color:${visual.iconColor};margin-top:1px;`;
-    iconWrap.appendChild(toastIcon(kind, visual));
+    iconWrap.className = "maoloader-toast-icon";
+    iconWrap.appendChild(toastIcon(kind));
 
     const body = document.createElement("div");
-    body.style.cssText = "display:grid;gap:2px;min-width:0;";
+    body.className = "maoloader-toast-body";
 
     const title = document.createElement("strong");
+    title.className = "maoloader-toast-title";
     title.textContent = String(normalized.title || normalized.text || "");
-    title.style.cssText = "display:block;color:#141d26;font-size:13px;font-weight:800;overflow-wrap:anywhere;";
     body.appendChild(title);
 
     if (normalized.title && normalized.text && normalized.text !== normalized.title) {
       const description = document.createElement("span");
+      description.className = "maoloader-toast-text";
       description.textContent = String(normalized.text);
-      description.style.cssText = "display:block;color:#617082;font-size:12px;overflow-wrap:anywhere;";
       body.appendChild(description);
     }
 
     if (normalized.action && typeof normalized.action === "object" && normalized.action.label) {
       const action = document.createElement("button");
       action.type = "button";
+      action.className = "maoloader-toast-action";
       action.textContent = String(normalized.action.label);
-      action.style.cssText =
-        `justify-self:start;margin-top:6px;border:1px solid ${visual.border};border-radius:7px;background:#fff;color:${visual.iconColor};` +
-        "cursor:pointer;font:800 12px/1 system-ui,sans-serif;padding:7px 9px;";
       action.onclick = (event) => {
         event.preventDefault?.();
         event.stopPropagation?.();
@@ -1281,10 +1337,9 @@
 
     const close = document.createElement("button");
     close.type = "button";
+    close.className = "maoloader-toast-close";
     close.setAttribute?.("aria-label", "Dismiss toast");
     close.textContent = "×";
-    close.style.cssText =
-      "width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:#6a7888;cursor:pointer;font:700 18px/1 system-ui,sans-serif;";
     close.onclick = (event) => {
       event.preventDefault?.();
       event.stopPropagation?.();
@@ -1297,8 +1352,8 @@
 
     if (Number.isFinite(normalized.duration) && normalized.duration > 0) {
       const progress = document.createElement("div");
-      progress.style.cssText =
-        `position:absolute;left:0;right:0;bottom:0;height:2px;background:${visual.accent};opacity:.55;transform-origin:left center;animation:maoloader-toast-progress ${normalized.duration}ms linear forwards;`;
+      progress.className = "maoloader-toast-progress";
+      progress.style.cssText = `animation:maoloader-toast-progress ${normalized.duration}ms linear forwards;`;
       toast.appendChild(progress);
     }
 

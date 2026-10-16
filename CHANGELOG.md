@@ -7,6 +7,14 @@ Every release needs a section here before it can be published: `scripts/package-
 uses it as the release notes that the app's updater and maoloader.com show. Write for players,
 newest first, as `## <version> - <yyyy-mm-dd>`.
 
+## 0.1.8 - 2026-10-16
+
+### New
+- **Plugin store in Ctrl+K**: type `get` or `plugin`, or run **Browse plugins**, to see store plugins you don't have yet. Picking one opens maoloader on that plugin, where you confirm the install.
+
+### Changed
+- Cleaner notifications: dark cards that fit the client, with small tinted icons, quieter text, and a gentle slide in and fade out. They use your theme's font when you pick one in Steele's UI.
+
 ## 0.1.7 - 2026-10-15
 
 ### New
