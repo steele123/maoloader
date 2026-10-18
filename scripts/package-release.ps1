@@ -5,7 +5,11 @@ param(
     [switch]$SkipBuild,
     [switch]$NoUpload,
     [switch]$Local,
-    [switch]$FlatDownloadUrls
+    [switch]$FlatDownloadUrls,
+    # More Tauri config files merged over the release config, like release-signed.ps1's signCommand.
+    [string[]]$ExtraConfig = @(),
+    # Stop before uploading unless the installer, maoloader.exe and core.dll are all code-signed.
+    [switch]$RequireAuthenticode
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,7 +68,13 @@ if (-not $SkipBuild) {
 
     Push-Location $appDir
     try {
-        bun tauri build --config src-tauri/tauri.release.conf.json
+        $configArgs = @("--config", "src-tauri/tauri.release.conf.json")
+        foreach ($config in $ExtraConfig) { $configArgs += @("--config", $config) }
+        # Bun and cargo print progress on stderr, which Windows PowerShell turns into errors when the
+        # output is captured; judge the build by its exit code instead.
+        $ErrorActionPreference = "Continue"
+        bun tauri build @configArgs
+        $ErrorActionPreference = "Stop"
         if ($LASTEXITCODE) {
             throw "tauri build failed with exit code $LASTEXITCODE."
         }
@@ -90,6 +100,29 @@ if (-not $installer) {
 # An older build left in the bundle folder must never be published under the new version.
 if ($installer.Name -notmatch "_$([regex]::Escape($Version))_") {
     throw "Newest installer $($installer.Name) is not version $Version. Rebuild before packaging."
+}
+
+if ($RequireAuthenticode) {
+    # Tauri signs a copy of maoloader.exe for each installer and leaves the one in target\release
+    # unsigned, so check the copies the MSI carries. "msiexec /a" only unpacks; nothing is installed.
+    $msi = Get-ChildItem -Path $msiDir -Filter "*_$($Version)_*.msi" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $msi) { throw "No $Version MSI to check the bundled files in; nothing was uploaded." }
+    $unpacked = Join-Path $env:TEMP "maoloader-msi-check"
+    Remove-Item -LiteralPath $unpacked -Recurse -Force -ErrorAction SilentlyContinue
+    $msiexec = Start-Process msiexec.exe -ArgumentList "/a `"$($msi.FullName)`" /qn TARGETDIR=`"$unpacked`"" -Wait -PassThru
+    if ($msiexec.ExitCode) { throw "Couldn't unpack $($msi.Name) to check it (msiexec exit $($msiexec.ExitCode)); nothing was uploaded." }
+    $bundled = Get-ChildItem -Path $unpacked -Recurse -File -Include "maoloader.exe", "core.dll"
+    if (@($bundled).Count -lt 2) { throw "maoloader.exe or core.dll is missing from $($msi.Name); nothing was uploaded." }
+
+    $signed = @($installer.FullName, $msi.FullName) + @($bundled | ForEach-Object { $_.FullName })
+    foreach ($path in $signed) {
+        $authenticode = Get-AuthenticodeSignature -LiteralPath $path
+        if ($authenticode.Status -ne "Valid") {
+            throw "$([IO.Path]::GetFileName($path)) is not code-signed ($($authenticode.Status)); nothing was uploaded."
+        }
+        Write-Output "  $([IO.Path]::GetFileName($path)): signed by $($authenticode.SignerCertificate.Subject)"
+    }
+    Remove-Item -LiteralPath $unpacked -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 $signaturePath = "$($installer.FullName).sig"
@@ -155,7 +188,9 @@ try {
         @{ Key = "releases/maoloader/latest.json"; File = $latestPath }
     )
     foreach ($upload in $uploads) {
+        $ErrorActionPreference = "Continue"
         bunx wrangler r2 object put "$BucketName/$($upload.Key)" --file "$($upload.File)" $target
+        $ErrorActionPreference = "Stop"
         if ($LASTEXITCODE) {
             throw "Uploading $($upload.Key) failed with exit code $LASTEXITCODE."
         }

@@ -97,6 +97,17 @@ finally {
 }
 
 $source = Join-Path $repo "dll\target\$profile\core.dll"
+
+# A signed release (scripts/release-signed.ps1) signs core.dll before it's copied into the app, so
+# the installer ships the signed DLL that gets loaded into League.
+$signing = $Release -and $env:MAOLOADER_SIGNING_METADATA
+if ($signing) {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "sign-file.ps1") $source
+    if ($LASTEXITCODE) {
+        throw "Signing core.dll failed with exit code $LASTEXITCODE."
+    }
+}
+
 $destinations = @(
     (Join-Path $repo "app\src-tauri\bin\core.dll"),
     (Join-Path $repo "app\bin\core.dll")
@@ -111,6 +122,11 @@ foreach ($dest in $destinations) {
     } else {
         $skipped += 1
     }
+}
+
+if ($signing -and $skipped -gt 0) {
+    # Otherwise the installer would bundle the old, unsigned core.dll.
+    throw "Signed core.dll couldn't be copied to $skipped locked destination(s). Close League and maoloader, then run the release again."
 }
 
 if ($skipped -gt 0) {

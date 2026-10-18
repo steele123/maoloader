@@ -1,6 +1,6 @@
 [package]
 name = "maoloader"
-version = "0.1.8"
+version = "0.1.9"
 description = "Desktop shell for maoloader"
 authors = ["steel"]
 edition = "2021"

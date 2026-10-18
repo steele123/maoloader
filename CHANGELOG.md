@@ -7,6 +7,11 @@ Every release needs a section here before it can be published: `scripts/package-
 uses it as the release notes that the app's updater and maoloader.com show. Write for players,
 newest first, as `## <version> - <yyyy-mm-dd>`.
 
+## 0.1.9 - 2026-10-18
+
+### Changed
+- maoloader is now code-signed by a verified publisher (Steele Scott): the app, its installer and the part it loads into the League client. Windows SmartScreen and antivirus programs should warn about it less often, and Windows shows who made it when you install.
+
 ## 0.1.8 - 2026-10-16
 
 ### New
