@@ -163,6 +163,19 @@
 								{:else}
 									<span class="pill is-new">new</span>
 								{/if}
+								{#if listing.assets.screenshots?.length}
+									<!-- Uploads are only served to reviewers until they're approved. -->
+									<span class="review-shots">
+										{#each listing.assets.screenshots as shot, index}
+											{@const src = shot.url?.startsWith("/api/")
+												? `/api/admin/submissions/${submission.id}/screenshots/${listing.slug}/${index + 1}`
+												: shot.url}
+											<a href={src} target="_blank" rel="noreferrer" title={shot.caption ?? `Screenshot ${index + 1}`}>
+												<img {src} alt={shot.caption ?? ""} loading="lazy" />
+											</a>
+										{/each}
+									</span>
+								{/if}
 							</li>
 						{/each}
 					</ul>

@@ -85,6 +85,24 @@ export function readPackageIcon(zip: PackageZip, path: string | undefined) {
 	return data ? { data, type, extension: path.split(".").pop()!.toLowerCase() } : undefined;
 }
 
+export const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
+
+export function readPackageScreenshot(zip: PackageZip, path: string) {
+	const data = zip.readFile(path, MAX_SCREENSHOT_BYTES);
+	const image = data && sniffImage(data);
+	return image ? { data, ...image } : undefined;
+}
+
+/** The image type from a file's first bytes, so a renamed file can't pass as a picture. */
+export function sniffImage(data: Uint8Array): { type: string; extension: string } | undefined {
+	const starts = (bytes: number[], offset = 0) => bytes.every((byte, index) => data[offset + index] === byte);
+	if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return { type: "image/png", extension: "png" };
+	if (starts([0xff, 0xd8, 0xff])) return { type: "image/jpeg", extension: "jpg" };
+	if (starts([0x47, 0x49, 0x46, 0x38])) return { type: "image/gif", extension: "gif" };
+	if (starts([0x52, 0x49, 0x46, 0x46]) && starts([0x57, 0x45, 0x42, 0x50], 8)) return { type: "image/webp", extension: "webp" };
+	return undefined;
+}
+
 function imageType(path: string) {
 	const extension = path.split(".").pop()?.toLowerCase();
 	return (

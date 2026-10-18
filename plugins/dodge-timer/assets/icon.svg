@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="dodgetimer-title">
+  <title id="dodgetimer-title">Dodge Timer</title>
+  <defs>
+    <linearGradient id="dodgetimer-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#132636"/>
+      <stop offset="1" stop-color="#07111b"/>
+    </linearGradient>
+    <radialGradient id="dodgetimer-glow" cx="0.5" cy="0.4" r="0.62">
+      <stop offset="0" stop-color="#e84057" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#e84057" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="dodgetimer-rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8aa6e" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#c8aa6e" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#dodgetimer-bg)"/>
+  <rect width="64" height="64" rx="14" fill="url(#dodgetimer-glow)"/>
+  <rect x="1" y="1" width="62" height="62" rx="13" fill="none" stroke="url(#dodgetimer-rim)" stroke-width="2"/>
+  <path d="M26 12h12M32 12v5" stroke="#c8aa6e" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="32" cy="35" r="16" fill="none" stroke="#f0e6d2" stroke-width="3.2"/>
+  <path d="M32 35V25.5A9.5 9.5 0 0 1 41.5 35z" fill="#e84057" fill-opacity="0.85"/>
+  <path d="M32 35v-8M32 35l5 4" stroke="#f0e6d2" stroke-width="3" stroke-linecap="round"/>
+</svg>

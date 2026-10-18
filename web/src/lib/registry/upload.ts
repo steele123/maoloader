@@ -1,7 +1,16 @@
 import { createSubmission, publishListing } from "./admin";
 import { listingFromParsedForm, parseListingForm, stringField } from "./forms";
-import { listingsFromPackage } from "./manifest";
-import { MAX_PACKAGE_BYTES, readPackageIcon, readPackageZip, wrapPackageZip } from "./package-zip";
+import { listingsFromPackage, SCREENSHOT_LIMIT } from "./manifest";
+import {
+	MAX_PACKAGE_BYTES,
+	MAX_SCREENSHOT_BYTES,
+	readPackageIcon,
+	readPackageScreenshot,
+	readPackageZip,
+	sniffImage,
+	wrapPackageZip,
+	type PackageZip
+} from "./package-zip";
 import { getListing } from "./store";
 import type { RegistryAsset, RegistryListing, RegistrySubmission } from "./types";
 
@@ -131,6 +140,12 @@ export async function submitPackageZip(
 		now
 	);
 
+	// Images picked on the form, besides any the zip's maoloader.json lists.
+	const attached = await attachedScreenshots(form);
+	if (attached.length && listings.length > 1) {
+		throw new Error("This zip has several plugins. List each one's screenshots in its maoloader.json entry instead.");
+	}
+
 	const id = crypto.randomUUID();
 	const base = `submissions/${id}`;
 	const packageKey = `${base}/package.zip`;
@@ -152,6 +167,7 @@ export async function submitPackageZip(
 			await env.PLUGIN_BUCKET.put(key, icon.data, { httpMetadata: { contentType: icon.type } });
 			listing.assets.icon = { key, url: `/api/plugins/${listing.slug}/icon`, size: icon.data.byteLength };
 		}
+		listing.assets.screenshots = await storeScreenshots(env.PLUGIN_BUCKET, zip, listing, base, attached);
 		const existing = await getListing(listing.slug, platform);
 		summary.push({
 			slug: listing.slug,
@@ -180,6 +196,53 @@ export async function submitPackageZip(
 		submissionId: id,
 		listings: summary
 	};
+}
+
+type Image = { data: Uint8Array; type: string; extension: string; caption?: string };
+
+async function attachedScreenshots(form: FormData): Promise<Image[]> {
+	const files = form.getAll("screenshots").filter((value): value is File => value instanceof File && value.size > 0);
+	if (files.length > SCREENSHOT_LIMIT) throw new Error(`Attach up to ${SCREENSHOT_LIMIT} screenshots.`);
+	const images: Image[] = [];
+	for (const file of files) {
+		if (file.size > MAX_SCREENSHOT_BYTES) throw new Error(`${file.name} is over 5 MB.`);
+		const data = new Uint8Array(await file.arrayBuffer());
+		const image = sniffImage(data);
+		if (!image) throw new Error(`${file.name} isn't a PNG, JPG, WebP or GIF image.`);
+		images.push({ data, ...image });
+	}
+	return images;
+}
+
+/** Stores the zip's listed screenshots, then any attached ones, and returns them served from R2. */
+async function storeScreenshots(
+	bucket: R2Bucket,
+	zip: PackageZip,
+	listing: RegistryListing,
+	base: string,
+	attached: Image[]
+): Promise<RegistryAsset[]> {
+	const images: Image[] = [];
+	for (const shot of listing.assets.screenshots ?? []) {
+		const image = readPackageScreenshot(zip, shot.key);
+		if (!image) throw new Error(`${shot.key} isn't a PNG, JPG, WebP or GIF image of 5 MB or less.`);
+		images.push({ ...image, caption: shot.caption });
+	}
+	images.push(...attached);
+	if (images.length > SCREENSHOT_LIMIT) throw new Error(`${listing.name} can have up to ${SCREENSHOT_LIMIT} screenshots.`);
+
+	const stored: RegistryAsset[] = [];
+	for (const [index, image] of images.entries()) {
+		const key = `${base}/${listing.slug}-screenshot-${index + 1}.${image.extension}`;
+		await bucket.put(key, image.data, { httpMetadata: { contentType: image.type } });
+		stored.push({
+			key,
+			url: `/api/plugins/${listing.slug}/screenshots/${index + 1}`,
+			size: image.data.byteLength,
+			caption: image.caption
+		});
+	}
+	return stored;
 }
 
 async function sha256Hex(bytes: Uint8Array<ArrayBuffer>) {

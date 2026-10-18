@@ -10,8 +10,8 @@
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
 	import { Textarea } from "$lib/components/ui/textarea";
-	import { listingsFromPackage, type PackageFields } from "$lib/registry/manifest";
-	import { MAX_PACKAGE_BYTES, readPackageZip, type PackageZip } from "$lib/registry/package-zip";
+	import { listingsFromPackage, SCREENSHOT_LIMIT, type PackageFields } from "$lib/registry/manifest";
+	import { MAX_PACKAGE_BYTES, MAX_SCREENSHOT_BYTES, readPackageZip, type PackageZip } from "$lib/registry/package-zip";
 	import type { SubmitFunction } from "@sveltejs/kit";
 	import type { ActionData, PageData } from "./$types";
 
@@ -38,6 +38,24 @@
 		}
 	});
 	const needsFields = $derived(Boolean(zip && !zip.manifestText));
+	const listedShots = $derived(
+		preview?.listings?.reduce((total, listing) => total + (listing.assets.screenshots?.length ?? 0), 0) ?? 0
+	);
+
+	// Screenshots picked on the form, checked here so problems show before sending.
+	let shotPreviews: string[] = $state([]);
+	let shotError = $state("");
+	function useShots(files: FileList | null) {
+		for (const url of shotPreviews) URL.revokeObjectURL(url);
+		const picked = [...(files ?? [])];
+		shotError =
+			picked.length > SCREENSHOT_LIMIT - listedShots
+				? `Pick up to ${SCREENSHOT_LIMIT - listedShots} screenshots.`
+				: picked.find((file) => file.size > MAX_SCREENSHOT_BYTES)
+					? "Each screenshot must be 5 MB or smaller."
+					: "";
+		shotPreviews = shotError ? [] : picked.map((file) => URL.createObjectURL(file));
+	}
 
 	async function useFile(file: File | undefined) {
 		zip = undefined;
@@ -80,6 +98,7 @@
 				zip = undefined;
 				fileName = "";
 				fields = { kind: "plugin" };
+				useShots(null);
 			}
 		};
 	};
@@ -194,6 +213,11 @@
 							</li>
 						{/each}
 					{/if}
+					{#if listedShots}
+						<li class="check-line">
+							<CircleCheckIcon />Found {listedShots} screenshot{listedShots === 1 ? "" : "s"} in maoloader.json
+						</li>
+					{/if}
 					{#if preview?.error && !needsFields}
 						<li class="check-line is-bad"><CircleAlertIcon />{preview.error}</li>
 					{/if}
@@ -249,6 +273,34 @@
 				</div>
 			{/if}
 
+			{#if zip && preview?.listings?.length === 1}
+				<div class="form-grid">
+					<Label class="wide">
+						<span>Screenshots</span>
+						<input
+							class="shot-input"
+							name="screenshots"
+							type="file"
+							accept="image/png,image/jpeg,image/webp,image/gif"
+							multiple
+							onchange={(event) => useShots(event.currentTarget.files)}
+						/>
+						<small>
+							Optional. Up to {SCREENSHOT_LIMIT - listedShots} PNG, JPG, WebP or GIF images, 5 MB each, shown
+							at the top of the plugin page. Crop to what the plugin changes, and hide other players' names.
+						</small>
+					</Label>
+				</div>
+				{#if shotError}
+					<p class="check-line is-bad"><CircleAlertIcon />{shotError}</p>
+				{/if}
+				{#if shotPreviews.length}
+					<div class="shot-previews">
+						{#each shotPreviews as src}<img {src} alt="" />{/each}
+					</div>
+				{/if}
+			{/if}
+
 			<div class="form-grid">
 				<Label class="wide">
 					<span>Notes for the reviewer</span>
@@ -257,7 +309,7 @@
 			</div>
 
 			<div class="form-actions">
-				<Button type="submit" disabled={!data.canUpload || !preview?.listings || sending}>
+				<Button type="submit" disabled={!data.canUpload || !preview?.listings || !!shotError || sending}>
 					{#if sending}<LoaderCircleIcon class="spin" />Sending…{:else}<UploadIcon />Submit for review{/if}
 				</Button>
 			</div>

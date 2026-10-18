@@ -275,7 +275,7 @@
             (friend) => `
               <label class="friend-row">
                 <input type="checkbox" data-friend="${escapeHtml(friendKey(friend))}" ${watched.includes(friendKey(friend)) ? "checked" : ""} />
-                <span class="friend-name">${escapeHtml(friendName(friend))}${friend.gameTag ? `<small>#${escapeHtml(friend.gameTag)}</small>` : ""}</span>
+                <span class="friend-name">${escapeHtml(friendName(friend))}${friend.gameTag && !streaming() ? `<small>#${escapeHtml(friend.gameTag)}</small>` : ""}</span>
                 <span class="friend-status ${isOnline(friend) ? "is-online" : ""}">${statusLabel(friend)}</span>
               </label>`,
           )

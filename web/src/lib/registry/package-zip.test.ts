@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import { strToU8, zipSync } from "fflate";
 import { listingsFromPackage } from "./manifest";
-import { readPackageZip } from "./package-zip";
+import { readPackageScreenshot, readPackageZip, sniffImage } from "./package-zip";
 
 const now = "2026-10-15T00:00:00.000Z";
 const zip = (files: Record<string, string | Uint8Array>) =>
@@ -75,5 +75,34 @@ describe("wrapPackageZip", () => {
 		expect(wrapped.root).toBe("my-plugin/");
 		expect(wrapped.files.sort()).toEqual(["index.js", "lib/a.js"]);
 		expect(new TextDecoder().decode(wrapped.readFile("lib/a.js"))).toBe("y");
+	});
+});
+
+describe("screenshots in a zip", () => {
+	const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+	const manifest = (screenshots: unknown) =>
+		JSON.stringify({
+			author: "steel",
+			plugins: [{ slug: "one", title: "One", version: "1.0.0", description: "d", entry: "index.js", screenshots }]
+		});
+
+	test("keeps the listed paths and captions for the upload to store", () => {
+		const read = readPackageZip(zip({ "maoloader.json": manifest([{ path: "media/a.png", caption: "The lobby" }]), "index.js": "x", "media/a.png": png }));
+		const [listing] = listingsFromPackage(read, {}, now);
+		expect(listing.assets.screenshots).toEqual([{ key: "media/a.png", caption: "The lobby" }]);
+		expect(readPackageScreenshot(read, "media/a.png")?.type).toBe("image/png");
+	});
+
+	test("needs every listed image to be in the zip", () => {
+		const read = readPackageZip(zip({ "maoloader.json": manifest(["media/missing.png"]), "index.js": "x" }));
+		expect(() => listingsFromPackage(read, {}, now)).toThrow("doesn't contain it");
+	});
+
+	test("goes by the file's bytes, not its name", () => {
+		expect(sniffImage(png)?.extension).toBe("png");
+		expect(sniffImage(strToU8("RIFF\0\0\0\0WEBPVP8 "))?.type).toBe("image/webp");
+		expect(sniffImage(strToU8("<html><script>"))).toBeUndefined();
+		const read = readPackageZip(zip({ "index.js": "x", "fake.png": "<svg onload=alert(1)>" }));
+		expect(readPackageScreenshot(read, "fake.png")).toBeUndefined();
 	});
 });

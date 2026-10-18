@@ -165,6 +165,13 @@ export function listingsFromPackage(zip: PackageZip, fields: PackageFields, now:
 		};
 		listing.readme = zipDoc("README.md") ?? (single ? zip.readme : undefined);
 		listing.changelog = zipDoc("CHANGELOG.md");
+		// Paths inside the zip for now; the upload stores each image and swaps in its own address.
+		listing.assets.screenshots = screenshotEntries((entry as ManifestPlugin).screenshots, listing.slug);
+		for (const shot of listing.assets.screenshots) {
+			if (!zip.files.includes(shot.key)) {
+				throw new Error(`"${listing.name}" lists the screenshot ${shot.key}, but the zip doesn't contain it.`);
+			}
+		}
 		return listing;
 	});
 	assertUniqueSlugs(listings);
@@ -258,7 +265,7 @@ function listingFromManifestPlugin(
 	};
 }
 
-const SCREENSHOT_LIMIT = 8;
+export const SCREENSHOT_LIMIT = 8;
 const SCREENSHOT_TYPES = /\.(png|jpe?g|webp|gif)$/i;
 
 /**
@@ -267,6 +274,11 @@ const SCREENSHOT_TYPES = /\.(png|jpe?g|webp|gif)$/i;
  * (and are better left out, so installs stay small).
  */
 export function manifestScreenshots(value: unknown, repository: string, ref: string, slug: string): RegistryAsset[] {
+	return screenshotEntries(value, slug).map((shot) => ({ ...shot, url: rawGitHubUrl(repository, ref, shot.key) }));
+}
+
+/** Checks a "screenshots" list and returns each image's path (as `key`) and caption. */
+export function screenshotEntries(value: unknown, slug: string): RegistryAsset[] {
 	if (value === undefined) return [];
 	if (!Array.isArray(value)) throw new Error(`Plugin "${slug}": screenshots must be a list.`);
 	if (value.length > SCREENSHOT_LIMIT) throw new Error(`Plugin "${slug}": up to ${SCREENSHOT_LIMIT} screenshots.`);
@@ -276,7 +288,7 @@ export function manifestScreenshots(value: unknown, repository: string, ref: str
 		if (!path || path.includes("..") || path.startsWith("/") || path.includes("\\") || !SCREENSHOT_TYPES.test(path)) {
 			throw new Error(`Plugin "${slug}": screenshot "${path}" must be a .png, .jpg, .webp or .gif path inside the repo.`);
 		}
-		return { key: path, url: rawGitHubUrl(repository, ref, path), caption: caption || undefined };
+		return { key: path, caption: caption || undefined };
 	});
 }
 

@@ -199,7 +199,13 @@
         "offline",
         "utility"
       ],
-      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/chat-status"
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/chat-status",
+      "screenshots": [
+        {
+          "path": "media/plugins/chat-status/settings.webp",
+          "caption": "Appear online, away, mobile or offline, and set, save or rotate status messages"
+        }
+      ]
     },
     {
       "slug": "session-tracker",
@@ -274,7 +280,7 @@
     {
       "slug": "friend-alerts",
       "title": "Friend Alerts",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "description": "Toasts when chosen friends come online or finish a game, with a quick invite while you're in a lobby.",
       "image": "plugins/friend-alerts/assets/icon.svg",
       "entry": "plugins/friend-alerts/index.js",
@@ -290,7 +296,17 @@
         "social",
         "utility"
       ],
-      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/friend-alerts"
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/friend-alerts",
+      "screenshots": [
+        {
+          "path": "media/plugins/friend-alerts/toasts.webp",
+          "caption": "A toast when a friend comes online or finishes a game, with Invite while you're in a lobby"
+        },
+        {
+          "path": "media/plugins/friend-alerts/settings.webp",
+          "caption": "Get alerts for chosen friends or everyone"
+        }
+      ]
     },
     {
       "slug": "lobby-tools",
@@ -366,6 +382,37 @@
         {
           "path": "media/plugins/queue-alerts/settings.webp",
           "caption": "A chime, bringing the client to the front, and phone alerts through Discord or ntfy"
+        }
+      ]
+    },
+    {
+      "slug": "dodge-timer",
+      "title": "Dodge Timer",
+      "version": "0.1.0",
+      "description": "A countdown for your champ select dodge lockout, a heads-up when you can queue again, and a reminder of how recently you dodged.",
+      "image": "plugins/dodge-timer/assets/icon.svg",
+      "entry": "plugins/dodge-timer/index.js",
+      "files": [
+        "plugins/dodge-timer/CHANGELOG.md",
+        "plugins/dodge-timer/README.md",
+        "plugins/dodge-timer/assets/icon.svg",
+        "plugins/dodge-timer/index.js"
+      ],
+      "tags": [
+        "dodge",
+        "queue",
+        "champ-select",
+        "timer"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/dodge-timer",
+      "screenshots": [
+        {
+          "path": "media/plugins/dodge-timer/countdown.webp",
+          "caption": "A countdown next to Play while you can't queue"
+        },
+        {
+          "path": "media/plugins/dodge-timer/history.webp",
+          "caption": "Time left, and how many times you've dodged lately (example data)"
         }
       ]
     },

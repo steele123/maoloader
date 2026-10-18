@@ -1,5 +1,10 @@
 # Friend Alerts changelog
 
+## 0.2.2 - 2026-10-18
+
+### Fixed
+- With Streamer Mode on, the friends list in Friend Alerts' settings no longer shows friends' tags.
+
 ## 0.2.1 - 2026-10-18
 
 ### Changed
