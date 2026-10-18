@@ -39,6 +39,7 @@
 	<a href="#settings">Plugin settings</a>
 	<a href="#events">Live client events</a>
 	<a href="#layout">File layout</a>
+	<a href="#screenshots">Screenshots</a>
 	<a href="#multiple">Multiple plugins</a>
 	<a href="#review">Submitting</a>
 	<a href="#habits">Good habits</a>
@@ -104,6 +105,7 @@ Each item in `plugins` describes one installable plugin or theme.
 | `tags` | No | Search tags shown in the registry. |
 | `kind` | No | `plugin` or `theme`. Defaults to `plugin`. |
 | `homepage` | No | Public project or docs URL. |
+| `screenshots` | No | Up to 8 images shown on the plugin page. See [Screenshots](#screenshots). |
 
 </section>
 
@@ -229,6 +231,10 @@ your-plugin-pack/
       CHANGELOG.md
   assets/
     icon.png
+  media/
+    clean-client-tools/
+      home.webp
+      settings.webp
 ```
 
 Start each release in `CHANGELOG.md` with `## <version> - <date>`, newest first, and write it for players:
@@ -244,6 +250,39 @@ Start each release in `CHANGELOG.md` with `## <version> - <date>`, newest first,
 ```
 
 Bump `version` in `maoloader.json` to match, then submit the update the same way as the first release.
+
+</section>
+
+<section id="screenshots">
+
+## Screenshots
+
+Show what your plugin does with a few images at the top of its page. People can click one to see it full size and step through the rest with the arrow keys.
+
+Add a `screenshots` list to the plugin's entry in `maoloader.json`. Each item is a path, or a path with a caption:
+
+```json
+{
+  "slug": "clean-client-tools",
+  "title": "Clean Client Tools",
+  "version": "0.1.1",
+  "screenshots": [
+    {
+      "path": "media/clean-client-tools/home.webp",
+      "caption": "The home screen with the tools panel open"
+    },
+    "media/clean-client-tools/settings.webp"
+  ]
+}
+```
+
+- **Paths** are from the repository root, like `image`. Images are shown straight from your GitHub repo at the submitted commit, so they don't go in `files` and don't make the download bigger.
+- **Formats:** `.png`, `.jpg`, `.webp` or `.gif`. WebP keeps them small. Up to 8 per plugin.
+- **Captions** are optional, up to 140 characters, and double as the image's alt text. Say what the image shows, not what the plugin is called.
+- **Size:** capture the client at its normal size (1280×720) and crop to the part that matters. A cropped settings page or card reads better than a full screen.
+- **Hide names.** Turn on [Streamer Mode](/plugins/streamer-mode) before capturing, so your friends' names and tags stay out of public images. If you show sample data, say so in the caption.
+
+Screenshots work for plugins submitted from a GitHub repo. Changing them counts as an update even without a new version, so new images go up the same way as a release.
 
 </section>
 
