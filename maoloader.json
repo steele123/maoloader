@@ -419,7 +419,7 @@
     {
       "slug": "streamer-mode",
       "title": "Streamer Mode",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "Hide names, Riot IDs, status messages, chat and friend requests while you stream or record, with one switch (Ctrl+Shift+H).",
       "image": "plugins/streamer-mode/assets/icon.svg",
       "entry": "plugins/streamer-mode/index.js",

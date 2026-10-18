@@ -58,6 +58,8 @@
     ".create-panel-game-name",
     ".create-panel-game-tag",
     ".game-invite-name",
+    // Who invited you, on the Game Invites card at the top of the right panel.
+    ".parties-game-invite-name",
     "[class*='inviter']",
   ];
   // These draw their text inside a sealed component, where text styles can't reach; they get blurred whole.
