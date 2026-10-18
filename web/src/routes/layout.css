@@ -452,6 +452,139 @@ main {
 	color: var(--gold);
 }
 
+/* Plugin screenshots: a grid of 16:9 shots with captions; a click opens the full-size view. */
+.gallery {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+	gap: 12px;
+}
+
+.gallery.is-single {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.gallery-item {
+	display: grid;
+	gap: 7px;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--muted-text);
+	font: inherit;
+	font-size: 0.85rem;
+	text-align: left;
+	cursor: zoom-in;
+}
+
+.gallery-item img {
+	display: block;
+	width: 100%;
+	aspect-ratio: 16 / 9;
+	object-fit: cover;
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	background: rgba(1, 10, 19, 0.6);
+	transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.gallery-item:hover img,
+.gallery-item:focus-visible img {
+	border-color: var(--gold);
+	transform: translateY(-1px);
+}
+
+.gallery-item:focus-visible {
+	outline: none;
+}
+
+.lightbox {
+	position: fixed;
+	inset: 0;
+	z-index: 100;
+	display: grid;
+	place-items: center;
+	padding: 48px 72px;
+}
+
+.lightbox-backdrop {
+	position: absolute;
+	inset: 0;
+	border: 0;
+	background: rgba(2, 6, 12, 0.88);
+	cursor: zoom-out;
+}
+
+.lightbox figure {
+	position: relative;
+	display: grid;
+	gap: 10px;
+	max-width: min(1280px, 100%);
+	margin: 0;
+	pointer-events: none;
+}
+
+.lightbox img {
+	max-width: 100%;
+	max-height: calc(100vh - 140px);
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+.lightbox figcaption {
+	color: var(--text-strong);
+	text-align: center;
+}
+
+.lightbox-step,
+.lightbox-close {
+	position: absolute;
+	display: grid;
+	place-items: center;
+	width: 40px;
+	height: 40px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: rgba(1, 10, 19, 0.8);
+	color: var(--text-strong);
+	cursor: pointer;
+}
+
+.lightbox-step:hover,
+.lightbox-close:hover {
+	border-color: var(--gold);
+}
+
+.lightbox-step {
+	top: 50%;
+	transform: translateY(-50%);
+}
+
+.lightbox-step.is-prev {
+	left: 16px;
+}
+
+.lightbox-step.is-next {
+	right: 16px;
+}
+
+.lightbox-close {
+	top: 16px;
+	right: 16px;
+}
+
+@media (max-width: 640px) {
+	.lightbox {
+		padding: 56px 12px;
+	}
+
+	.lightbox-step {
+		top: auto;
+		bottom: 12px;
+		transform: none;
+	}
+}
+
 .article-heading svg {
 	width: 18px;
 	height: 18px;

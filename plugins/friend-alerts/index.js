@@ -107,7 +107,13 @@
     return String(friend.puuid || friend.id || friend.name);
   }
 
+  // Streamer Mode (or any plugin) flags the page while streaming; toasts then don't name anyone.
+  function streaming() {
+    return document.documentElement.hasAttribute("data-maoloader-streamer");
+  }
+
   function friendName(friend) {
+    if (streaming()) return "A friend";
     return friend.gameName || friend.name || "A friend";
   }
 
@@ -150,7 +156,7 @@
     if (alerts.length > maxSeparateToasts) {
       toast("info", {
         title: `${alerts.length} friends are around`,
-        description: alerts.map((alert) => friendName(alert.friend)).join(", "),
+        description: streaming() ? "Turn off streamer mode to see who." : alerts.map((alert) => friendName(alert.friend)).join(", "),
         duration: 6000,
       });
       return;
@@ -159,7 +165,7 @@
       const canInvite = inLobby && alert.friend.summonerId;
       toast("info", {
         title: alert.kind === "online" ? `${friendName(alert.friend)} is online` : `${friendName(alert.friend)} finished a game`,
-        description: alert.friend.statusMessage || (alert.kind === "online" ? "Just came online." : "They're out of game now."),
+        description: (!streaming() && alert.friend.statusMessage) || (alert.kind === "online" ? "Just came online." : "They're out of game now."),
         duration: 6000,
         action: canInvite ? { label: "Invite", onClick: () => invite(alert.friend) } : undefined,
       });

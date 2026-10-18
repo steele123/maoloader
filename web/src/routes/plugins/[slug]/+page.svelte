@@ -11,6 +11,10 @@
 	import MonitorDownIcon from "@lucide/svelte/icons/monitor-down";
 	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
 	import StarIcon from "@lucide/svelte/icons/star";
+	import ImageIcon from "@lucide/svelte/icons/image";
+	import ChevronLeftIcon from "@lucide/svelte/icons/chevron-left";
+	import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
+	import XIcon from "@lucide/svelte/icons/x";
 	import UserIcon from "@lucide/svelte/icons/user";
 	import { Badge } from "$lib/components/ui/badge";
 	import { fileType } from "$lib/file-types";
@@ -20,6 +24,21 @@
 
 	let { data }: { data: PageData } = $props();
 	const listing = $derived(data.listing);
+
+	// Screenshots from the plugin's maoloader.json, shown as a gallery with a full-size view.
+	const screenshots = $derived((listing.assets.screenshots ?? []).filter((shot) => shot.url));
+	let openShot = $state<number | null>(null);
+	const shownShot = $derived(openShot === null ? undefined : screenshots[openShot]);
+	function stepShot(by: number) {
+		if (openShot === null || !screenshots.length) return;
+		openShot = (openShot + by + screenshots.length) % screenshots.length;
+	}
+	function onGalleryKey(event: KeyboardEvent) {
+		if (openShot === null) return;
+		if (event.key === "Escape") openShot = null;
+		else if (event.key === "ArrowRight") stepShot(1);
+		else if (event.key === "ArrowLeft") stepShot(-1);
+	}
 
 	// Ratings: the average comes with the page; the visitor's own stars are looked up after load.
 	type RatingResponse = { rating: { average: number; count: number }; mine: number | null };
@@ -275,6 +294,40 @@
 		</p>
 	</div>
 </section>
+
+{#if screenshots.length}
+	<section class="readme-panel gallery-panel" aria-label="Screenshots">
+		<div class="article-heading">
+			<ImageIcon />
+			<h2>Screenshots</h2>
+		</div>
+		<div class="gallery" class:is-single={screenshots.length === 1}>
+			{#each screenshots as shot, index (shot.key)}
+				<button type="button" class="gallery-item" onclick={() => (openShot = index)} aria-label={`View ${shot.caption || `screenshot ${index + 1}`} full size`}>
+					<img src={shot.url} alt={shot.caption || `${listing.name} screenshot ${index + 1}`} loading="lazy" />
+					{#if shot.caption}<span>{shot.caption}</span>{/if}
+				</button>
+			{/each}
+		</div>
+	</section>
+{/if}
+
+{#if shownShot}
+	<div class="lightbox" role="dialog" aria-modal="true" aria-label={shownShot.caption || "Screenshot"} tabindex="-1">
+		<button class="lightbox-backdrop" type="button" aria-label="Close" onclick={() => (openShot = null)}></button>
+		<figure>
+			<img src={shownShot.url} alt={shownShot.caption || `${listing.name} screenshot`} />
+			{#if shownShot.caption}<figcaption>{shownShot.caption}</figcaption>{/if}
+		</figure>
+		{#if screenshots.length > 1}
+			<button class="lightbox-step is-prev" type="button" aria-label="Previous screenshot" onclick={() => stepShot(-1)}><ChevronLeftIcon /></button>
+			<button class="lightbox-step is-next" type="button" aria-label="Next screenshot" onclick={() => stepShot(1)}><ChevronRightIcon /></button>
+		{/if}
+		<button class="lightbox-close" type="button" aria-label="Close" onclick={() => (openShot = null)}><XIcon /></button>
+	</div>
+{/if}
+
+<svelte:window onkeydown={onGalleryKey} />
 
 {#if data.readme_html}
 	<section class="readme-panel">

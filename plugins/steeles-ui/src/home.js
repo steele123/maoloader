@@ -577,7 +577,7 @@ function playingHtml() {
                     <li>
                       <span class="activity-dot is-${activity}" aria-hidden="true"></span>
                       <span class="row-copy">
-                        <strong>${escapeHtml(friend.gameName || friend.name || "Friend")}</strong>
+                        <strong data-streamer-hide>${escapeHtml(friend.gameName || friend.name || "Friend")}</strong>
                         <small>${ACTIVITY_LABELS[activity]}${friend.lol?.gameQueueType ? ` · ${escapeHtml(queueTypeName(friend.lol.gameQueueType))}` : ""}</small>
                       </span>
                       ${activity !== "lobby" && since ? `<span class="row-time" data-since="${since}">${elapsed(since)}</span>` : ""}
@@ -669,7 +669,7 @@ function widgetHtml(id) {
       <section class="card greeting" data-widget="greeting">
         ${icon ? `<img class="avatar" src="${icon}" alt="" />` : ""}
         <div class="greeting-copy">
-          <h1>${escapeHtml(greeting())}, ${escapeHtml(name)}</h1>
+          <h1>${escapeHtml(greeting())}, <span data-streamer-hide>${escapeHtml(name)}</span></h1>
           <span>${data.summoner?.summonerLevel ? `Level ${data.summoner.summonerLevel}` : ""}</span>
         </div>
         <div class="clock">
@@ -713,7 +713,7 @@ function widgetHtml(id) {
                     (friend) => `
                       <li>
                         <span class="presence is-${escapeHtml(friendPresence(friend))}"></span>
-                        <span class="friend-name">${escapeHtml(friend.gameName || friend.name || "Friend")}</span>
+                        <span class="friend-name" data-streamer-hide>${escapeHtml(friend.gameName || friend.name || "Friend")}</span>
                         <span class="muted">${escapeHtml(friendStatus(friend))}</span>
                       </li>`,
                   )

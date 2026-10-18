@@ -2,7 +2,7 @@ import { approveAndMirrorSubmission, createSubmission } from "./admin";
 import { parseGitHubRepository } from "./github";
 import { loadListingsFromManifest } from "./manifest";
 import { listSubmissions, searchListings } from "./store";
-import type { RegistryListing, RegistrySubmission } from "./types";
+import type { RegistryListing, RegistrySubmission, RegistrySummary } from "./types";
 
 export type SyncResult = {
 	repository: string;
@@ -35,8 +35,11 @@ export async function syncRepository(
 	const now = new Date().toISOString();
 	const manifest = await loadListingsFromManifest(repository, ref, now);
 	const platform = { env } as App.Platform;
-	const live = new Map((await searchListings({}, platform)).map((listing) => [listing.slug, listing.version]));
-	const changed = manifest.listings.filter((listing) => live.get(listing.slug) !== listing.version);
+	// A new version, or new screenshots on the same version, counts as a change.
+	const look = (listing: RegistrySummary | RegistryListing) =>
+		`${listing.version}|${JSON.stringify((listing.assets.screenshots ?? []).map((shot) => [shot.key, shot.caption ?? ""]))}`;
+	const live = new Map((await searchListings({}, platform)).map((listing) => [listing.slug, look(listing)]));
+	const changed = manifest.listings.filter((listing) => live.get(listing.slug) !== look(listing));
 	const base = { repository: manifest.repository, ref: manifest.ref, changed };
 	if (!changed.length) return { ...base, outcome: "unchanged" };
 

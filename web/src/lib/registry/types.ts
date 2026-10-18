@@ -14,6 +14,8 @@ export type RegistryAsset = {
 	url?: string;
 	size?: number;
 	sha256?: string;
+	/** For screenshots: what it shows, used as its caption and alt text. */
+	caption?: string;
 };
 
 export type RegistryRating = {

@@ -43,3 +43,23 @@ test("voters are a salted hash that doesn't contain their address", async () => 
 	expect(await voterKey(request("203.0.113.8"), { RATING_SALT: "salt" } as Env)).not.toBe(first);
 	expect(await voterKey(request("203.0.113.7"), { RATING_SALT: "pepper" } as Env)).not.toBe(first);
 });
+
+test("screenshots are repo image paths, linked from GitHub at the pinned commit", async () => {
+	const { manifestScreenshots } = await import("./manifest");
+	const shots = manifestScreenshots(
+		["media/plugins/x/home.webp", { path: "./media/plugins/x/lobby.png", caption: "The lobby" }],
+		"https://github.com/steele123/maoloader",
+		"abc123",
+		"x"
+	);
+	expect(shots.map((shot) => shot.key)).toEqual(["media/plugins/x/home.webp", "media/plugins/x/lobby.png"]);
+	expect(shots[1].caption).toBe("The lobby");
+	expect(shots[0].url).toContain("abc123");
+	expect(manifestScreenshots(undefined, "https://github.com/a/b", "r", "x")).toEqual([]);
+	// A leading "/" just means the repo root.
+	expect(manifestScreenshots(["/media/a.png"], "https://github.com/a/b", "r", "x")[0].key).toBe("media/a.png");
+	for (const bad of ["../secret.png", "media/../../x.png", "notes.txt", "a\\b.png"]) {
+		expect(() => manifestScreenshots([bad], "https://github.com/a/b", "r", "x")).toThrow();
+	}
+	expect(() => manifestScreenshots(Array(9).fill("a.png"), "https://github.com/a/b", "r", "x")).toThrow();
+});

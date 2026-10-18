@@ -1,5 +1,10 @@
 # Steele's UI changelog
 
+## 0.2.5 - 2026-10-18
+
+### Changed
+- Works with Streamer Mode: your name and your friends' names on the home dashboard are hidden while it's on.
+
 ## 0.2.4 - 2026-10-16
 
 ### Fixed

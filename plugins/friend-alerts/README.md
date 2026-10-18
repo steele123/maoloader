@@ -14,6 +14,10 @@ Friends are checked every 15 seconds, so an alert can arrive up to 15 seconds la
 
 Settings, including the friends you ticked, are saved in the maoloader DataStore under `friend-alerts.settings`. Changing them needs maoloader 0.1.7 or newer; older versions keep using what's saved.
 
+## Streamer Mode
+
+While Streamer Mode is on, toasts say "A friend" instead of a name and leave out status messages.
+
 ## Endpoints
 
 | Feature | Request |

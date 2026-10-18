@@ -781,3 +781,42 @@ textarea {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Streamer Mode (or any plugin) flags the page while streaming. Names on the dashboard look like
+   its masks in the client: the text turns invisible and a slim rounded bar runs through the line.
+   Bar lengths vary by row, never by name, so they give nothing away. */
+:host-context(html[data-maoloader-streamer]) [data-streamer-hide] {
+  --sm-w: 6em;
+  position: relative;
+  display: inline-block;
+  width: var(--sm-w);
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  vertical-align: middle;
+  color: transparent;
+  user-select: none;
+}
+
+:host-context(html[data-maoloader-streamer]) [data-streamer-hide]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 0.62em;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(220, 228, 236, 0.22), rgba(220, 228, 236, 0.12));
+}
+
+:host-context(html[data-maoloader-streamer="bars"]) [data-streamer-hide]::after {
+  height: 0.95em;
+  border-radius: 3px;
+  background: rgba(150, 160, 172, 0.42);
+}
+
+:host-context(html[data-maoloader-streamer]) li:nth-child(4n + 1) [data-streamer-hide] { --sm-w: 4.6em; }
+:host-context(html[data-maoloader-streamer]) li:nth-child(4n + 2) [data-streamer-hide] { --sm-w: 6.2em; }
+:host-context(html[data-maoloader-streamer]) li:nth-child(4n + 3) [data-streamer-hide] { --sm-w: 5.2em; }
+:host-context(html[data-maoloader-streamer]) li:nth-child(4n) [data-streamer-hide] { --sm-w: 7em; }

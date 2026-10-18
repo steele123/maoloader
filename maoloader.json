@@ -115,7 +115,7 @@
     {
       "slug": "steeles-ui",
       "title": "Steele's UI",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "description": "Backdrop, custom home, top bar, right panel and lobby controls, themes with share codes, and a profile background and banner picker, in one plugin.",
       "image": "plugins/steeles-ui/assets/icon.svg",
       "entry": "plugins/steeles-ui/index.js",
@@ -149,7 +149,13 @@
         "top-bar",
         "ui"
       ],
-      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/steeles-ui"
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/steeles-ui",
+      "screenshots": [
+        {
+          "path": "media/plugins/steeles-ui/home.webp",
+          "caption": "The home dashboard: greeting, quick play, friends online and playing, and your ranks"
+        }
+      ]
     },
     {
       "slug": "champ-select-tools",
@@ -215,7 +221,13 @@
         "lp",
         "tracker"
       ],
-      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/session-tracker"
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/session-tracker",
+      "screenshots": [
+        {
+          "path": "media/plugins/session-tracker/card.webp",
+          "caption": "This session's wins, losses and LP, at a glance"
+        }
+      ]
     },
     {
       "slug": "rune-presets",
@@ -262,7 +274,7 @@
     {
       "slug": "friend-alerts",
       "title": "Friend Alerts",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "description": "Toasts when chosen friends come online or finish a game, with a quick invite while you're in a lobby.",
       "image": "plugins/friend-alerts/assets/icon.svg",
       "entry": "plugins/friend-alerts/index.js",
@@ -322,7 +334,13 @@
         "stuck",
         "utility"
       ],
-      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/client-fixes"
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/client-fixes",
+      "screenshots": [
+        {
+          "path": "media/plugins/client-fixes/settings.webp",
+          "caption": "One-click fixes for a frozen client, stuck queue, failed launch and more"
+        }
+      ]
     },
     {
       "slug": "queue-alerts",
@@ -343,7 +361,52 @@
         "sound",
         "discord"
       ],
-      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/queue-alerts"
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/queue-alerts",
+      "screenshots": [
+        {
+          "path": "media/plugins/queue-alerts/settings.webp",
+          "caption": "A chime, bringing the client to the front, and phone alerts through Discord or ntfy"
+        }
+      ]
+    },
+    {
+      "slug": "streamer-mode",
+      "title": "Streamer Mode",
+      "version": "0.1.0",
+      "description": "Hide names, Riot IDs, status messages, chat and friend requests while you stream or record, with one switch (Ctrl+Shift+H).",
+      "image": "plugins/streamer-mode/assets/icon.svg",
+      "entry": "plugins/streamer-mode/index.js",
+      "files": [
+        "plugins/streamer-mode/CHANGELOG.md",
+        "plugins/streamer-mode/README.md",
+        "plugins/streamer-mode/assets/icon.svg",
+        "plugins/streamer-mode/index.js"
+      ],
+      "tags": [
+        "streamer",
+        "privacy",
+        "stream",
+        "obs"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/streamer-mode",
+      "screenshots": [
+        {
+          "path": "media/plugins/streamer-mode/home.webp",
+          "caption": "Names and Riot IDs across the client become placeholder bars"
+        },
+        {
+          "path": "media/plugins/streamer-mode/hover-card.webp",
+          "caption": "Hover cards keep ranks and party status but hide the name and tag"
+        },
+        {
+          "path": "media/plugins/streamer-mode/scoreboard.webp",
+          "caption": "Match history scoreboards with every player's name hidden"
+        },
+        {
+          "path": "media/plugins/streamer-mode/settings.webp",
+          "caption": "Pick blur or solid bars, and what else to hide"
+        }
+      ]
     },
     {
       "slug": "ranked-tracker",
@@ -364,7 +427,13 @@
         "graph",
         "stats"
       ],
-      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/ranked-tracker"
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/ranked-tracker",
+      "screenshots": [
+        {
+          "path": "media/plugins/ranked-tracker/graph.webp",
+          "caption": "LP over time, recent gains, and how far you are from the next cutoff (example data)"
+        }
+      ]
     },
     {
       "slug": "my-builds",
@@ -385,7 +454,13 @@
         "item sets",
         "champion"
       ],
-      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/my-builds"
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/my-builds",
+      "screenshots": [
+        {
+          "path": "media/plugins/my-builds/settings.webp",
+          "caption": "Item sets built from your own games, per champion"
+        }
+      ]
     },
     {
       "slug": "event-recorder",

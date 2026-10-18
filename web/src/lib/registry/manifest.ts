@@ -1,6 +1,6 @@
 import { fetchGitHubFile, parseGitHubRepository, rawGitHubUrl } from "./github";
 import type { PackageZip } from "./package-zip";
-import type { ListingKind, RegistryListing } from "./types";
+import type { ListingKind, RegistryAsset, RegistryListing } from "./types";
 
 type ManifestAuthor =
 	| string
@@ -29,6 +29,7 @@ type ManifestPlugin = {
 	image?: unknown;
 	imagePath?: unknown;
 	image_path?: unknown;
+	screenshots?: unknown;
 };
 
 type MaoloaderManifest = {
@@ -252,9 +253,31 @@ function listingFromManifestPlugin(
 						url: rawGitHubUrl(repository, ref, imagePath)
 					}
 				: undefined,
-			screenshots: []
+			screenshots: repository && ref ? manifestScreenshots(plugin.screenshots, repository, ref, slug) : []
 		}
 	};
+}
+
+const SCREENSHOT_LIMIT = 8;
+const SCREENSHOT_TYPES = /\.(png|jpe?g|webp|gif)$/i;
+
+/**
+ * "screenshots": a list of image paths in the repo, or { "path", "caption" } objects. They show as a
+ * gallery on the plugin page, linked from GitHub like the icon, so they don't need to be in "files"
+ * (and are better left out, so installs stay small).
+ */
+export function manifestScreenshots(value: unknown, repository: string, ref: string, slug: string): RegistryAsset[] {
+	if (value === undefined) return [];
+	if (!Array.isArray(value)) throw new Error(`Plugin "${slug}": screenshots must be a list.`);
+	if (value.length > SCREENSHOT_LIMIT) throw new Error(`Plugin "${slug}": up to ${SCREENSHOT_LIMIT} screenshots.`);
+	return value.map((item) => {
+		const path = stringValue(isObject(item) ? item.path : item).replace(/^\.?\//, "");
+		const caption = isObject(item) ? stringValue(item.caption).slice(0, 140) : "";
+		if (!path || path.includes("..") || path.startsWith("/") || path.includes("\\") || !SCREENSHOT_TYPES.test(path)) {
+			throw new Error(`Plugin "${slug}": screenshot "${path}" must be a .png, .jpg, .webp or .gif path inside the repo.`);
+		}
+		return { key: path, url: rawGitHubUrl(repository, ref, path), caption: caption || undefined };
+	});
 }
 
 function parseManifestJson(text: string): MaoloaderManifest {
