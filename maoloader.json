@@ -115,7 +115,7 @@
     {
       "slug": "steeles-ui",
       "title": "Steele's UI",
-      "version": "0.2.5",
+      "version": "0.3.0",
       "description": "Backdrop, custom home, top bar, right panel and lobby controls, themes with share codes, and a profile background and banner picker, in one plugin.",
       "image": "plugins/steeles-ui/assets/icon.svg",
       "entry": "plugins/steeles-ui/index.js",
@@ -153,7 +153,7 @@
       "screenshots": [
         {
           "path": "media/plugins/steeles-ui/home.webp",
-          "caption": "The home dashboard: greeting, quick play, friends online and playing, and your ranks"
+          "caption": "The home dashboard: your profile background behind the greeting, quick play, and friends playing and online (names hidden by Streamer Mode)"
         }
       ]
     },

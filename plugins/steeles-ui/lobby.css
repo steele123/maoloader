@@ -92,6 +92,69 @@ html[data-sui-lobby~="style"] .parties-view .v2-parties-invite-info-panel .split
   border-bottom: 1px solid rgba(var(--sui-accent-rgb), 0.14);
 }
 
+/* ---- Custom games: each team a card, open seats quiet until you hover them ---- */
+
+html[data-sui-lobby~="style"] .custom-game-team {
+  box-sizing: border-box;
+  padding: 0 6px;
+  border: 1px solid rgba(var(--sui-accent-rgb), 0.18);
+  border-radius: 10px;
+  background: rgba(1, 10, 19, 0.55);
+}
+
+html[data-sui-lobby~="style"] .custom-game-team .team-header {
+  padding: 8px 8px 0;
+  color: rgba(var(--sui-accent-rgb), 0.9);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+html[data-sui-lobby~="style"] .custom-game-team-member {
+  border-bottom: 1px solid rgba(var(--sui-accent-rgb), 0.08) !important;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+html[data-sui-lobby~="style"] .custom-game-team-member:last-child {
+  border-bottom-color: transparent !important;
+}
+
+html[data-sui-lobby~="style"] .custom-game-team-member:hover {
+  background: rgba(var(--sui-accent-rgb), 0.05);
+}
+
+html[data-sui-lobby~="style"] .custom-team-member-placeholder {
+  color: rgba(240, 230, 210, 0.28);
+}
+
+html[data-sui-lobby~="style"] .custom-placeholder-buttons {
+  opacity: 0.35;
+  transition: opacity 0.15s ease;
+}
+
+html[data-sui-lobby~="style"] .custom-game-team-member:hover .custom-placeholder-buttons,
+html[data-sui-lobby~="style"] .custom-placeholder-buttons:focus-within {
+  opacity: 1;
+}
+
+html[data-sui-lobby~="style"] .custom-root .parties-invite-info-panel,
+html[data-sui-lobby~="style"] .custom-game-spectator-info {
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid rgba(var(--sui-accent-rgb), 0.18);
+  border-radius: 10px;
+  background: rgba(1, 10, 19, 0.55);
+}
+
+html[data-sui-lobby~="style"] .custom-game-spectator-info .spectator-info-header {
+  padding-left: 12px;
+  white-space: nowrap;
+}
+
+html[data-sui-lobby~="style"] .custom-game-spectator-info .spectator-info-spectators {
+  padding-left: 12px;
+}
+
 /* ---- Hiding ---- */
 
 html[data-sui-lobby~="hide-solo-chat"] .parties-view lol-social-chat-room.chat-room-disabled {

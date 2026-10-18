@@ -87,10 +87,52 @@ textarea:focus-visible {
 }
 
 .greeting {
+  position: relative;
+  display: grid;
+  gap: 18px;
+  overflow: hidden;
+  padding: 18px 22px;
+}
+
+.hero-top {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 18px 22px;
+}
+
+/* Your profile background (or most played champion) fades in from the right, behind the text. */
+.hero-art {
+  position: absolute;
+  inset: 0;
+  background-position: 70% 22%;
+  background-size: cover;
+  opacity: 0.5;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 8%, rgba(0, 0, 0, 0.5) 42%, #000 82%);
+  mask-image: linear-gradient(90deg, transparent 8%, rgba(0, 0, 0, 0.5) 42%, #000 82%);
+}
+
+.greeting.has-art {
+  min-height: 172px;
+  align-content: space-between;
+}
+
+.greeting.has-art h1,
+.greeting.has-art .clock {
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.8);
+}
+
+.hero-play {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hero-play .play-button {
+  min-height: 38px;
+  padding: 0 16px;
 }
 
 .avatar {
@@ -175,6 +217,10 @@ textarea:focus-visible {
 }
 
 .play-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-height: 44px;
   border: 1px solid #c8aa6e;
   border-radius: 6px;
@@ -190,9 +236,29 @@ textarea:focus-visible {
   background: linear-gradient(180deg, rgba(60, 50, 30, 0.9), rgba(20, 20, 20, 0.9));
 }
 
+.play-button svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* The first queue is the one you play most: a filled button. */
+/* Only the client's own golds, so the theme's accent colour recolours it like everything else. */
+.play-button.is-primary {
+  border-color: #cdbe91;
+  background: linear-gradient(180deg, #cdbe91, #c8aa6e);
+  color: #0a0f14;
+  font-weight: 800;
+}
+
+.play-button.is-primary:hover {
+  border-color: #cdbe91;
+  background: linear-gradient(180deg, #cdbe91, #cdbe91);
+  filter: brightness(1.08);
+}
+
 .friends {
   display: grid;
-  gap: 4px;
+  gap: 5px;
   max-height: 280px;
   margin: 0;
   overflow: auto;
@@ -233,15 +299,116 @@ textarea:focus-visible {
   background: #7b8794;
 }
 
-.rank-row {
+.rank-entries {
   display: grid;
-  grid-template-columns: 70px minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
 }
 
-.rank-row strong {
+.rank-entry {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(200, 170, 110, 0.14);
+  border-radius: 8px;
+  background: rgba(1, 10, 19, 0.35);
+  padding: 10px 12px;
+}
+
+.rank-crest {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
+}
+
+.rank-entry.is-unranked .rank-crest {
+  opacity: 0.5;
+}
+
+.rank-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.rank-queue {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: #8c96a0;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.rank-main strong {
+  overflow: hidden;
   color: #f0e6d2;
+  font-size: 16px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-queue em {
+  color: #c8aa6e;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+/* Wins in green against the losses behind them. */
+.rank-bar {
+  display: block;
+  height: 4px;
+  margin-top: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(196, 71, 58, 0.45);
+}
+
+.rank-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #4fae7c;
+}
+
+.rank-main small {
+  color: #8c96a0;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A friend's profile icon, or the champion they're playing, with their status dot on its corner. */
+.friend-avatar {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+
+.friend-avatar img {
+  width: 100%;
+  height: 100%;
+  border: 1px solid rgba(200, 170, 110, 0.22);
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.friend-avatar > span {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  border: 2px solid #050b12;
 }
 
 textarea {

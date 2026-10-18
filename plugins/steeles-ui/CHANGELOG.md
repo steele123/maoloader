@@ -1,5 +1,20 @@
 # Steele's UI changelog
 
+## 0.3.0 - 2026-10-18
+
+### New
+- Six more theme presets: Rose, Emerald, Frost, Void, Crimson and Glass. Glass tints a blurred view of your desktop through the client.
+
+### Changed
+- A livelier home. The greeting card shows the splash art of the profile background you picked (or your most played recent champion) and holds your Quick play buttons, with your first queue as the main button, so there's no near-empty Quick play card anymore.
+- The Rank card shows each queue's rank crest, with LP beside the queue name and a win-rate bar under your record.
+- Friends online shows each friend's profile icon, and Friends playing shows the champion a friend is playing while they're in game.
+- Picking a preset now also resets the backdrop's window effect and opacity, so a see-through look like Glass doesn't carry over into the next preset.
+- Custom game lobbies match the rest: each team is a card, open seats stay quiet until you hover them, and the Invited and Spectators panels are cards too.
+
+### Fixed
+- The Recent games record (like 4W 4L) now counts the games the card lists. It could count more games than it showed.
+
 ## 0.2.5 - 2026-10-18
 
 ### Changed

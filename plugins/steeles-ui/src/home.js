@@ -150,6 +150,8 @@ const data = {
   clientRegion: "",
   cutoffs: undefined,
   cutoffsError: "",
+  heroSkinId: 0,
+  heroArt: "",
 };
 let seenTabs = [];
 let clockTimer = 0;
@@ -332,7 +334,8 @@ async function refreshData() {
   }
   jobs.push(lcu("/lol-ranked/v1/current-ranked-stats").then((value) => (data.ranked = value)));
   jobs.push(refreshFriends({ render: false }));
-  jobs.push(refreshMatches({ render: false }));
+  // The hero falls back to your most played recent champion, so it waits for the games.
+  jobs.push(refreshMatches({ render: false }).then(() => refreshHero({ render: false })));
   jobs.push(refreshCutoffs({ render: false }));
   await Promise.allSettled(jobs);
   renderDashboard();
@@ -391,6 +394,30 @@ async function refreshMatches({ render = true } = {}) {
     data.matches = data.matches || [];
   }
   if (render) renderWidget("matches");
+}
+
+function mostPlayedChampion() {
+  const counts = new Map();
+  for (const game of data.matches || []) if (game.championId) counts.set(game.championId, (counts.get(game.championId) || 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] || 0;
+}
+
+// The greeting's splash art: the profile background you picked, or your most played recent champion.
+async function refreshHero({ render = true } = {}) {
+  try {
+    const profile = await lcu("/lol-summoner/v1/current-summoner/summoner-profile");
+    const skinId = Number(profile?.backgroundSkinId) || mostPlayedChampion() * 1000;
+    if (!skinId || skinId === data.heroSkinId) return;
+    const champion = await lcu(`/lol-game-data/assets/v1/champions/${Math.floor(skinId / 1000)}.json`);
+    const skins = Array.isArray(champion?.skins) ? champion.skins : [];
+    // Tiered skins keep their stages under the base skin.
+    const skin = skins.find((entry) => entry.id === skinId) || skins.flatMap((entry) => entry.questSkinInfo?.tiers || []).find((tier) => tier.id === skinId) || skins[0];
+    data.heroSkinId = skinId;
+    data.heroArt = skin?.uncenteredSplashPath || skin?.splashPath || "";
+  } catch {
+    // No art; the greeting looks as it did before.
+  }
+  if (render) renderWidget("greeting");
 }
 
 async function cutoffRegion() {
@@ -494,13 +521,6 @@ function chosenQueues() {
   return data.queues.slice(0, 4);
 }
 
-function rankText(entry) {
-  if (!entry?.tier || entry.tier === "NONE" || entry.tier === "UNRANKED") return "Unranked";
-  const tier = entry.tier.charAt(0) + entry.tier.slice(1).toLowerCase();
-  const division = ["MASTER", "GRANDMASTER", "CHALLENGER"].includes(entry.tier) ? "" : ` ${entry.division}`;
-  return `${tier}${division} · ${entry.leaguePoints} LP`;
-}
-
 function titleCase(value) {
   return String(value)
     .toLowerCase()
@@ -563,6 +583,63 @@ function isWide(id) {
   return settings().layout.wide.includes(id);
 }
 
+// Quick play lives in the greeting card when both are on, so it isn't a near-empty card of its own.
+function playInHero() {
+  const current = settings();
+  return current.widgets.greeting && current.widgets.play;
+}
+
+// The first queue is the main button; the rest sit beside it.
+function playButtonsHtml() {
+  const queues = chosenQueues();
+  if (!queues.length) return '<p class="muted">Loading queues…</p>';
+  return queues
+    .map(
+      (queue, index) =>
+        `<button class="play-button${index === 0 ? " is-primary" : ""}" type="button" data-queue="${queue.id}">${index === 0 ? ICONS.play : ""}${escapeHtml(queue.label)}</button>`,
+    )
+    .join("");
+}
+
+const RANK_TIERS = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"];
+const APEX_TIERS = ["MASTER", "GRANDMASTER", "CHALLENGER"];
+
+function rankEntryHtml(label, entry) {
+  const ranked = RANK_TIERS.includes(entry?.tier);
+  const tier = ranked ? entry.tier.toLowerCase() : "unranked";
+  const wins = Number(entry?.wins) || 0;
+  const losses = Number(entry?.losses) || 0;
+  const games = wins + losses;
+  const rate = games ? Math.round((wins / games) * 100) : 0;
+  const name = ranked ? `${titleCase(entry.tier)}${APEX_TIERS.includes(entry.tier) ? "" : ` ${entry.division}`}` : "Unranked";
+  return `
+    <div class="rank-entry is-${tier}">
+      <img class="rank-crest" src="/fe/lol-static-assets/images/ranked-mini-crests/${tier}.svg" alt="" />
+      <div class="rank-main">
+        <span class="rank-queue">${label}${ranked ? `<em>${lp(entry.leaguePoints)} LP</em>` : ""}</span>
+        <strong>${escapeHtml(name)}</strong>
+        ${
+          games
+            ? `<span class="rank-bar" role="img" aria-label="${rate}% win rate"><i style="width: ${rate}%"></i></span>
+               <small>${wins}W ${losses}L · ${rate}%</small>`
+            : "<small>No games this split</small>"
+        }
+      </div>
+    </div>`;
+}
+
+// A friend's picture: the champion they're playing while in game, otherwise their profile icon.
+function friendAvatarHtml(friend, dotClass) {
+  const championId = Number(friend.lol?.championId) || 0;
+  const src =
+    friend.lol?.gameStatus === "inGame" && championId
+      ? `/lol-game-data/assets/v1/champion-icons/${championId}.png`
+      : friend.icon !== undefined && friend.icon !== null
+        ? `/lol-game-data/assets/v1/profile-icons/${Number(friend.icon) || 29}.jpg`
+        : "";
+  return `<span class="friend-avatar">${src ? `<img src="${src}" alt="" loading="lazy" />` : ""}<span class="${dotClass}"></span></span>`;
+}
+
 function playingHtml() {
   const playing = playingFriends();
   return `
@@ -575,7 +652,7 @@ function playingHtml() {
                 .map(
                   ({ friend, activity, since }) => `
                     <li>
-                      <span class="activity-dot is-${activity}" aria-hidden="true"></span>
+                      ${friendAvatarHtml(friend, `activity-dot is-${activity}`)}
                       <span class="row-copy">
                         <strong data-streamer-hide>${escapeHtml(friend.gameName || friend.name || "Friend")}</strong>
                         <small>${ACTIVITY_LABELS[activity]}${friend.lol?.gameQueueType ? ` · ${escapeHtml(queueTypeName(friend.lol.gameQueueType))}` : ""}</small>
@@ -593,7 +670,7 @@ function playingHtml() {
 function matchesHtml() {
   const wide = isWide("matches");
   const shown = (data.matches || []).slice(0, wide ? 8 : 5);
-  const counted = (data.matches || []).filter((game) => !game.remake);
+  const counted = shown.filter((game) => !game.remake);
   const wins = counted.filter((game) => game.win).length;
   return `
     <section class="card" data-widget="matches">
@@ -665,35 +742,34 @@ function widgetHtml(id) {
     const name = current.name || data.summoner?.gameName || data.summoner?.displayName || "Summoner";
     const icon = data.summoner?.profileIconId !== undefined ? `/lol-game-data/assets/v1/profile-icons/${data.summoner.profileIconId}.jpg` : "";
     const now = new Date();
+    const play = playInHero() ? playButtonsHtml() : "";
     return `
-      <section class="card greeting" data-widget="greeting">
-        ${icon ? `<img class="avatar" src="${icon}" alt="" />` : ""}
-        <div class="greeting-copy">
-          <h1>${escapeHtml(greeting())}, <span data-streamer-hide>${escapeHtml(name)}</span></h1>
-          <span>${data.summoner?.summonerLevel ? `Level ${data.summoner.summonerLevel}` : ""}</span>
+      <section class="card greeting${data.heroArt ? " has-art" : ""}${play ? " has-play" : ""}" data-widget="greeting">
+        ${data.heroArt ? `<div class="hero-art" style="background-image: url(&quot;${escapeHtml(data.heroArt)}&quot;)" aria-hidden="true"></div>` : ""}
+        <div class="hero-top">
+          ${icon ? `<img class="avatar" src="${icon}" alt="" />` : ""}
+          <div class="greeting-copy">
+            <h1>${escapeHtml(greeting())}, <span data-streamer-hide>${escapeHtml(name)}</span></h1>
+            <span>${data.summoner?.summonerLevel ? `Level ${data.summoner.summonerLevel}` : ""}</span>
+          </div>
+          <div class="clock">
+            <strong>${now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</strong>
+            <span>${now.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}</span>
+          </div>
+          <div class="greeting-tools">
+            <button class="customize" type="button" data-customize aria-label="Rearrange cards" title="Rearrange cards">${ICONS.layout}</button>
+            <button class="customize" type="button" data-open-settings aria-label="Home settings" title="Home settings">${gearIcon}</button>
+          </div>
         </div>
-        <div class="clock">
-          <strong>${now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</strong>
-          <span>${now.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}</span>
-        </div>
-        <div class="greeting-tools">
-          <button class="customize" type="button" data-customize aria-label="Rearrange cards" title="Rearrange cards">${ICONS.layout}</button>
-          <button class="customize" type="button" data-open-settings aria-label="Home settings" title="Home settings">${gearIcon}</button>
-        </div>
+        ${play ? `<div class="hero-play">${play}</div>` : ""}
       </section>`;
   }
   if (id === "play") {
-    const queues = chosenQueues();
     return `
       <section class="card" data-widget="play">
         <h2>Quick play</h2>
-        <div class="play-grid">
-          ${
-            queues.length
-              ? queues.map((queue) => `<button class="play-button" type="button" data-queue="${queue.id}">${escapeHtml(queue.label)}</button>`).join("")
-              : '<p class="muted">Loading queues…</p>'
-          }
-        </div>
+        ${customizing && current.widgets.greeting ? '<p class="card-empty">Shows in the greeting card while that card is on.</p>' : ""}
+        <div class="play-grid">${playButtonsHtml()}</div>
       </section>`;
   }
   if (id === "friends") {
@@ -712,7 +788,7 @@ function widgetHtml(id) {
                   .map(
                     (friend) => `
                       <li>
-                        <span class="presence is-${escapeHtml(friendPresence(friend))}"></span>
+                        ${friendAvatarHtml(friend, `presence is-${escapeHtml(friendPresence(friend))}`)}
                         <span class="friend-name" data-streamer-hide>${escapeHtml(friend.gameName || friend.name || "Friend")}</span>
                         <span class="muted">${escapeHtml(friendStatus(friend))}</span>
                       </li>`,
@@ -725,17 +801,13 @@ function widgetHtml(id) {
   }
   if (id === "rank") {
     const map = data.ranked?.queueMap || {};
-    const row = (label, entry) => `
-      <div class="rank-row">
-        <span class="muted">${label}</span>
-        <strong>${escapeHtml(rankText(entry))}</strong>
-        <span class="muted">${entry?.wins || entry?.losses ? `${entry.wins}W ${entry.losses}L` : ""}</span>
-      </div>`;
     return `
       <section class="card" data-widget="rank">
         <h2>Rank</h2>
-        ${row("Solo/Duo", map.RANKED_SOLO_5x5)}
-        ${row("Flex", map.RANKED_FLEX_SR)}
+        <div class="rank-entries">
+          ${rankEntryHtml("Solo/Duo", map.RANKED_SOLO_5x5)}
+          ${rankEntryHtml("Flex", map.RANKED_FLEX_SR)}
+        </div>
       </section>`;
   }
   if (id === "notes") {
@@ -773,6 +845,7 @@ const ICONS = {
   layout: icon('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="18" height="7" rx="1"/>'),
   reset: icon('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>'),
   check: icon('<path d="M5 12l5 5L20 7"/>'),
+  play: icon('<path d="M7 4.5v15l12-7.5z" fill="currentColor"/>'),
 };
 
 function widgetLabel(id) {
@@ -809,7 +882,9 @@ function renderDashboard() {
   const current = settings();
   home.style.setProperty("--card-alpha", String(current.cardOpacity / 100));
   // Customize mode shows every card, hidden ones dimmed, so they can be brought back.
-  const ids = customizing ? current.layout.order : current.layout.order.filter((id) => current.widgets[id]);
+  const ids = customizing
+    ? current.layout.order
+    : current.layout.order.filter((id) => current.widgets[id] && !(id === "play" && playInHero()));
   const scroll = home.scrollTop;
   // The greeting card carries the Customize and settings buttons; the bar above the cards is only
   // needed while customizing, or when the greeting is hidden.

@@ -20,12 +20,12 @@ Open the settings with `Ctrl+K` → `Steele's UI settings`, the gear in the home
 ## Home
 
 - **Custom home** (default): Riot's home tab is hidden and replaced by a dashboard of cards:
-  - **Greeting and clock**: your icon, name and level, with the time and date.
-  - **Quick play**: lobby buttons for the queues you tick in the Home settings.
-  - **Friends playing**: friends in a game, champ select, queue or lobby, with the queue (Ranked Solo, ARAM, Arena…) and a live clock for how long they've been at it. In-game first, then champ select, queue and lobby, longest-running first. Friends not on League are skipped.
-  - **Friends online**: everyone online; mobile friends are listed last as "Mobile" and not counted.
+  - **Greeting and clock**: your icon, name and level, with the time and date, over the splash art of the profile background you picked (or your most played recent champion).
+  - **Quick play**: lobby buttons for the queues you tick in the Home settings; the first is the main button. While the greeting card is on, they sit in it instead of a card of their own.
+  - **Friends playing**: friends in a game (with the champion they're playing), champ select, queue or lobby, with the queue (Ranked Solo, ARAM, Arena…) and a live clock for how long they've been at it. In-game first, then champ select, queue and lobby, longest-running first. Friends not on League are skipped.
+  - **Friends online**: everyone online, with their profile icons; mobile friends are listed last as "Mobile" and not counted.
   - **Recent games**: your last games with champion, queue, length, K/D/A, CS and how long ago, plus a win/loss record. Remakes (under 5 minutes) are labelled and left out of the record. Two columns when the card is full width.
-  - **Rank**: Solo/Duo and Flex rank, LP and season record.
+  - **Rank**: Solo/Duo and Flex with their rank crests, LP, season record and a win-rate bar.
   - **Apex cutoffs**: the Challenger and Grandmaster LP cutoffs from LadderEye, for your client's region by default, with a region picker on the card. Refreshed every 5 minutes; if the service can't be reached the card says so.
   - **Notes** (saved as you type) and **Links** (your own `https://` links).
 
@@ -70,7 +70,7 @@ The plugin is an ES module split by area: `src/backdrop.js`, `src/home.js`, `src
 
 ## Theme
 
-- **Presets**: Mono, Hextech, Midnight, Focus, Ember, or back to Steele's default. Each sets the accent, font, backdrop, top bar and panel at once; the toast that follows has **Undo**.
+- **Presets**: Mono, Hextech, Midnight, Focus, Ember, Rose, Emerald, Frost, Void, Crimson and Glass (a dark tint over a blurred desktop, on Windows 10 and 11), or back to Steele's default. Each sets the accent, font, backdrop, top bar and panel at once; the toast that follows has **Undo**.
 - **Share your look**: **Copy my code** puts your whole look on the clipboard as a `SUI1-` code. Paste a friend's code and press **Apply** to try theirs (also undoable). Codes never include your home cards, notes, or images from your own `backgrounds` folder.
 - **Accent colour**: recolours the client's gold (buttons, borders, highlights, text) and Steele's UI's own windows. It also reaches inside Riot's sealed components (buttons, inputs, tabs); parts drawn as images, like framed button borders and menu icons, keep their gold unless **Neutral colours** is on.
 - **Neutral colours**: also greys the right panel's party card and the ring around your icon. It turns the client's navy, teal and cream (and the same colours in Steele's UI's windows) into greys of the same lightness, and greys out the lobby's gold buttons, which are images. Bright, light colours that carry meaning, like status dots, rarity, wins and losses, keep their colour. **Mono** combines this with a near-white accent, a black backdrop and Geist.

@@ -393,7 +393,7 @@ const PRESETS = [
     swatches: ["#ededed", "#000000"],
     patch: {
       theme: { recolor: true, accent: "#ededed", neutral: true, font: "geist" },
-      backdrop: { enabled: true, mode: "color", color: "#000000", hideScreenArt: true },
+      backdrop: { enabled: true, effect: "none", fillOpacity: 100, mode: "color", color: "#000000", hideScreenArt: true },
       topBar: { mode: "custom" },
       panel: { seeThrough: true, tint: 85, divider: true, dividerColor: "#262626", dividerWidth: 1 },
     },
@@ -404,7 +404,7 @@ const PRESETS = [
     swatches: ["#0ac8b9", "#091428"],
     patch: {
       theme: { recolor: true, neutral: false, accent: "#0ac8b9", font: "client" },
-      backdrop: { enabled: true, mode: "gradient", gradientFrom: "#091428", gradientTo: "#0a7a8a", gradientAngle: 160 },
+      backdrop: { enabled: true, effect: "none", fillOpacity: 100, mode: "gradient", gradientFrom: "#091428", gradientTo: "#0a7a8a", gradientAngle: 160 },
       panel: { seeThrough: true, tint: 55, divider: true, dividerColor: "#0ac8b9" },
     },
   },
@@ -414,7 +414,7 @@ const PRESETS = [
     swatches: ["#9d8bff", "#05070d"],
     patch: {
       theme: { recolor: true, neutral: false, accent: "#9d8bff", font: "clean" },
-      backdrop: { enabled: true, mode: "color", color: "#05070d" },
+      backdrop: { enabled: true, effect: "none", fillOpacity: 100, mode: "color", color: "#05070d" },
       topBar: { mode: "custom" },
       panel: { mode: "visible", seeThrough: true, tint: 70 },
     },
@@ -425,7 +425,7 @@ const PRESETS = [
     swatches: [CLIENT_GOLD, "#0a1428"],
     patch: {
       theme: { recolor: false, neutral: false, font: "clean" },
-      backdrop: { enabled: true, mode: "color", color: "#0a1428" },
+      backdrop: { enabled: true, effect: "none", fillOpacity: 100, mode: "color", color: "#0a1428" },
       topBar: { mode: "custom" },
       panel: { mode: "collapsed" },
     },
@@ -436,8 +436,75 @@ const PRESETS = [
     swatches: ["#ff7a45", "#1a0b10"],
     patch: {
       theme: { recolor: true, neutral: false, accent: "#ff7a45", font: "client" },
-      backdrop: { enabled: true, mode: "gradient", gradientFrom: "#1a0b10", gradientTo: "#7a2a1f", gradientAngle: 125 },
+      backdrop: { enabled: true, effect: "none", fillOpacity: 100, mode: "gradient", gradientFrom: "#1a0b10", gradientTo: "#7a2a1f", gradientAngle: 125 },
       panel: { divider: true, dividerColor: "#ff7a45" },
+    },
+  },
+  {
+    id: "rose",
+    label: "Rose",
+    swatches: ["#f472b6", "#12060d", "#4a1230"],
+    patch: {
+      theme: { recolor: true, neutral: false, accent: "#f472b6", font: "clean" },
+      backdrop: { enabled: true, effect: "none", fillOpacity: 100, mode: "gradient", gradientFrom: "#12060d", gradientTo: "#4a1230", gradientAngle: 150, hideScreenArt: true },
+      topBar: { mode: "custom" },
+      panel: { mode: "visible", seeThrough: true, tint: 60, divider: true, dividerColor: "#4a1230", dividerWidth: 1 },
+    },
+  },
+  {
+    id: "emerald",
+    label: "Emerald",
+    swatches: ["#34d399", "#04110c", "#0b3b2c"],
+    patch: {
+      theme: { recolor: true, neutral: false, accent: "#34d399", font: "geist" },
+      backdrop: { enabled: true, effect: "none", fillOpacity: 100, mode: "gradient", gradientFrom: "#04110c", gradientTo: "#0b3b2c", gradientAngle: 165, hideScreenArt: true },
+      topBar: { mode: "custom" },
+      panel: { mode: "visible", seeThrough: true, tint: 65, divider: true, dividerColor: "#0b3b2c", dividerWidth: 1 },
+    },
+  },
+  {
+    id: "frost",
+    label: "Frost",
+    swatches: ["#7dd3fc", "#06101a", "#1b3a52"],
+    patch: {
+      theme: { recolor: true, neutral: false, accent: "#7dd3fc", font: "clean" },
+      backdrop: { enabled: true, effect: "none", fillOpacity: 100, mode: "gradient", gradientFrom: "#06101a", gradientTo: "#1b3a52", gradientAngle: 200, hideScreenArt: true },
+      topBar: { mode: "custom" },
+      panel: { mode: "visible", seeThrough: true, tint: 50, divider: true, dividerColor: "#1b3a52", dividerWidth: 1 },
+    },
+  },
+  {
+    id: "void",
+    label: "Void",
+    swatches: ["#c084fc", "#0b0614", "#2a0f45"],
+    patch: {
+      theme: { recolor: true, neutral: false, accent: "#c084fc", font: "serif" },
+      backdrop: { enabled: true, effect: "none", fillOpacity: 100, mode: "gradient", gradientFrom: "#0b0614", gradientTo: "#2a0f45", gradientAngle: 135, hideScreenArt: true },
+      topBar: { mode: "custom" },
+      panel: { mode: "visible", seeThrough: true, tint: 70, divider: true, dividerColor: "#c084fc", dividerWidth: 1 },
+    },
+  },
+  {
+    id: "crimson",
+    label: "Crimson",
+    swatches: ["#ef4444", "#0c0606"],
+    patch: {
+      theme: { recolor: true, neutral: true, accent: "#ef4444", font: "serif" },
+      backdrop: { enabled: true, effect: "none", fillOpacity: 100, mode: "color", color: "#0c0606", hideScreenArt: true },
+      topBar: { mode: "custom" },
+      panel: { mode: "visible", seeThrough: true, tint: 85, divider: true, dividerColor: "#3a1212", dividerWidth: 1 },
+    },
+  },
+  {
+    // The desktop shows through, blurred and tinted dark (acrylic needs Windows 10 or 11).
+    id: "glass",
+    label: "Glass",
+    swatches: ["#ffffff", "#2a2f36", "#11151a"],
+    patch: {
+      theme: { recolor: true, neutral: true, accent: "#f5f5f5", font: "geist" },
+      backdrop: { enabled: true, mode: "color", color: "#0b0e12", fillOpacity: 55, effect: "acrylic", hideScreenArt: true },
+      topBar: { mode: "custom" },
+      panel: { mode: "visible", seeThrough: true, tint: 40, divider: true, dividerColor: "#3a3f46", dividerWidth: 1 },
     },
   },
 ];
