@@ -446,6 +446,10 @@
           "caption": "Hover cards keep ranks and party status but hide the name and tag"
         },
         {
+          "path": "media/plugins/streamer-mode/champ-select.webp",
+          "caption": "Champ select with your name and the chat hidden"
+        },
+        {
           "path": "media/plugins/streamer-mode/scoreboard.webp",
           "caption": "Match history scoreboards with every player's name hidden"
         },
