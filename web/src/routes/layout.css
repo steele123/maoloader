@@ -460,7 +460,7 @@ main {
 }
 
 .gallery.is-single {
-	grid-template-columns: minmax(0, 1fr);
+	grid-template-columns: minmax(0, 720px);
 }
 
 .gallery-item {
@@ -1438,17 +1438,157 @@ a.featured-mini-card:hover {
 	border-radius: 10px;
 }
 
-.readme table {
-	display: block;
+.readme .table-wrap {
 	overflow-x: auto;
+	margin: 0 0 1.2em;
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	background: rgba(1, 10, 19, 0.35);
+}
+
+.readme table {
+	width: 100%;
+	margin: 0;
 	border-collapse: collapse;
+	font-size: 0.9rem;
+	line-height: 1.55;
 }
 
 .readme th,
 .readme td {
-	padding: 7px 11px;
-	border: 1px solid var(--line);
+	padding: 10px 14px;
 	text-align: left;
+	vertical-align: top;
+}
+
+.readme th {
+	border-bottom: 1px solid var(--line);
+	background: rgba(200, 170, 110, 0.05);
+	color: var(--muted-text);
+	font-size: 0.7rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.readme tbody tr + tr td {
+	border-top: 1px solid rgba(200, 170, 110, 0.08);
+}
+
+.readme tbody tr:hover {
+	background: rgba(200, 170, 110, 0.03);
+}
+
+.readme td:first-child {
+	width: 30%;
+	min-width: 9em;
+	color: var(--text-strong);
+	font-weight: 600;
+}
+
+/* A path never breaks in the middle; a cell with several wraps between them. */
+.readme td code {
+	display: inline-block;
+	margin: 1px 0;
+	white-space: nowrap;
+}
+
+.readme code.endpoint {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	padding-left: 0.2em;
+}
+
+.readme .method {
+	display: inline-block;
+	flex: none;
+	white-space: nowrap;
+	padding: 1px 6px;
+	border-radius: 4px;
+	background: rgba(160, 155, 140, 0.14);
+	color: var(--muted-text);
+	font-family: inherit;
+	font-size: 0.68rem;
+	font-weight: 800;
+	letter-spacing: 0.06em;
+	line-height: 1.5;
+	vertical-align: 1px;
+}
+
+.readme .method.is-get {
+	background: rgba(63, 191, 143, 0.14);
+	color: var(--green);
+}
+
+.readme .method.is-post {
+	background: rgba(200, 170, 110, 0.16);
+	color: var(--gold);
+}
+
+.readme .method.is-put,
+.readme .method.is-patch {
+	background: rgba(10, 200, 185, 0.13);
+	color: var(--teal);
+}
+
+.readme .method.is-delete {
+	background: rgba(224, 88, 75, 0.15);
+	color: var(--red);
+}
+
+.readme .method.is-socket {
+	margin-right: 4px;
+	background: rgba(170, 130, 230, 0.15);
+	color: #b99cf0;
+}
+
+@media (max-width: 640px) {
+	/* Two-column tables (feature, request) become stacked rows; wider ones scroll in their frame. */
+	.readme table:not(:has(th:nth-child(3))) :is(tbody, tr, td) {
+		display: block;
+		width: auto;
+	}
+
+	.readme table:not(:has(th:nth-child(3))) thead {
+		display: none;
+	}
+
+	.readme table:not(:has(th:nth-child(3))) td {
+		padding: 3px 14px;
+	}
+
+	.readme table:not(:has(th:nth-child(3))) td:first-child {
+		min-width: 0;
+		padding-top: 12px;
+	}
+
+	.readme table:not(:has(th:nth-child(3))) td:last-child {
+		padding-bottom: 12px;
+	}
+
+	.readme table:not(:has(th:nth-child(3))) tbody tr + tr td {
+		border-top: 0;
+	}
+
+	.readme table:not(:has(th:nth-child(3))) tbody tr + tr {
+		border-top: 1px solid rgba(200, 170, 110, 0.08);
+	}
+
+	.readme td code,
+	.readme td code.endpoint {
+		display: inline;
+		line-height: 1.9;
+		white-space: normal;
+		overflow-wrap: anywhere;
+		-webkit-box-decoration-break: clone;
+		box-decoration-break: clone;
+	}
+
+	.readme td .method {
+		margin-right: 6px;
+	}
 }
 
 .detail-grid {
