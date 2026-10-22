@@ -1,5 +1,10 @@
 # Status changelog
 
+## 0.2.1 - 2026-10-22
+
+### Fixed
+- Appearing offline or on mobile now holds while you queue, in champ select and in game. The client switched you to busy ("In queue") when you queued, which showed friends you were on; Chat Status now puts your choice straight back. Online and away still show busy during games, as League normally does.
+
 ## 0.2.0 - 2026-10-15
 
 ### Changed

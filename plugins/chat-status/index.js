@@ -17,6 +17,9 @@
   ];
   // Phases where the client resets you to online, so a kept availability gets re-applied.
   const resetPhases = new Set(["None", "Lobby", "EndOfGame"]);
+  // Queue, champ select and games switch you to busy ("dnd"). Appearing offline or on mobile is a
+  // privacy choice, so those are put back even then; online and away let busy show as usual.
+  const heldWhileBusy = new Set(["offline", "mobile"]);
   const defaults = { keep: true, rotate: false, rotateMinutes: 10 };
   let pluginRoot = pluginName;
   let settings;
@@ -176,7 +179,7 @@
     try {
       const me = await lcu(meApi);
       const patch = {};
-      if (availability && me?.availability !== availability && me?.availability !== "dnd") {
+      if (availability && me?.availability !== availability && (me?.availability !== "dnd" || heldWhileBusy.has(availability))) {
         patch.availability = availability;
       }
       if (message && me?.statusMessage !== message) patch.statusMessage = message;
@@ -184,6 +187,16 @@
     } catch {
       if (attempt < 10) window.setTimeout(() => applyKeptStatus(attempt + 1), 3000);
     }
+  }
+
+  // The client sets busy itself when you queue, and again at champ select and game start; undo it
+  // for offline and mobile. Its own status menu never picks busy, so a choice you make there stays.
+  let holdTimer = 0;
+  function onMe(me) {
+    const { availability } = status;
+    if (!settings.get("keep") || !heldWhileBusy.has(availability) || me?.availability !== "dnd") return;
+    window.clearTimeout(holdTimer);
+    holdTimer = window.setTimeout(() => putMe({ availability }).catch(() => {}), 500);
   }
 
   function rotateNext() {
@@ -328,6 +341,9 @@
     const socket = context?.socket || window.socket;
     socket?.observe?.(phaseApi, (event) => {
       if (resetPhases.has(event?.data)) window.setTimeout(() => applyKeptStatus(), 2000);
+    });
+    socket?.observe?.(meApi, (event) => {
+      if (event?.eventType !== "Delete") onMe(event?.data);
     });
   };
 

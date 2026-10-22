@@ -115,7 +115,7 @@
     {
       "slug": "steeles-ui",
       "title": "Steele's UI",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "description": "Backdrop, custom home, top bar, right panel and lobby controls, themes with share codes, and a profile background and banner picker, in one plugin.",
       "image": "plugins/steeles-ui/assets/icon.svg",
       "entry": "plugins/steeles-ui/index.js",
@@ -183,7 +183,7 @@
     {
       "slug": "chat-status",
       "title": "Status",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "description": "Appear online, away, mobile, or offline, and set, save, or rotate a custom status message.",
       "image": "plugins/chat-status/assets/icon.svg",
       "entry": "plugins/chat-status/index.js",

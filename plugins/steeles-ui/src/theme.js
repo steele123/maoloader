@@ -148,6 +148,14 @@ function recolorValue(value, accent, neutral) {
 function recolorCss(sheets, accent, neutral) {
   const out = [];
   const visit = (rules) => {
+    // The last rule in this list to set each selector's property. A copy of an earlier colour would
+    // undo it: the champ select timer's gold text gradient is switched off by a later
+    // "background: none", and copying the gradient brought it back as a filled box.
+    const lastSetter = new Map();
+    for (const rule of rules) {
+      if (rule.type !== CSSRule.STYLE_RULE) continue;
+      for (let index = 0; index < rule.style.length; index += 1) lastSetter.set(`${rule.selectorText}|${rule.style[index]}`, rule);
+    }
     for (const rule of rules) {
       if (rule.type === CSSRule.MEDIA_RULE || rule.type === CSSRule.SUPPORTS_RULE) {
         // Recolour inside the block, then wrap the copies in the same condition.
@@ -164,7 +172,7 @@ function recolorCss(sheets, accent, neutral) {
       for (let index = 0; index < rule.style.length; index += 1) {
         const property = rule.style[index];
         const value = rule.style.getPropertyValue(property);
-        if (!HAS_COLOR.test(value)) continue;
+        if (!HAS_COLOR.test(value) || lastSetter.get(`${rule.selectorText}|${property}`) !== rule) continue;
         const next = recolorValue(value, accent, neutral);
         // An !important original needs an !important copy to lose to.
         if (next !== value) declarations.push(`${property}: ${next}${rule.style.getPropertyPriority(property) ? " !important" : ""}`);

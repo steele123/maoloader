@@ -1,5 +1,10 @@
 # Steele's UI changelog
 
+## 0.3.1 - 2026-10-18
+
+### Fixed
+- With an accent colour or Neutral colours on, the champ select timer next to your name no longer sits in a filled box. Recolouring now leaves alone any colour the client switches off later in its own styles.
+
 ## 0.3.0 - 2026-10-18
 
 ### New
