@@ -309,6 +309,32 @@
       ]
     },
     {
+      "slug": "block-list",
+      "title": "Block List",
+      "version": "0.1.0",
+      "description": "Search your block list, sort it, keep notes on why you blocked someone, see when you blocked them, and confirm before unblocking.",
+      "image": "plugins/block-list/assets/icon.svg",
+      "entry": "plugins/block-list/index.js",
+      "files": [
+        "plugins/block-list/CHANGELOG.md",
+        "plugins/block-list/README.md",
+        "plugins/block-list/assets/icon.svg",
+        "plugins/block-list/index.js"
+      ],
+      "tags": [
+        "social",
+        "block",
+        "utility"
+      ],
+      "homepage": "https://github.com/steele123/maoloader/tree/main/plugins/block-list",
+      "screenshots": [
+        {
+          "path": "media/plugins/block-list/search.webp",
+          "caption": "Search your block list by name, tag or note, sort it, and copy it (names hidden by Streamer Mode)"
+        }
+      ]
+    },
+    {
       "slug": "lobby-tools",
       "title": "Lobby Tools",
       "version": "0.2.0",
